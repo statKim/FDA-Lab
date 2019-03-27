@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "Spatio-temporal functional data analysis for wireless sensor networks data 논문"
 output: html_notebook
 ---
 <!-- Rmd 설정 -->
@@ -8,7 +8,6 @@ Sys.setenv("LANGUAGE"="EN")
 Sys.setlocale("LC_ALL", "C")
 ```
 
-## Spatio-temporal functional data analysis for wireless sensor networks data 논문
 
 ```{r}
 load("C:/Users/hyunsungKim/Desktop/Thesis/hourly_data.RData")
@@ -70,7 +69,8 @@ for (i in 2:60){
 ```
 ```{r}
 ## Smoothing the data 
-smoothed_X <- matrix(nrow=length(unique(X$grid)), ncol=60*24)  ## grid (50 ) * time  (24*60)
+# 비어있는 matrix 생성
+smoothed_X <- matrix(nrow=length(unique(X$grid)), ncol=60*24)  ## grid(50) * time(24*60)
 dim(smoothed_X)
 ```
 
@@ -83,7 +83,9 @@ for (k in 1:length(unique(X$grid))){
         smoothed_X[k, tt ] <- b$fitted.values
     }
 }
+```
 
+```{r}
 k <- 1
 i <- 1
 tt <- c( (1+24*(i-1) ) : (24*i) ) 
@@ -95,28 +97,46 @@ for (i in 2:60){
 ```
 
 ```{r}
+col <- vector()
+for (i in 1:60) {
+  # col[i] <- cat("day", i, sep="")
+  col <- c(col, paste("day", i, sep=""))
+}
+```
+
+```{r}
 #####  FPCA  (Need to apply into two type of grid (ex. grassland vs forest))
 grass_data <- matrix(apply(smoothed_X[1:25,], 2, mean), 24, 60)
 forest_data <- matrix(apply(smoothed_X[26:50,], 2, mean), 24, 60)
 
-fts_object_grass <- fts(x=c(1:24), grass_data)   # fts(): functional 객체 생성
+# grass_data <- data.frame(matrix(apply(smoothed_X[1:25,], 2, mean), 24, 60))
+# forest_data <- data.frame(matrix(apply(smoothed_X[26:50,], 2, mean), 24, 60))
+# colnames(grass_data) <- col
+# colnames(forest_data) <- col
+
+fts_object_grass <- fts(x=1:24, grass_data)   # fts(): functional 객체 생성
 fit_grass <- ftsm(fts_object_grass, order=3, method='classical')   # ftsm(): functional time series model - fpca
 
 fts_object_forest <- fts(x=c(1:24), forest_data)  
 fit_forest <- ftsm(fts_object_forest, order=3, method='classical')
 ```
 
+
 ```{r}
 par(mfrow=c(1,4))
-plot(fit_grass$basis[,1], type='l', main='mean function', xlab='Time of day', ylab='', ylim=range(fit_grass$basis[,1], fit_forest $basis[,1]))
+plot(fit_grass$basis[,1], type='l', main='mean function', xlab='Time of day', ylab='', ylim=range(fit_grass$basis[,1], fit_forest$basis[,1]))
 lines(fit_forest$basis[,1], col=2)
 # legend('topright', c('grass', 'forest'), lty=1, col=c(1,2))
 for (k in 2:4){
-    plot(fit_grass$basis[,k], type='l', main=paste(k ,'-th PC (phi)', xlab='Time of day') , ylab='', ylim=range(fit_grass$basis[,k], fit_forest$basis[,k]))
+    plot(fit_grass$basis[,k], type='l', main=paste(k-1, '-th PC (phi)', sep=""), xlab='Time of day', ylab='', ylim=range(fit_grass$basis[,k], fit_forest$basis[,k]))
     lines(fit_forest$basis[,k], col=2)
     # legend('topright', c('grass', 'forest'), lty=1, col=c(1,2))
 }
 ```
+
+
+## 5. SPATIO-TEMPORAL FUNCTIONAL PRINCIPAL COMPONENTS REGRESSION OF SOIL TEMPERATURE DATA
+### 5.1. Smooth-ANOVA model for spatio-temporal data
 
 ```{r}
 #### Smoothed ANOVA
@@ -134,4 +154,70 @@ anova_data <- data.frame(z, loc_effect, days_effect)
 b <- gamm(z~s(loc_effect)+s(days_effect)+te(loc_effect,days_effect), data=anova_data)  
 anova(b$gam)
 ```
+```{r}
+k <- 2
+z_grass <- as.vector(fit_grass$coeff[,k])
+z_grass <- rep(z_grass, times=25)
+z_forest <- as.vector(fit_forest$coeff[,k])
+z_forest <- rep(z_forest, times=25)
+z <- c(z_grass, z_forest)
+
+loc_effect <- as.numeric(unique(X$grid)[1:50])
+loc_effect <- rep(loc_effect, each=60)
+# days_effect= rep( unique(format((X$Rdate), format="%m-%d"))[-61] , 25)
+days_effect <- rep(1:60, 50)
+
+anova_data <- data.frame(z, loc_effect, days_effect)
+b <- gamm(z~s(loc_effect)+s(days_effect)+te(loc_effect,days_effect), data=anova_data)  
+anova(b$gam)
+```
+
+각 sensor node 별로 FPCA 후 smoothed anova 적용
+
+```{r}
+z <- vector()
+loc_effect <- vector()
+days_effect <- vector()
+for (i in 1:50) {
+  grass_data <- matrix(smoothed_X[i,], 24, 60)
+
+  fts_object_grass <- fts(x=1:24, grass_data)   # fts(): functional 객체 생성
+  fit_grass <- ftsm(fts_object_grass, order=3, method='classical')   # ftsm(): functional time series model - fpca
+  
+  k <- 2
+  z <- c(z, as.vector(fit_grass$coeff[,k]))
+  loc <- rep(as.numeric(unique(X$grid)[i]), each=60)
+  loc_effect <- c(loc_effect, loc)
+  days_effect <- c(days_effect, 1:60)
+}
+```
+
+```{r}
+anova_data <- data.frame(z, loc_effect, days_effect)
+b <- gamm(z~s(loc_effect)+s(days_effect)+te(loc_effect,days_effect), data=anova_data)  
+anova(b$gam)
+```
+
+```{r}
+# grass지역의 fitted plot
+fitted <- matrix(b$gam$fitted.values, 50, 60)
+plot(fitted[1,], type="l", ylim=c(-200,300))
+for (i in 2:25) {
+  lines(fitted[i,], col=i)
+}
+```
+
+```{r}
+# forest지역의 fitted plot
+fitted <- matrix(b$gam$fitted.values, 50, 60)
+plot(fitted[26,], type="l", ylim=c(-200,300))
+for (i in 26:50) {
+  lines(fitted[i,], col=i)
+}
+```
+
+```{r}
+names(b$gam)
+```
+
 
