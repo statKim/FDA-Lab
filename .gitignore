@@ -2,4 +2,9 @@
 *.RData
 *.html
 *.Rhistory
-*.pdf
+#*.pdf
+functional_data_analysis.pdf
+env2344-sup-0001-supplementary1.pdf
+Lee_et_al-2015-Environmetrics.pdf
+reference/
+img/
