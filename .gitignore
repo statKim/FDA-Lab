@@ -1,4 +1,4 @@
-.ipynb_checkpoints/
+﻿.ipynb_checkpoints/
 *.RData
 *.html
 *.Rhistory
@@ -11,3 +11,4 @@ img/
 fda_packages/
 functional-data-analysis-with-r-and-matlab.pdf
 canadian_weather 그래프.hwp
+reference/
