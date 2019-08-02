@@ -21,7 +21,7 @@ source("EM_reduced_rank.R")
 library(splines)
 library(far)    # spline basis orthonormal하게 변환하기 위함
 par(mfrow=c(3,2))
-for (kn in c(6, 11, 16)) {
+for (kn in c(6)) {
   # values
   iter <- 100
   N <- length(unique(data$idnum))
@@ -49,15 +49,15 @@ for (kn in c(6, 11, 16)) {
   # apply EM-algorithm
   for (t in 1:(iter-1)) {
     # M-step
-    theta0[t+1,] <- sol_theta0(data, B, Theta[[t]], alpha[[t]])
-    Theta[[t+1]] <- sol_Theta(data, B, theta0[t+1,], Theta[[t]], D[t,], alpha[[t]], sigma[t], alpha_outer)
+    theta0[t+1,] <- sol_theta0(data, B, Theta[[t]], alpha[[t]], Tgrid)
+    Theta[[t+1]] <- sol_Theta(data, B, theta0[t+1,], Theta[[t]], D[t,], alpha[[t]], sigma[t], alpha_outer, Tgrid)
     
     # E-step (predict alpha)
-    alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t,], sigma[t])
-    alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t])
+    alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t,], sigma[t], Tgrid)
+    alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t], Tgrid)
     
-    sigma[t+1] <- proc_sigma(data, B, theta0[t+1,], Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t])
-    D[t+1,] <- proc_D(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t+1])
+    sigma[t+1] <- proc_sigma(data, B, theta0[t+1,], Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t], Tgrid)
+    D[t+1,] <- proc_D(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t+1], Tgrid)
   }
   
   # estimate PC functions and mean function
@@ -68,6 +68,20 @@ for (kn in c(6, 11, 16)) {
     fpc <- B%*%orth_Theta
   }
   mean_fn <- B%*%theta0[t,]
+  
+  
+  # likelihood
+  likelihood <- c()
+  for (i in 1:N) {
+    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
+    y_i <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+    n_i <- length(y_i)
+    likelihood[i] <- exp( t(y_i-B_i%*%theta0[t,])%*%
+                            ginv(diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%
+                            t(Theta[[t]])%*%t(B_i))%*%(y_i-B_i%*%theta0[t,])/(-2) ) /
+                     ( (2*pi)^(n_i/2) * sqrt( det( diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%t(Theta[[t]])%*%t(B_i) ) ) )
+  }
+  likelihood <- prod(likelihood)
   
   # 48 curves and mean function
   # par(mfrow=c(1,2))
@@ -107,7 +121,9 @@ for (kn in c(6, 11, 16)) {
 
 source("EM_reduced_rank.R")
 par(mfrow=c(3,2))
-init_value <- .3
+# for (start_point in seq(-5, 5, 0.5)) {
+# (sigma,D,alpha,theta0,Theta)   
+init_value <- c(.1, .1, .1, .1, .1)
 for (kn in c(4, 9, 14)) {
   fit <- fpca.fit(data, iter=100, init_value=init_value, num_knots=kn, num_pc=2)
   
@@ -117,7 +133,7 @@ for (kn in c(4, 9, 14)) {
   sub <- data[which(data$idnum==ind[1]), ]
   plot(sub$age, sub$spnbmd,
        type="o",
-       xlim=c(age_range[1], age_range[2]),
+       xlim=c(range(data$age)[1], range(data$age)[2]),
        ylim=c(range(data$spnbmd)[1], range(data$spnbmd)[2]),
        xlab="Age (years)",
        ylab="Spinal bone density")
@@ -128,9 +144,32 @@ for (kn in c(4, 9, 14)) {
   lines(fit$Timegrid, fit$MeanFunction, col="red", lwd=3, type="l")
   
   # 1st PC function
-  plot(fit$Timegrid, fit$FPCscore[,1], type="l", lwd=3, ylim=c(0, 0.12), xlab="Age (years)", ylab="Princ. comp.")
+  plot(fit$Timegrid, fit$FPCscore[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
   
   # mixed effects model과 비교
   fit2 <- fpca.fit(data, iter=100, init_value=init_value, num_knots=kn, mixed.model=T)
-  lines(fit2$Timegrid, fit2$FPCscore[,1], lwd=3, lty=2, type="l")
+  plot(fit2$Timegrid, fit2$FPCscore[,1], lwd=3, lty=2, type="l")
+
+  # loglikelihood 비교
+  print( paste("Reduced rank(", kn, " knots) : ", round(fit$Loglik,1), sep="") )
+  print( paste("mixed effects(", kn, " knots) : ", fit2$Loglik, sep="") )
+}
+# print("===================================================")
+# }
+
+# predicted curve
+par(mfrow=c(2,3))
+for (i in 1:6){
+  ind <- which(fit$Timegrid %in% data$age[which(data$idnum==unique(data$idnum)[i])])
+  time_point <- fit$Timegrid[ind]
+  t_range <- range(ind)
+  y_hat <- fit$MeanFunction[t_range[1]:t_range[2]] + fit$FPCscore[t_range[1]:t_range[2],]%*%fit$alpha[i,]
+  
+  y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+  
+  plot(time_point, y,
+       xlim=range(data$age), ylim=range(data$spnbmd),
+       xlab="Age (years)", ylab="Spinal bone density",
+       main=paste("predicted trajectory of curve", unique(data$idnum)[i]))
+  points(fit$Timegrid[t_range[1]:t_range[2]], y_hat, col=3, type='l')
 }

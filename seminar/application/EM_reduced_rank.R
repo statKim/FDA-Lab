@@ -7,7 +7,7 @@ library(MASS)   # ginv 함수 사용하기위함
 library(far)    # spline basis orthonormal하게 변환하기 위함
 
 # function 정의
-proc_sigma <- function(data, B, theta0, Theta, alpha, D, sigma) {
+proc_sigma <- function(data, B, theta0, Theta, alpha, D, sigma, Tgrid) {
   N <- length(unique(data$idnum))
   theta0 <- matrix(theta0, ncol=1)
   comp <- c()
@@ -22,7 +22,7 @@ proc_sigma <- function(data, B, theta0, Theta, alpha, D, sigma) {
   return(result)
 }
 
-proc_D <- function(data, B, Theta, alpha, D, sigma) {
+proc_D <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
   N <- length(unique(data$idnum))
   K <- ncol(Theta)
   result <- c()
@@ -39,7 +39,7 @@ proc_D <- function(data, B, Theta, alpha, D, sigma) {
 }
 
 
-sol_theta0 <- function(data, B, Theta, alpha) {
+sol_theta0 <- function(data, B, Theta, alpha, Tgrid) {
   # left_s <- solve( Reduce("+", lapply(B, FUN = function(x){ t(x)%*%x })) )   # matrix sum
   N <- length(unique(data$idnum))
   # left_s <- list()
@@ -63,7 +63,7 @@ sol_theta0 <- function(data, B, Theta, alpha) {
 }
 
 
-sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod) {
+sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod, Tgrid) {
   N <- length(unique(data$idnum))
   K <- ncol(Theta)
   q <- nrow(Theta)
@@ -83,7 +83,7 @@ sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod) {
       } else {
         # left_s <- left_s + alpha[i,j]^2 * t(B_i)%*%B_i
         left_s <- left_s + alp_outer[j,j] * t(B_i)%*%B_i
-        right_s <- right_s + t(B_i)%*%(alpha[i,j] * (y - B_i%*%theta0) -
+        right_s <- right_s + t(B_i)%*%( alpha[i,j] * (y - B_i%*%theta0) -
                                          B_i%*%Theta%*%alp_outer[j, ] +
                                          alp_outer[j,j]*B_i%*%Theta[,j] )
       }
@@ -99,7 +99,7 @@ sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod) {
 #   result <- alpha_i %*% t(alpha_i) + ginv( diag(1/D) + (t(Theta)%*%t(B_i)%*%B_i%*%Theta)/sigma )
 #   return(result)
 # }
-sol_alpha_outprod <- function(data, B, Theta, alpha, D, sigma) {
+sol_alpha_outprod <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
   N <- length(unique(data$idnum))
   K <- ncol(Theta)
   result <- list()
@@ -112,7 +112,7 @@ sol_alpha_outprod <- function(data, B, Theta, alpha, D, sigma) {
 }
 
 
-sol_alpha <- function(data, B, theta0, Theta, D, sigma) {
+sol_alpha <- function(data, B, theta0, Theta, D, sigma, Tgrid) {
   N <- length(unique(data$idnum))
   K <- ncol(Theta)
   result <- matrix(0, N, K)
@@ -137,14 +137,15 @@ orthog_Theta <- function(Theta, D) {
 
 
 # fit reduced rank model for fpca
-fpca.fit <- function(data, iter=100, init_value=.1, num_knots=4, num_pc=2, mixed.model=F) {
+fpca.fit <- function(data, iter=100, init_value=c(0.1, 1, 2, 3, 3), num_knots=4, num_pc=2, mixed.model=F) {
   # values
   iter <- 100
   N <- length(unique(data$idnum))
   num_knots <- num_knots + 2   # knots개수 = num_knots-2 => basis intercept때문
   age_range <- range(data$age)
   knots <- seq(from=age_range[1], to=age_range[2], length=num_knots)[-c(1,num_knots)]
-  Tgrid <- unique( round( seq(age_range[1], age_range[2], 0.05), 1) )
+  # Tgrid <- unique( round( seq(age_range[1], age_range[2], 0.05), 1) )
+  Tgrid <- unique( round( seq(age_range[1], age_range[2], 0.005), 2) )
   B <- ns(Tgrid, knots=knots, intercept=T)
   q <- num_knots   # basis matrix dimension
   k <- num_pc   # k=q => mixed effects model
@@ -155,50 +156,83 @@ fpca.fit <- function(data, iter=100, init_value=.1, num_knots=4, num_pc=2, mixed
   }
   
   # orthnormalization for spline basis
-  B <- orthonormalization(B, basis=F, norm=T)   # Gram-Schmidt orthogonalization
+  # B <- orthonormalization(B, basis=F, norm=T)   # Gram-Schmidt orthogonalization
+  QR <- qr(B)
+  R <- qr.R(QR)
+  T_mat <- sqrt(nrow(B)/nrow(data))*t(solve(R))
+  B <- B%*%t(T_mat)
   
   # initial parameters
-  sigma <- rep(init_value, iter)
-  D <- matrix(init_value, iter, k)  # diagonal term  q x q
-  alpha <- list(matrix(init_value, N, k))  # matrix list => ncol(B) 대신 pc 개수 k로 해야됨!!
-  theta0 <- matrix(init_value, iter, q)
-  Theta <- list(matrix(init_value, q, k))  # matrix list
-  alpha_outer <- rep(list(matrix(init_value, k, k)), N)
+  sigma <- rep(init_value[1], iter)
+  D <- matrix(init_value[2], iter, k)  # diagonal term  q x q
+  alpha <- list(matrix(init_value[3], N, k))  # matrix list => ncol(B) 대신 pc 개수 k로 해야됨!!
+  alpha_outer <- rep(list(matrix(init_value[3], k, k)), N)
+  theta0 <- matrix(init_value[4], iter, q)
+  Theta <- list(matrix(init_value[5], q, k))  # matrix list
   
   # apply EM-algorithm
   for (t in 1:(iter-1)) {
     # M-step
-    theta0[t+1,] <- sol_theta0(data, B, Theta[[t]], alpha[[t]])
-    Theta[[t+1]] <- sol_Theta(data, B, theta0[t+1,], Theta[[t]], D[t,], alpha[[t]], sigma[t], alpha_outer)
+    sigma[t+1] <- proc_sigma(data, B, theta0[t,], Theta[[t]], alpha[[t]], D[t,], sigma[t], Tgrid)
+    D[t+1,] <- proc_D(data, B, Theta[[t]], alpha[[t]], D[t,], sigma[t+1], Tgrid)
+    
+    theta0[t+1,] <- sol_theta0(data, B, Theta[[t]], alpha[[t]], Tgrid)
+    Theta[[t+1]] <- sol_Theta(data, B, theta0[t,], Theta[[t]], D[t+1,], alpha[[t]], sigma[t+1], alpha_outer, Tgrid)
     
     # E-step (predict alpha)
-    alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t,], sigma[t])
-    alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t])
-    
-    sigma[t+1] <- proc_sigma(data, B, theta0[t+1,], Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t])
-    D[t+1,] <- proc_D(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t+1])
+    alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t+1,], sigma[t+1], Tgrid)
+    alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t+1,], sigma[t+1], Tgrid)
   }
   
   # estimate PC functions and mean function
   orth_Theta <- orthog_Theta(Theta[[t]], D[t,])
   fpc <- B%*%orth_Theta
   if (sum(fpc[,1]) < 0) {   # 1st PC의 부호를 양수로 만들기 위해
-    orth_Theta <- -orthog_Theta(Theta[[t]], D[t,])
+    orth_Theta <- -orth_Theta
     fpc <- B%*%orth_Theta
   }
   mean_fn <- B%*%theta0[t,]
+  
+  # log likelihood
+  loglik <- c()
+  # sloglik <- c()
+  for (i in 1:N) {
+    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
+    y_i <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+    n_i <- length(y_i)
+    alpha_i <- matrix(alpha[[t]][i,], ncol=1)
+    # # true likelihood
+    # likelihood[i] <- exp( t(y_i-B_i%*%theta0[t,])%*%
+    #                       ginv(diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%
+    #                       t(Theta[[t]])%*%t(B_i))%*%(y_i-B_i%*%theta0[t,])/(-2) ) /
+    #                  ( (2*pi)^(n_i/2) * sqrt( det( diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%t(Theta[[t]])%*%t(B_i) ) ) )
+    loglik[i] <- ( t(y_i-B_i%*%theta0[t,])%*%ginv(diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%
+                   t(Theta[[t]])%*%t(B_i))%*%(y_i-B_i%*%theta0[t,])/(-2) ) -
+                  log( (2*pi)^(n_i/2) * sqrt( det( diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%t(Theta[[t]])%*%t(B_i) ) ) )
+    # simplified log likelihood
+    # likelihood[i] <- exp( t(y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i)%*%
+    #                       (y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i)/(-2*sigma[t]) - t(alpha_i)%*%diag(1/D[t,])%*%alpha_i/2 ) /
+    #                   ( (2*pi)^((n_i+k)/2) * sigma[t]^(n_i/2) * sqrt( prod(D[t,]) ) )
+    # sloglik[i] <- ( t(y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i)%*%
+    #                (y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i) )/(-2*sigma[t]) - t(alpha_i)%*%diag(1/D[t,])%*%alpha_i/2 -
+    #              log( (2*pi)^((n_i+k)/2) * sqrt(sigma[t])^n_i * sqrt( prod(D[t,]) ) )
+  }
+  loglik <- sum(loglik)
+  # sloglik <- sum(sloglik)
   
   # output
   result <- list()
   result[["basis"]] <- B
   result[["Timegrid"]] <- Tgrid
-  result[["sigma^2"]] <- sigma[[t]]
+  result[["sigma2"]] <- sigma[[t]]
   result[["alpha"]] <- alpha[[t]]
   result[["theta0"]] <- theta0[t,]
   result[["D"]] <- diag(D[t,])
   result[["eigenfunction"]] <- orth_Theta
   result[["MeanFunction"]] <- mean_fn
   result[["FPCscore"]] <- fpc
+  result[["Loglik"]] <- loglik
+  # result[["sLoglik"]] <- sloglik
   
   return(result)
 }
