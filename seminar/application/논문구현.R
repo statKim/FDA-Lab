@@ -34,6 +34,15 @@ for (kn in c(6)) {
   k <- 2   # k=q => mixed effects model
   
   B <- orthonormalization(B, basis=F, norm=T)   # Gram-Schmidt orthogonalization
+  QR <- qr(B)
+  R <- qr.R(QR)
+  g <- nrow(B)
+  L <- 17.1
+  T_mat <- sqrt(g/L)*t(solve(R))
+  # L/g * t(B%*%t(T_mat))%*%B%*%t(T_mat)
+  
+  
+  B <- B%*%t(T_mat)
   
   # inital value
   init_value <- .1
@@ -120,7 +129,7 @@ for (kn in c(6)) {
 }
 
 source("EM_reduced_rank.R")
-par(mfrow=c(3,2))
+par(mfrow=c(1,2))
 # for (start_point in seq(-5, 5, 0.5)) {
 # (sigma,D,alpha,theta0,Theta)   
 init_value <- c(.1, .1, .1, .1, .1)
@@ -146,20 +155,21 @@ for (kn in c(4, 9, 14)) {
   # 1st PC function
   plot(fit$Timegrid, fit$FPCscore[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
   
-  # mixed effects model과 비교
-  fit2 <- fpca.fit(data, iter=100, init_value=init_value, num_knots=kn, mixed.model=T)
-  plot(fit2$Timegrid, fit2$FPCscore[,1], lwd=3, lty=2, type="l")
+  # # mixed effects model과 비교
+  # fit2 <- fpca.fit(data, iter=100, init_value=init_value, num_knots=kn, mixed.model=T)
+  # lines(fit2$Timegrid, fit2$FPCscore[,1], lwd=3, lty=2, type="l")
 
   # loglikelihood 비교
-  print( paste("Reduced rank(", kn, " knots) : ", round(fit$Loglik,1), sep="") )
-  print( paste("mixed effects(", kn, " knots) : ", fit2$Loglik, sep="") )
+  print( paste("Reduced rank(", kn, " knots) : ", round(fit$Loglik, 2), sep="") )
+  # print( paste("mixed effects(", kn, " knots) : ", fit2$Loglik, sep="") )
 }
 # print("===================================================")
 # }
 
 # predicted curve
-par(mfrow=c(2,3))
-for (i in 1:6){
+fit <- fpca.fit(data, iter=100, init_value=init_value, num_knots=4, num_pc=2)
+par(mfrow=c(5,5))
+for (i in 1:25){
   ind <- which(fit$Timegrid %in% data$age[which(data$idnum==unique(data$idnum)[i])])
   time_point <- fit$Timegrid[ind]
   t_range <- range(ind)
@@ -173,3 +183,7 @@ for (i in 1:6){
        main=paste("predicted trajectory of curve", unique(data$idnum)[i]))
   points(fit$Timegrid[t_range[1]:t_range[2]], y_hat, col=3, type='l')
 }
+
+# 1st PC function
+plot(fit$Timegrid, fit$FPCscore[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
+
