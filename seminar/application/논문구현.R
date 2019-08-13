@@ -33,16 +33,16 @@ for (kn in c(6)) {
   q <- num_knots   # basis matrix dimension
   k <- 2   # k=q => mixed effects model
   
-  B <- orthonormalization(B, basis=F, norm=T)   # Gram-Schmidt orthogonalization
+  # B <- orthonormalization(B, basis=F, norm=T)   # Gram-Schmidt orthogonalization
   QR <- qr(B)
   R <- qr.R(QR)
   g <- nrow(B)
-  L <- 17.1
+  L <- age_range[2] - age_range[1]
   T_mat <- sqrt(g/L)*t(solve(R))
-  # L/g * t(B%*%t(T_mat))%*%B%*%t(T_mat)
+  L/g * t(B%*%t(T_mat))%*%B%*%t(T_mat)   # identity matrix => orthonormal
+  # T_mat <- sqrt(nrow(B)/nrow(data))*t(solve(R))
+  B <- B%*%t(T_mat) * sqrt(L/g)
   
-  
-  B <- B%*%t(T_mat)
   
   # inital value
   init_value <- .1
@@ -58,15 +58,15 @@ for (kn in c(6)) {
   # apply EM-algorithm
   for (t in 1:(iter-1)) {
     # M-step
+    sigma[t+1] <- proc_sigma(data, B, theta0[t,], Theta[[t]], alpha[[t]], D[t,], sigma[t], Tgrid)
+    D[t+1,] <- proc_D(data, B, Theta[[t]], alpha[[t]], D[t,], sigma[t+1], Tgrid)
+    
     theta0[t+1,] <- sol_theta0(data, B, Theta[[t]], alpha[[t]], Tgrid)
-    Theta[[t+1]] <- sol_Theta(data, B, theta0[t+1,], Theta[[t]], D[t,], alpha[[t]], sigma[t], alpha_outer, Tgrid)
+    Theta[[t+1]] <- sol_Theta(data, B, theta0[t,], Theta[[t]], D[t+1,], alpha[[t]], sigma[t+1], alpha_outer, Tgrid)
     
     # E-step (predict alpha)
-    alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t,], sigma[t], Tgrid)
-    alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t], Tgrid)
-    
-    sigma[t+1] <- proc_sigma(data, B, theta0[t+1,], Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t], Tgrid)
-    D[t+1,] <- proc_D(data, B, Theta[[t+1]], alpha[[t+1]], D[t,], sigma[t+1], Tgrid)
+    alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t+1,], sigma[t+1], Tgrid)
+    alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t+1,], sigma[t+1], Tgrid)
   }
   
   # estimate PC functions and mean function

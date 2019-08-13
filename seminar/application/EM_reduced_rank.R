@@ -1,6 +1,9 @@
 ########################################
 ### EM algorithm for reduced rank model
 ########################################
+# 데이터를 정의해줘야함
+# input data : 1st column(id), 2nd column(time points), 3rd column(y)
+
 
 library(splines)
 library(MASS)   # ginv 함수 사용하기위함
@@ -8,12 +11,12 @@ library(far)    # spline basis orthonormal하게 변환하기 위함
 
 # function 정의
 proc_sigma <- function(data, B, theta0, Theta, alpha, D, sigma, Tgrid) {
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   theta0 <- matrix(theta0, ncol=1)
   comp <- c()
   for (i in 1:N) {
-    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
-    y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+    B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
+    y <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
     alpha_i <- matrix(alpha[i,], ncol=1)
     comp[i] <- t(y - B_i%*%theta0 - B_i%*%Theta%*%alpha_i) %*% (y - B_i%*%theta0 - B_i%*%Theta%*%alpha_i) +
       sum(diag( B_i%*%Theta%*%ginv( diag(1/D)+(t(Theta)%*%t(B_i)%*%B_i%*%Theta)/sigma )%*%t(Theta)%*%t(B_i) ))
@@ -23,13 +26,13 @@ proc_sigma <- function(data, B, theta0, Theta, alpha, D, sigma, Tgrid) {
 }
 
 proc_D <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   K <- ncol(Theta)
   result <- c()
   for (j in 1:K) {
     comp <- c()
     for (i in 1:N) {
-      B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
+      B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
       comp[i] <- alpha[i,j]^2 + (ginv( diag(1/D)+(t(Theta)%*%t(B_i)%*%B_i%*%Theta)/sigma ))[j,j]
     }
     result[j] <- sum(comp)
@@ -41,12 +44,12 @@ proc_D <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
 
 sol_theta0 <- function(data, B, Theta, alpha, Tgrid) {
   # left_s <- solve( Reduce("+", lapply(B, FUN = function(x){ t(x)%*%x })) )   # matrix sum
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   # left_s <- list()
   # right_s <- list()
   for (i in 1:N) {
-    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
-    y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+    B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
+    y <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
     alpha_i <- matrix(alpha[i,], ncol=1)
     # left_s[i] <- t(B_i)%*%B_i
     # right_s[i] <- t(B_i)%*%(y - B_i%*%Theta%*%alpha_i)
@@ -64,14 +67,14 @@ sol_theta0 <- function(data, B, Theta, alpha, Tgrid) {
 
 
 sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod, Tgrid) {
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   K <- ncol(Theta)
   q <- nrow(Theta)
   result <- matrix(0, q, K)
   for (j in 1:K) {
     for (i in 1:N) {
-      B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
-      y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+      B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
+      y <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
       # alp_outer <- sol_alpha_outprod(B_i, Theta, alpha[i,], D, sigma)
       alp_outer <- alpha_outprod[[i]]
       if (i == 1) {
@@ -100,11 +103,11 @@ sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod, Tg
 #   return(result)
 # }
 sol_alpha_outprod <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   K <- ncol(Theta)
   result <- list()
   for (i in 1:N) {
-    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
+    B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
     alpha_i <- matrix(alpha[i,], ncol = 1)
     result[[i]] <- alpha_i %*% t(alpha_i) + ginv( diag(1/D) + (t(Theta)%*%t(B_i)%*%B_i%*%Theta)/sigma )
   }
@@ -113,12 +116,12 @@ sol_alpha_outprod <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
 
 
 sol_alpha <- function(data, B, theta0, Theta, D, sigma, Tgrid) {
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   K <- ncol(Theta)
   result <- matrix(0, N, K)
   for (i in 1:N) {
-    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
-    y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+    B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
+    y <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
     alpha_i <- ginv( sigma*diag(1/D) + t(Theta)%*%t(B_i)%*%B_i%*%Theta ) %*% t(Theta)%*%t(B_i)%*%(y-B_i%*%theta0)
     result[i,] <- alpha_i
   }
@@ -130,22 +133,34 @@ orthog_Theta <- function(Theta, D) {
   K <- ncol(Theta)   # number of PCs
   Gamma <- Theta %*% diag(D) %*% t(Theta)
   r <- eigen(Gamma)
-  result <- r$vectors[,1:K]
-  return(result)
+  eigenvector <- r$vectors[,1:K]
+  eigenvalues <- r$values[1:K]
+  return(list(eigenvector=eigenvector, eigenvalues=eigenvalues))
 }
 
 
 
 # fit reduced rank model for fpca
-fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=4, num_pc=2, mixed.model=F) {
+fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=4, num_pc=2, mixed.model=F, grid_sep=0.1) {
   # values
   iter <- 100
-  N <- length(unique(data$idnum))
+  N <- length(unique(data[,1]))
   num_knots <- num_knots + 2   # knots개수 = num_knots-2 => basis intercept때문
-  age_range <- range(data$age)
+  age_range <- range(data[,2])
   knots <- seq(from=age_range[1], to=age_range[2], length=num_knots)[-c(1,num_knots)]
-  Tgrid <- unique( round( seq(age_range[1], age_range[2], 0.05), 1) )
-  # Tgrid <- unique( round( seq(age_range[1], age_range[2], 0.005), 2) )
+  if (grid_sep >= 1) {
+    interval <- 0
+  } else if (grid_sep >= 0.1) {
+    interval <- 1
+  } else if (grid_sep >= 0.01) {
+    interval <- 2
+  } else if (grid_sep >= 0.001) {
+    interval <- 3
+  } else {
+    interval <- 3
+  }
+  Tgrid <- unique( round( seq(age_range[1], age_range[2], grid_sep/2), interval) )
+  # Tgrid <- unique( round( seq(age_range[1], age_range[2], 0.05), 1) )
   B <- ns(Tgrid, knots=knots, intercept=T)
   q <- num_knots   # basis matrix dimension
   k <- num_pc   # k=q => mixed effects model
@@ -190,19 +205,24 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   
   # estimate PC functions and mean function
   orth_Theta <- orthog_Theta(Theta[[t]], D[t,])
-  fpc <- B%*%orth_Theta
+  fpc <- B%*%orth_Theta$eigenvector
   if (sum(fpc[,1]) < 0) {   # 1st PC의 부호를 양수로 만들기 위해
-    orth_Theta <- -orth_Theta
-    fpc <- B%*%orth_Theta
+    orth_Theta <- -orth_Theta$eigenvector
+    fpc <- B%*%orth_Theta$eigenvector
   }
   mean_fn <- B%*%theta0[t,]
+  
+  # PVE 계산
+  PVE <- t( data.frame(individual=orth_Theta$eigenvalues / sum(orth_Theta$eigenvalues),
+                       cumulative=cumsum(orth_Theta$eigenvalues) / sum(orth_Theta$eigenvalues)) )
+  colnames(PVE) <- paste("PC", 1:k, sep="")
   
   # log likelihood
   loglik <- c()
   # sloglik <- c()
   for (i in 1:N) {
-    B_i <- B[which(Tgrid %in% data$age[which(data$idnum==unique(data$idnum)[i])]), ]
-    y_i <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
+    B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
+    y_i <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
     n_i <- length(y_i)
     alpha_i <- matrix(alpha[[t]][i,], ncol=1)
     # # true likelihood
@@ -224,6 +244,9 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   loglik <- sum(loglik)
   # sloglik <- sum(sloglik)
   
+  
+  
+  
   # output
   result <- list()
   result[["basis"]] <- B
@@ -236,6 +259,7 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   result[["MeanFunction"]] <- mean_fn
   result[["FPCscore"]] <- fpc
   result[["Loglik"]] <- loglik
+  result[["PVE"]] <- PVE
   # result[["sLoglik"]] <- sloglik
   
   return(result)
