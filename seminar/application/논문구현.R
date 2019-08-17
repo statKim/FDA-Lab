@@ -129,11 +129,11 @@ for (kn in c(6)) {
 }
 
 source("EM_reduced_rank.R")
-par(mfrow=c(1,2))
+par(mfrow=c(3,2))
 # for (start_point in seq(-5, 5, 0.5)) {
 # (sigma,D,alpha,theta0,Theta)   
 init_value <- c(.1, .1, .1, .1, .1)
-for (kn in c(4, 9, 14)) {
+for (kn in c(4)) {
   fit <- fpca.fit(data, iter=100, init_value=init_value, num_knots=kn, num_pc=2)
   
   # 48 curves and mean function
@@ -153,11 +153,11 @@ for (kn in c(4, 9, 14)) {
   lines(fit$Timegrid, fit$MeanFunction, col="red", lwd=3, type="l")
   
   # 1st PC function
-  plot(fit$Timegrid, fit$FPCscore[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
+  plot(fit$Timegrid, fit$PCfunction[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
   
   # # mixed effects model과 비교
   # fit2 <- fpca.fit(data, iter=100, init_value=init_value, num_knots=kn, mixed.model=T)
-  # lines(fit2$Timegrid, fit2$FPCscore[,1], lwd=3, lty=2, type="l")
+  # lines(fit2$Timegrid, fit2$PCfunction[,1], lwd=3, lty=2, type="l")
 
   # loglikelihood 비교
   print( paste("Reduced rank(", kn, " knots) : ", round(fit$Loglik, 2), sep="") )
@@ -173,7 +173,7 @@ for (i in 1:25){
   ind <- which(fit$Timegrid %in% data$age[which(data$idnum==unique(data$idnum)[i])])
   time_point <- fit$Timegrid[ind]
   t_range <- range(ind)
-  y_hat <- fit$MeanFunction[t_range[1]:t_range[2]] + fit$FPCscore[t_range[1]:t_range[2],]%*%fit$alpha[i,]
+  y_hat <- fit$MeanFunction[t_range[1]:t_range[2]] + fit$PCfunction[t_range[1]:t_range[2],]%*%fit$alpha[i,]
   
   y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
   
@@ -185,5 +185,5 @@ for (i in 1:25){
 }
 
 # 1st PC function
-plot(fit$Timegrid, fit$FPCscore[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
+plot(fit$Timegrid, fit$PCfunction[,1], type="l", lwd=3, xlab="Age (years)", ylab="Princ. comp.", ylim=c(0, 0.12))
 
