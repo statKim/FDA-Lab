@@ -54,16 +54,11 @@ proc_D <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
 
 
 sol_theta0 <- function(data, B, Theta, alpha, Tgrid) {
-  # left_s <- solve( Reduce("+", lapply(B, FUN = function(x){ t(x)%*%x })) )   # matrix sum
   N <- length(unique(data[,1]))
-  # left_s <- list()
-  # right_s <- list()
   for (i in 1:N) {
     B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
     y <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
     alpha_i <- matrix(alpha[i,], ncol=1)
-    # left_s[i] <- t(B_i)%*%B_i
-    # right_s[i] <- t(B_i)%*%(y - B_i%*%Theta%*%alpha_i)
     if (i == 1) {
       left_s <- t(B_i)%*%B_i
       right_s <- t(B_i)%*%(y - B_i%*%Theta%*%alpha_i)
@@ -86,16 +81,13 @@ sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod, Tg
     for (i in 1:N) {
       B_i <- B[which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])]), ]
       y <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
-      # alp_outer <- sol_alpha_outprod(B_i, Theta, alpha[i,], D, sigma)
       alp_outer <- alpha_outprod[[i]]
       if (i == 1) {
-        # left_s <- alpha[i,j]^2 * t(B_i)%*%B_i
         left_s <- alp_outer[j,j] * t(B_i)%*%B_i
         right_s <- t(B_i)%*%( alpha[i,j] * (y - B_i%*%theta0) -
                                 B_i%*%Theta%*%alp_outer[j, ] +
                                 alp_outer[j,j]*B_i%*%Theta[,j] )        
       } else {
-        # left_s <- left_s + alpha[i,j]^2 * t(B_i)%*%B_i
         left_s <- left_s + alp_outer[j,j] * t(B_i)%*%B_i
         right_s <- right_s + t(B_i)%*%( alpha[i,j] * (y - B_i%*%theta0) -
                                           B_i%*%Theta%*%alp_outer[j, ] +
@@ -108,11 +100,6 @@ sol_Theta <- function(data, B, theta0, Theta, D, alpha, sigma, alpha_outprod, Tg
 }
 
 # alpha_i의 outerproduct
-# sol_alpha_outprod <- function(B_i, Theta, alpha_i, D, sigma) {
-#   alpha_i <- matrix(alpha_i, ncol = 1)
-#   result <- alpha_i %*% t(alpha_i) + ginv( diag(1/D) + (t(Theta)%*%t(B_i)%*%B_i%*%Theta)/sigma )
-#   return(result)
-# }
 sol_alpha_outprod <- function(data, B, Theta, alpha, D, sigma, Tgrid) {
   N <- length(unique(data[,1]))
   K <- ncol(Theta)
@@ -157,6 +144,7 @@ orthog_Theta <- function(Theta, D) {
   } else {
     Gamma <- D * Theta %*% t(Theta)
   }
+  # set.seed(5)   # 같은 부호의 eigenvector 뽑기 위함
   r <- eigen(Gamma)
   eigenvector <- r$vectors[,1:K]
   eigenvalues <- r$values[1:K]
@@ -167,9 +155,10 @@ orthog_Theta <- function(Theta, D) {
 
 # fit reduced rank model for fpca
 fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=4, num_pc=2, mixed.model=F, grid_sep=0.1) {
+  # 연산속도 높이기 위해 matrix로 변환
   data <- as.matrix(data)
   
-  # values
+  # 필요한 변수 정의
   N <- length(unique(data[,1]))
   num_knots <- num_knots + 2   # knots개수 = num_knots-2 => basis intercept때문
   age_range <- range(data[,2])
@@ -204,7 +193,6 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   L <- age_range[2] - age_range[1]
   T_mat <- sqrt(g/L)*t(solve(R))
   L/g * t(B%*%t(T_mat))%*%B%*%t(T_mat)   # identity matrix => orthonormal
-  # T_mat <- sqrt(nrow(B)/nrow(data))*t(solve(R))
   B <- B%*%t(T_mat) * sqrt(L/g)
   
   # initial parameters
@@ -229,16 +217,16 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
     alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t+1,], sigma[t+1], Tgrid)
   }
   
-  # estimate PC functions and mean function
+  # estimate PC functions
   orth_Theta <- orthog_Theta(Theta[[t]], D[t,])
-  if (sum(pc_func[,1]) < 0) {   # 1st PC의 부호를 양수로 만들기 위해
-    orth_Theta$eigenvector <- -orth_Theta$eigenvector
-    pc_func <- B%*%orth_Theta$eigenvector
-  } else {
-    pc_func <- B%*%orth_Theta$eigenvector   # PC function
-  }
+  pc_func <- B%*%orth_Theta$eigenvector   # PC function
+  # if (sum(pc_func[,1]) < 0) {   # 1st PC의 부호를 양수로 만들기 위해
+  #   orth_Theta$eigenvector <- -orth_Theta$eigenvector
+  #   pc_func <- B%*%orth_Theta$eigenvector
+  # }
   
-  mean_fn <- B%*%theta0[t,]   # mean function
+  # estimate mean function
+  mean_fn <- B%*%theta0[t,]
   
   # estimate PC score
   # fpc <- 
@@ -256,11 +244,6 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
     y_i <- matrix(data[,3][which(data[,1]==unique(data[,1])[i])], ncol=1)
     n_i <- length(y_i)
     alpha_i <- matrix(alpha[[t]][i,], ncol=1)
-    # # true likelihood
-    # likelihood[i] <- exp( t(y_i-B_i%*%theta0[t,])%*%
-    #                       ginv(diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%
-    #                       t(Theta[[t]])%*%t(B_i))%*%(y_i-B_i%*%theta0[t,])/(-2) ) /
-    #                  ( (2*pi)^(n_i/2) * sqrt( det( diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%t(Theta[[t]])%*%t(B_i) ) ) )
     if (k > 1) {   # PC 개수가 1인 경우의 조건
       loglik[i] <- ( t(y_i-B_i%*%theta0[t,])%*%ginv(diag(rep(sigma[t], n_i))+B_i%*%Theta[[t]]%*%diag(D[t,])%*%
                                                       t(Theta[[t]])%*%t(B_i))%*%(y_i-B_i%*%theta0[t,])/(-2) ) -
@@ -271,16 +254,8 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
         log( (2*pi)^(n_i/2) * sqrt( det( diag(rep(sigma[t], n_i))+D[t,]*B_i%*%Theta[[t]]%*%t(Theta[[t]])%*%t(B_i) ) ) )
       
     }
-    # simplified log likelihood
-    # likelihood[i] <- exp( t(y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i)%*%
-    #                       (y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i)/(-2*sigma[t]) - t(alpha_i)%*%diag(1/D[t,])%*%alpha_i/2 ) /
-    #                   ( (2*pi)^((n_i+k)/2) * sigma[t]^(n_i/2) * sqrt( prod(D[t,]) ) )
-    # sloglik[i] <- ( t(y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i)%*%
-    #                (y_i-B_i%*%theta0[t,]-B_i%*%Theta[[t]]%*%alpha_i) )/(-2*sigma[t]) - t(alpha_i)%*%diag(1/D[t,])%*%alpha_i/2 -
-    #              log( (2*pi)^((n_i+k)/2) * sqrt(sigma[t])^n_i * sqrt( prod(D[t,]) ) )
   }
   loglik <- sum(loglik)
-  # sloglik <- sum(sloglik)
   
   # predicted curve
   pred.curve <- list()
@@ -288,10 +263,12 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
     ind <- which(Tgrid %in% data[,2][which(data[,1]==unique(data[,1])[i])])
     time_point <- Tgrid[ind]
     t_range <- range(ind)
-    y_hat <- mean_fn[t_range[1]:t_range[2]] + pc_func[t_range[1]:t_range[2],]%*%alpha[[t]][i,]
+    alpha_i <- matrix(alpha[[t]][i,], ncol=1)
+    pc_curve <- pc_func[t_range[1]:t_range[2],]
+    y_hat <- mean_fn[t_range[1]:t_range[2]] + pc_curve%*%alpha_i
     
     pred.curve[[ as.character( unique(data[,1])[i] ) ]] <- data.frame(time=Tgrid[t_range[1]:t_range[2]],
-                                                      y.hat=y_hat)
+                                                                      y.hat=y_hat)
   }
   
   # output
@@ -310,7 +287,6 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   result[["Loglik"]] <- loglik
   result[["predcurve"]] <- pred.curve
   result[["PVE"]] <- PVE
-  # result[["sLoglik"]] <- sloglik
   
   return(result)
 }
