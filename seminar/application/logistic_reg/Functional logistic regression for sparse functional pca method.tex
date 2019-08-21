@@ -57,7 +57,7 @@
 \usefonttheme[onlymath]{serif}	% 수식 설정!!
 \setbeamertemplate{section in toc}[sections numbered]
 
-\title{Functional Logistic Regression with Sparse FPCA Method}
+\title{Functional Logistic Regression with Sparse Functional PCA Method}
 %\date{\today}
 \date[Short Occasion]{August 21, 2019}
 \author{Hyunsung Kim}
@@ -147,51 +147,70 @@
 		\vspace{0.1cm}
 		\begin{itemize}
 			\item {
-				The data was measured at same time points ($0, 7, ..., 119$).
+				The data was measured at $18$ equal time points($0, 7, ..., 119$).
 			}
 			\item {
-				$6178$ genes in
+				From this dense data, We generate 100 datasets based on the functional PCs. 
+			}
+		\end{itemize}
+	\end{block}
+	\begin{block}{Classification for the simulated data}
+		\vspace{0.1cm}
+		\begin{itemize}
+			\item {
+				We compute FPC scores using sparse functional PCA method.
+			}
+			\item {
+				Using the above FPC scores, we perform classification using the functional logistic regression.
 			}
 		\end{itemize}
 	\end{block}
 \end{frame}
 
 
-\section{Methodology}
-\begin{frame}{Methodology}
-	\begin{block}{The sparse FPCA method (James \textit{et al.}, 2001)}
+\section{Methods}
+\begin{frame}{Methods}
+	\begin{block}{The Sparse Functional PCA}
 		\vspace{0.1cm}
 		\begin{itemize}
-			\item {
-				The reduced rank model is used to solve the functional PC problem.
-			}
-			\item {
-				To fit this model, \texttt{EM} algorithm was used.
-			}
 			\item {
 				It can be applied the curves measured at irregular or sparse time points.
 			}
+			\item {
+				 James \textit{et al.} (2001) used the reduced rank model to solve the functional PC problem.
+			}
+			\item {
+				To fit above model, \texttt{EM} algorithm was used.
+			}
 		\end{itemize}
 	\end{block}
 \end{frame}
 
-\begin{frame}{Methodology}
-	\begin{block}{Functional logistic regression}
+\begin{frame}{Methods}
+	\begin{block}{Functional Logistic Regression}
 		\vspace{0.1cm}
-		$$ Y_i = g^{-1} \big( \alpha + \sum_{k=1}^K \beta_k\xi_{ik} \big) + e_i, \ i=1,\dots,N $$
-		where $Y_i=1$, if the curve $\in G_1$ and $Y_i=0$, if the curve $\in G_2$,\\
-		\hspace{0.9cm} $ g(x) = \log \big( \frac{x}{1-x} \big) $ and 
-		$\xi_{ik}$ is $k$th FPC score for the $i$th individual
-		\begin{itemize}
-			\item {
-				It is similar to standard logistic regression.
-			}
-			\item {
-				The goal of functional logistic regression is estimating unknown parameters, $( \alpha, \beta_1, \cdots, \beta_K )$.
-			}
-		\end{itemize}
+		$$ Y_i = \pi_i + \epsilon_i, \hspace{0.3cm} i=1,\dots,n $$
+		where $Y_i=1$, if the curve $\in G_1$ and $Y_i=0$, if the curve $\in G_2$,
+		%\vspace{-0.3cm}
+		$$ \begin{aligned}
+		   \pi_i &= P(Y=1|X=\boldsymbol{x}_i)\\
+			 	  &= \frac{ \exp[\alpha + \int_T \beta(t)x_i(t) dt] }{1 + \exp[\alpha + \int_T \beta(t)x_i(t) dt]}
+		\end{aligned}  $$
+		with $X:T \rightarrow \mathbb{R}$ is the predictor, $\alpha$ is an intercept parameter, $\boldsymbol\beta : T \rightarrow \mathbb{R}$ is a coefficient function, and $\epsilon_i$ is the independent errors with zero mean.
 	\end{block}
 \end{frame}
+
+\begin{frame}{Methods}
+	\begin{block}{Functional Logistic Regression with functional PC approach}
+		\vspace{0.1cm}
+		$$ Y_i = \pi_i + \epsilon_i, \ i=1,\dots,n $$
+		where $Y_i=1$, if the curve $\in G_1$ and $Y_i=0$, if the curve $\in G_2$,
+		%\vspace{-0.3cm}
+		$$ \pi_i = \frac{ \exp[\alpha + \sum_{k=1}^K \beta_k\xi_{ik}] }{1 + \exp[\alpha + \sum_{k=1}^K \beta_k\xi_{ik}]}, \ i=1,\dots,n $$
+		with $\alpha$ is an intercept parameter and $\boldsymbol\beta$ is a coefficient function, $\xi_{ik}$ is $k$th FPC score for the $i$th individual, and $\epsilon_i$ is the independent errors with zero mean.
+	\end{block}
+\end{frame}
+
 
 
 \section{Simulation}
@@ -203,13 +222,11 @@
 				The $100$ datasets are simulated from the first $5$ estimated FPCs from the temporal gene expression data.
 			}
 			\item {
-				 Each dataset has $200$ curves with 2 groups.($G_1, G_2$)
+				 Each dataset has $200$ curves with 2 groups($G_1, G_2$)
+				 and is randomely divided to $100$ training and test sets for each.
 			}
 			\item {
-				Each dataset is randomely divided to $100$ training and $100$ test sets randomely.
-			}
-			\item {
-				We apply the functional logistic regression to the 100 training sets, and predict to the $100$ test sets.
+				We perform the functional logistic regression for the training sets, and predict for the test sets.
 			}
 		\end{itemize}
 	\end{block}
@@ -279,7 +296,7 @@
 				The Monte Carlo standard errors are much lower on the sparse method.
 			}
 			\item {
-				
+				For the data measured at all time points, the dense functional PCA method perform well than the sparse method.
 			}
 		\end{itemize}
 	\end{block}

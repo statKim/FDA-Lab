@@ -26,7 +26,6 @@ proc_sigma <- function(data, B, theta0, Theta, alpha, D, sigma, Tgrid) {
       comp[i] <- t(y - B_i%*%theta0 - B_i%*%Theta%*%alpha_i) %*% (y - B_i%*%theta0 - B_i%*%Theta%*%alpha_i) +
         sum(diag( B_i%*%Theta%*%ginv( (1/D)+(t(Theta)%*%t(B_i)%*%B_i%*%Theta)/sigma )%*%t(Theta)%*%t(B_i) ))
     }
-    
   }
   result <- (1/nrow(data)) * sum(comp)
   return(result)
@@ -192,7 +191,7 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   g <- nrow(B)
   L <- age_range[2] - age_range[1]
   T_mat <- sqrt(g/L)*t(solve(R))
-  L/g * t(B%*%t(T_mat))%*%B%*%t(T_mat)   # identity matrix => orthonormal
+  # L/g * t(B%*%t(T_mat))%*%B%*%t(T_mat)   # identity matrix => orthonormal
   B <- B%*%t(T_mat) * sqrt(L/g)
   
   # initial parameters
