@@ -1,4 +1,4 @@
-setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\seminar\\application\\logistic_reg")
+setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\Principal Component Models for Sparse Functional Data\\Application\\logistic_reg")
 
 #####################
 ### Data generating
@@ -71,7 +71,7 @@ time <- as.integer(gsub(pattern="alpha|min",
                         x=time))
 
 # reduced rank model에 맞도록 데이터 변환
-source("../EM_reduced_rank.R")
+source("../sparseFPCA.R")
 library(dplyr)
 library(reshape2)
 
@@ -169,12 +169,12 @@ for (k in 1:5) {
   print( paste("Mean accuracy :", mean(accuracy)) )
   
   # RData로 저장
-  save(list=c("result", "accuracy"), file=paste("result_PC", k, ".RData", sep=""))
+  save(list=c("result", "accuracy"), file=paste("dense_result/result_PC", k, ".RData", sep=""))
 }
 })
 
 # error rate 계산
-load("result_PC5.RData")
+load("dense_result/result_PC5.RData")
 # G1 error rate
 mean( sapply(result, function(x){x$cross.table[2,1] / sum(x$cross.table[,1])}))
 sd( sapply(result, function(x){x$cross.table[2,1] / sum(x$cross.table[,1])}) )

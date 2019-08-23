@@ -1,4 +1,4 @@
-setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\seminar\\application\\logistic_reg")
+setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\Principal Component Models for Sparse Functional Data\\Application\\logistic_reg")
 
 #####################
 ### Data generating
@@ -56,175 +56,224 @@ for (set.i in random.sets) {
   i <- i + 1
 }
 
-length(X.curves)
-dim(X.curves[[1]])
-random.set$group
-
 
 #######################################
 ### functional logistic regression
 #######################################
+source("../sparseFPCA.R")
+library(dplyr)
+library(reshape2)
+
 # time points 변수 만들기
 time <- colnames(gene)[-1]
 time <- as.integer(gsub(pattern="alpha|min",
                         replacement="",
                         x=time))
-
-# reduced rank model에 맞도록 데이터 변환
-source("../EM_reduced_rank.R")
-library(dplyr)
-library(reshape2)
-
 system.time({
-  for (k in 1:5) {
-    # 100개의 generated data로 accuracy 계산
-    # k <- 5
-    kn <- 4
-    accuracy <- c()
-    result <- list()
-    for (i in 1:5) {
-      set.seed(100)
-      y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
-      data <- cbind(y, X.curves[[i]])
-      ind <- sample(1:nrow(data), 100)   # train set index
-      train <- data[ind, ]
-      test <- data[-ind, ]
-      
-      
-      # functional PC 계산하기 위해 데이터 변환
-      train.fpc.data <- melt(cbind(id=1:nrow(train), train[, -1]),
-                             "id", variable.name="time", value.name="gene_exp") %>% 
-                        arrange(id, time)
-      train.fpc.data$time <- time
-      test.fpc.data <- melt(cbind(id=1:nrow(test), test[, -1]),
-                            "id", variable.name="time", value.name="gene_exp") %>% 
-                        arrange(id, time)
-      test.fpc.data$time <- time
-      
-      # 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
-      # training set
-      samp <- sample(2:4, length(unique(train.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
-      ind.sparse <- c()
-      for (j in unique(train.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
-        ind <- which(train.fpc.data$id == j)
-        if (samp[j] == 2) {
-          m <- sample(ind[1:(length(ind)-1)], 1)
-        } else if (samp[j] == 3) {
-          m <- sample(ind[1:(length(ind)-2)], 1)
-        } else {
-          m <- sample(ind[1:(length(ind)-3)], 1)
-        }
-        ind.sparse <- append(ind.sparse,
-                             m:(m + samp[j] - 1) )
-      }
-      train.fpc.data <- train.fpc.data[ind.sparse, ]
-      
-      # test set
-      samp <- sample(2:4, length(unique(test.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
-      ind.sparse <- c()
-      for (j in unique(test.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
-        ind <- which(test.fpc.data$id == j)
-        if (samp[j] == 2) {
-          m <- sample(ind[1:(length(ind)-1)], 1)
-        } else if (samp[j] == 3) {
-          m <- sample(ind[1:(length(ind)-2)], 1)
-        } else {
-          m <- sample(ind[1:(length(ind)-3)], 1)
-        }
-        ind.sparse <- append(ind.sparse,
-                             m:(m + samp[j] - 1) )
-      }
-      test.fpc.data <- test.fpc.data[ind.sparse, ]
-      
-      
-      # functional PC fitting
-      fpca.train <- fpca.fit(train.fpc.data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=1)
-      fpca.test <- fpca.fit(test.fpc.data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=1)
-      
-      # FPC로 train, test set 만들기
-      pc_func_train <- fpca.train$PCfunction[which(fpca.train$Timegrid %in% time),]
-      pc_func_test <- fpca.test$PCfunction[which(fpca.test$Timegrid %in% time),]
-      
-      # 만약 PC function이 complex인 경우, 넘어가기
-      if (is.complex(pc_func_train) | is.complex(pc_func_test)) {
-        next
-      }
-      # PC function의 부호 같게 바꾸기(각 PC function의 첫 번째 값의 부호에 따라)
-      if (is.null(dim(pc_func_train))) {   # k=1인 경우
-        if (sign(pc_func_train[1]) != sign(pc_func_test[1])) {
-          pc_func_test <- -pc_func_test
-        }
-      } else {
-        for (col in 1:k) {
-          if (sign(pc_func_train[1, col]) != sign(pc_func_test[1, col])) {
-            pc_func_test[, col] <- -pc_func_test[, col]
-          }
-        }
-      }
-
-      # train, test set 각각 PC score 계산
-      train.new <- matrix(NA, nrow(train), k)
-      for (j in unique(train.fpc.data$id)) {
-        sub <- train.fpc.data[which(train.fpc.data$id == j), ]
-        if (k == 1) {
-          train.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
-            pc_func_train[which(time %in% sub$time)]   # PC score
-        } else {
-          train.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
-            pc_func_train[which(time %in% sub$time), ]   # PC score
-        }
-      }
-      train.new <- cbind(train$y, as.data.frame(train.new))
-      colnames(train.new) <- c("y", paste("PC", 1:k))
-      
-      test.new <- matrix(NA, nrow(test), k)
-      for (j in unique(test.fpc.data$id)) {
-        sub <- test.fpc.data[which(test.fpc.data$id == j), ]
-        if (k == 1) {
-          test.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
-            pc_func_test[which(time %in% sub$time)]   # PC score
-        } else {
-          test.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
-            pc_func_test[which(time %in% sub$time), ]   # PC score
-        }
-      }
-      test.new <- cbind(test$y, as.data.frame(test.new))
-      colnames(test.new) <- c("y", paste("PC", 1:k))
-      
-      
-      # fit logistic regression
-      fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
-      # summary(fit.logit)
-      
-      # predict
-      test.data <- test.new[, -1]
-      if (!is.data.frame(test.data)) {   # k=1인 경우(vector로 변환되기 때문)
-        test.data <- data.frame(test.data)
-        colnames(test.data) <- "PC 1"
-      }
-      pred <- predict(fit.logit, test.data, type="response")
-      # pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
-      pred <- factor(round(pred), levels=c(0, 1))
-      acc <- mean(pred == test.new$y)   # accuracy 계산
-      
-      
-      # output 저장
-      accuracy[i] <- acc   # accuracy
-      res <- list("accuracy"=acc,
-                  "cross.table"=table(pred, true=test.new$y))
-      result[[i]] <- res
-      
-      print( paste(i, "th data's Accuracy :", acc) )
-      # print( rbind(pred, true=test.new$y) )
-      FPC.plot(fpca.train, fpca.test)
+# 100개의 generated data로 accuracy 계산
+k <- 5
+kn <- 7
+accuracy <- c()
+result <- list()
+for (i in 1:10) {
+  set.seed(100)
+  y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
+  data <- cbind(y, X.curves[[i]])
+  ind <- sample(1:nrow(data), 100)   # train set index
+  train <- data[ind, ]
+  test <- data[-ind, ]
+  
+  
+  # functional PC 계산하기 위해 데이터 변환
+  train.fpc.data <- melt(cbind(id=1:nrow(train), train[, -1]),
+                         "id", variable.name="time", value.name="gene_exp") %>% 
+                    arrange(id, time)
+  train.fpc.data$time <- time
+  test.fpc.data <- melt(cbind(id=1:nrow(test), test[, -1]),
+                        "id", variable.name="time", value.name="gene_exp") %>% 
+                    arrange(id, time)
+  test.fpc.data$time <- time
+  
+  # # 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
+  # # training set
+  # samp <- sample(2:4, length(unique(train.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
+  # ind.sparse <- c()
+  # for (j in unique(train.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
+  #   ind <- which(train.fpc.data$id == j)
+  #   if (samp[j] == 2) {
+  #     m <- sample(ind[1:(length(ind)-1)], 1)
+  #   } else if (samp[j] == 3) {
+  #     m <- sample(ind[1:(length(ind)-2)], 1)
+  #   } else {
+  #     m <- sample(ind[1:(length(ind)-3)], 1)
+  #   }
+  #   ind.sparse <- append(ind.sparse,
+  #                        m:(m + samp[j] - 1) )
+  # }
+  # train.fpc.data <- train.fpc.data[ind.sparse, ]
+  # 
+  # # test set
+  # samp <- sample(2:4, length(unique(test.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
+  # ind.sparse <- c()
+  # for (j in unique(test.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
+  #   ind <- which(test.fpc.data$id == j)
+  #   if (samp[j] == 2) {
+  #     m <- sample(ind[1:(length(ind)-1)], 1)
+  #   } else if (samp[j] == 3) {
+  #     m <- sample(ind[1:(length(ind)-2)], 1)
+  #   } else {
+  #     m <- sample(ind[1:(length(ind)-3)], 1)
+  #   }
+  #   ind.sparse <- append(ind.sparse,
+  #                        m:(m + samp[j] - 1) )
+  # }
+  # test.fpc.data <- test.fpc.data[ind.sparse, ]
+  
+  
+  ### fpca package 사용한 경우
+  # column 순서 변경
+  train.fpc.data <- as.matrix( train.fpc.data[, c(1,3,2)] )
+  test.fpc.data <- as.matrix( test.fpc.data[, c(1,3,2)] )
+  
+  # parameter 정의
+  ini.method <- "EM"        # optimization method
+  basis.method <- "bs"      # spline basis - "ns"의 경우 현재 오류 발생
+  sl.v <- rep(0.5, 10)      # Neuton-Raphson
+  max.step <- 50            # EM iteration 횟수
+  grid.l <- seq(0,1,0.01)   # EM에서는 사용 X
+  grids <- seq(0,1,0.002)   # EM의 grid
+  
+  # fit fpca.mle
+  fpca.train <- fpca.mle(train.fpc.data, kn, k, ini.method, basis.method, sl.v, max.step, grid.l, grids)
+  fpca.test <- fpca.mle(test.fpc.data, kn, k, ini.method, basis.method, sl.v, max.step, grid.l, grids)
+  
+  # FPC로 train, test set 만들기
+  pc_func_train <- fpca.train$eigenfunctions
+  pc_func_test <- fpca.test$eigenfunctions
+  for (col in 1:k) {   # 부호 비교해서 PC function 부호 통일
+    # if (sign(pc_func_train[col, 1]) != sign(pc_func_test[col, 1])) {
+    if (which.max(table(sign(pc_func_train[col, ]))) != which.max(table(sign(pc_func_test[col, ]))) |
+        sum(sign(pc_func_train[col, c(1, ncol(pc_func_train))]) == sign(pc_func_test[col, c(1, ncol(pc_func_test))])) == 0) {
+      pc_func_test[col, ] <- -pc_func_test[col, ]
     }
-    # mean accuracy
-    print( paste("Mean accuracy :", mean(accuracy)) )
-    
-    # RData로 저장
-    # save(list=c("result", "accuracy"), file=paste("result_PC", k, ".RData", sep=""))
   }
+  
+  # PC scores - 마지막 원소(grid_sep)는 timepoints 간격이 1, 0.1, 0.01, ...를 지정해줘야함
+  train.new <- fpca.score(train.fpc.data, fpca.train$grid, fpca.train$fitted_mean, fpca.train$eigenvalues, 
+                            pc_func_train, fpca.train$error_var, k, 1)   
+  train.new <- cbind(train$y, as.data.frame(train.new))
+  colnames(train.new) <- c("y", paste("PC", 1:k))
+  
+  test.new <- fpca.score(test.fpc.data, fpca.test$grid, fpca.test$fitted_mean, fpca.test$eigenvalues, 
+                         pc_func_test, fpca.test$error_var, k, 1)
+  test.new <- cbind(test$y, as.data.frame(test.new))
+  colnames(test.new) <- c("y", paste("PC", 1:k))
+
+  
+  
+  # ### 내가 만든 function으로 한 것
+  # # functional PC fitting
+  # fpca.train <- fpca.fit(train.fpc.data, iter=50, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=1)
+  # fpca.test <- fpca.fit(test.fpc.data, iter=50, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=1)
+  # 
+  # # FPC로 train, test set 만들기
+  # pc_func_train <- fpca.train$PCfunction[which(fpca.train$Timegrid %in% time),]
+  # pc_func_test <- fpca.test$PCfunction[which(fpca.test$Timegrid %in% time),]
+  # 
+  # # 만약 PC function이 complex인 경우, 넘어가기
+  # if (is.complex(pc_func_train) | is.complex(pc_func_test)) {
+  #   next
+  # }
+  # # PC function의 부호 같게 바꾸기(각 PC function의 첫 번째 값의 부호에 따라)
+  # if (is.null(dim(pc_func_train))) {   # k=1인 경우
+  #   if (sign(pc_func_train[1]) != sign(pc_func_test[1])) {
+  #     pc_func_test <- -pc_func_test
+  #   }
+  # } else {
+  #   for (col in 1:k) {
+  #     if (sign(pc_func_train[1, col]) != sign(pc_func_test[1, col])) {
+  #       pc_func_test[, col] <- -pc_func_test[, col]
+  #     }
+  #   }
+  # }
+  # 
+  # # train, test set 각각 PC score 계산
+  # train.new <- matrix(NA, nrow(train), k)
+  # for (j in unique(train.fpc.data$id)) {
+  #   sub <- train.fpc.data[which(train.fpc.data$id == j), ]
+  #   if (k == 1) {
+  #     train.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+  #       pc_func_train[which(time %in% sub$time)]   # PC score
+  #   } else {
+  #     train.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+  #       pc_func_train[which(time %in% sub$time), ]   # PC score
+  #   }
+  # }
+  # train.new <- cbind(train$y, as.data.frame(train.new))
+  # colnames(train.new) <- c("y", paste("PC", 1:k))
+  # 
+  # test.new <- matrix(NA, nrow(test), k)
+  # for (j in unique(test.fpc.data$id)) {
+  #   sub <- test.fpc.data[which(test.fpc.data$id == j), ]
+  #   if (k == 1) {
+  #     test.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+  #       pc_func_test[which(time %in% sub$time)]   # PC score
+  #   } else {
+  #     test.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+  #       pc_func_test[which(time %in% sub$time), ]   # PC score
+  #   }
+  # }
+  # test.new <- cbind(test$y, as.data.frame(test.new))
+  # colnames(test.new) <- c("y", paste("PC", 1:k))
+  # 
+  
+  # fit logistic regression
+  fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
+  # summary(fit.logit)
+  
+  # predict
+  test.data <- test.new[, -1]
+  if (!is.data.frame(test.data)) {   # k=1인 경우(vector로 변환되기 때문)
+    test.data <- data.frame(test.data)
+    colnames(test.data) <- "PC 1"
+  }
+  pred <- predict(fit.logit, test.data, type="response")
+  # pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
+  pred <- factor(round(pred), levels=c(0, 1))
+  acc <- mean(pred == test.new$y)   # accuracy 계산
+  
+  
+  # output 저장
+  accuracy[i] <- acc   # accuracy
+  res <- list("accuracy"=acc,
+              "cross.table"=table(pred, true=test.new$y))
+  result[[i]] <- res
+  
+  print( paste(i, "th data's Accuracy :", acc) )
+  # print( rbind(pred, true=test.new$y) )
+  # FPC.plot(fpca.train, fpca.test)
+  par(mfrow=c(2, k))
+  # PC function
+  for(j in 1:k){
+    plot(fpca.train$grid, pc_func_train[j, ], type="l", xlab="Age (years)", ylab="Princ. comp.", main=paste("PC", j))
+  }
+  for(j in 1:k){
+    plot(fpca.test$grid, pc_func_test[j, ], type="l", xlab="Age (years)", ylab="Princ. comp.", main=paste("PC", j))
+  }
+  mtext(paste(i, "th :", acc), 
+               side = 3, # which margin to place text. 1=bottom, 2=left, 3=top, 4=right
+               line = 3, # to indicate the line in the margin starting with 0 and moving out
+               adj = 1, # adj=0 for left/bottom alignment or adj=1 for top/right alignment
+               cex = 2, # font size
+               outer = F)
+}
+# mean accuracy
+print( paste("Mean accuracy :", mean(accuracy)) )
+
+# RData로 저장
+# save(list=c("result", "accuracy"), file=paste("sparse_result/result_PC", k, ".RData", sep=""))
 })
+
 
 # error rate 계산
 load("result_PC5.RData")
@@ -349,14 +398,6 @@ FPC.plot <- function(fpca.train, fpca.test){
 }
 
 
-# PVE
-pve <- apply(test.new[, -1], 2, var)
-cumsum(pve)
-
-
-x <- diag(fpca.train$D)
-cumsum(x) / sum(x)
-x/ sum(x)
 
 
 
@@ -368,7 +409,7 @@ x/ sum(x)
 ##############################
 ### bone mineral density data
 ##############################
-setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\seminar\\application")
+setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\Principal Component Models for Sparse Functional Data\\Application")
 
 # White이면서 obs 개수가 1개인 경우 제외하면 딱 48개 curve가 됨!!
 data <- read.csv("spnbmd.csv", stringsAsFactors=F)
@@ -388,7 +429,7 @@ head(data)
 # data$sex <- factor( ifelse(data$sex == "fem", 1, 0), levels=c(0,1) )
 data$ethnic <- factor( ifelse(data$ethnic == "Asian", 1, 0), levels=c(0,1) )
 
-source("EM_reduced_rank.R")
+source("sparseFPCA.R")
 kn <- 4
 k <- 5
 

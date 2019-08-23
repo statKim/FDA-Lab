@@ -1,56 +1,10 @@
-% Copyright 2004 by Till Tantau <tantau@users.sourceforge.net>.
-%
-% In principle, this file can be redistributed and/or modified under
-% the terms of the GNU Public License, version 2.
-%
-% However, this file is supposed to be a template to be modified
-% for your own needs. For this reason, if you use this file as a
-% template and not specifically distribute it as part of a another
-% package/program, I grant the extra permission to freely copy and
-% modify this file as you see fit and even to delete this copyright
-% notice. 
-
 \documentclass{beamer}
 
 \usepackage{kotex}
 \usepackage{graphicx,psfrag,amsfonts,amsmath,amssymb}
 \usepackage{multicol}
 
-% There are many different themes available for Beamer. A comprehensive
-% list with examples is given here:
-% http://deic.uab.es/~iblanes/beamer_gallery/index_by_theme.html
-% You can uncomment the themes below if you would like to use a different
-% one:
-%\usetheme{Dresden}
-%\usetheme{AnnArbor}
-%\usetheme{Antibes}
-%\usetheme{Bergen}
-%\usetheme{Berkeley}
-%\usetheme{Berlin}
-%\usetheme{Boadilla}
-%\usetheme{boxes}
-%\usetheme{CambridgeUS}
-%\usetheme{Copenhagen}
-%\usetheme{Darmstadt}
-%\usetheme{default}
-%\usetheme{Frankfurt}
-%\usetheme{Goettingen}
-%\usetheme{Hannover}
-%\usetheme{Ilmenau}
-%\usetheme{JuanLesPins}
-%\usetheme{Luebeck}
-%\usetheme{Madrid}
-%\usetheme{Malmoe}
-%\usetheme{Marburg}
-%\usetheme{Montpellier}
-%\usetheme{PaloAlto}
-%\usetheme{Pittsburgh}
-%\usetheme{Rochester}
-%\usetheme{Singapore}
-%\usetheme{Szeged}
-%\usetheme{Warsaw}
-
-%\usecolortheme{lily}
+\usetheme{metropolis}
 \usefonttheme[onlymath]{serif}	% 수식 설정!!
 \setbeamertemplate{section in toc}[sections numbered]
 
@@ -146,7 +100,6 @@
 		\begin{center}
 			\includegraphics[width=0.7\linewidth]{img/1.png}
 		\end{center}
-		%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
 		\label{fig:long}
 		\label{fig:onecol}
 	\end{figure}	
@@ -163,17 +116,14 @@
 \begin{frame}{Introduction}{A direct approach}
 	\begin{block}{The direct method}
 		When the curves are not measured at common time points, we estimate the curves by basis expansion and then perform PCA on the estimated curves.
-		%각 curve에서 observation이 $\forall t$에 대해 존재하지 않을 경우, 존재하는 obs으로 나머지 값들을 estimate한 후 PCA를 적용하는 방법
 	\end{block}
 	\begin{block}{Drawbacks}
 	\begin{itemize}
 		\item {
 			If each curves have few observation, there are not existed unique basis coefficients.
-			%각 curve의 obs이 적으면 unique한 basis coefficients 존재X ($\because n_i \ll \# $ of parameters) 
 		}
 		\item {
 			The solution is not optimal ($\because$ perform PCA onto estimated curves)
-			%Optimal한 값이 아님($\because$ estimate한 curve에 PCA를 했기 때문)
 		}
 	\end{itemize}
 	\end{block}
@@ -188,7 +138,6 @@
 		$$ \bY_i=\bB_i\bbeta + \bB_i\bgamma_i + \bepsilon_i $$
 		where $\bY_i$ is the $n_i$-dimensional vector, $\bB$ is the $n_i \times q$ spline basis matrix
 	\end{block}
-	%\texttt{EM} algorithm is used to fit the mixed effect model to estimate $\bbeta$ and $\bGamma$.
 \end{frame}
 
 \begin{frame}{Introduction}{A mixed effects approach}
@@ -217,11 +166,9 @@
 		\begin{itemize}
 			\item {
 				When the curve $Y_i(t)$ is insufficient, it can be used for estimating $Y_i(t)$ because of using all observation rather than $i$th curve.
-				%curve $Y_i(t)$를 estimate할 때, $i$th curve만이 아닌 모든 observation을 사용하기 때문에 direct method를 쓰기에 각 curve가 insufficient한 경우에도 사용가능하다.
 			}
 			\item {
 				Using MLE to estimate $\bbeta, \bGamma$
-				%MLE를 사용하여 $\bbeta, \bGamma$를 estimate
 			}
 		\end{itemize}
 	\end{block}
@@ -237,8 +184,6 @@
 			\item {
 				When the data are sparse, the estimate of $\bGamma$ is highly variable.\\
 				$\Rightarrow$ \texttt{EM} algorithm converges to local maximum.
-				%data가 sparse한 경우, $\bGamma$의 estimate이 highly variable\\
-				%$\Rightarrow$ \texttt{EM} algorithm이 converge하지 못하거나 local maximum으로 converge
 			}
 		\end{itemize}
 	\end{block}
@@ -249,22 +194,18 @@
 		\begin{center}
 			\includegraphics[width=0.7\linewidth]{img/2.png}
 		\end{center}
-		%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
 		\label{fig:long}
 		\label{fig:onecol}
 	\end{figure}	
 	\begin{itemize}
 		\item {
 			The direct method cannot be applied. ($\because n_i \ll q(=11)$)
-			%direct method 적용 불가($n_i \ll q(=11)$)
 		}
 		\item {
 			It looks overfitting in the mixed effect model.
-			%mixed effect model의 경우 overfitting한 것으로 보임
 		}
 		\item {
 			The reduced rank method presented in this paper looks better than the mixed effect method.
-			%논문에서 제시하는 reduced rank method의 curve가 가장 적합한 것으로 보임임
 		}
 	\end{itemize}
 \end{frame}
@@ -277,18 +218,15 @@
 			\begin{center}
 				\includegraphics[width=1\linewidth]{img/3.png}
 			\end{center}
-			%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
 			\label{fig:long}
 			\label{fig:onecol}
 		\end{figure}	
 		\begin{itemize}
 			\item {
 				The curve is more wiggly as the \# of knots increases.
-				%\# of knots가 증가함에 따라 curve가 wiggly해짐
 			}
 			\item {
 				In the reduced rank model, the peak is looked clear when $Age=13$.
-				%reduced rank model에서는 $Age=13$일 때 peak가 뚜렷하게 나타남 
 			}
 			\item {
 				In the mixed effect model, the peak is not looked clear.
@@ -363,12 +301,7 @@
 		}
 		\item {
 			Set $\balpha^*_i=0$, it can be simply fitting the reduced rank model using a different algorithm.
-			%then mixed effects model = reduced rank model
 		}
-%		\item {
-%			Fitting the mixed effects model using $k$ PCs is equivalent to fitting the reduced rank model.
-%			%즉, $k$개의 PC만 사용하여 mixed effects model을 fitting하면 다른 방식으로 reduced rank model을 fitting할 수 있다.
-%		}
 	\end{itemize}
 \end{frame}
 
@@ -538,7 +471,6 @@
 			}
 			\item {
 				The likelihood estmate becomes worse as the variance is underestimated.
-				%The more variance is underestimated, the worse likelihood estimate becomes.
 			}
 		\end{itemize}
 	\end{block}
@@ -621,7 +553,6 @@
 			}
 			\item {
 				Pick the $k$ when the increase levelled off.
-				%But the increase should level off when the optimal rank is reached.
 			}
 			\item {
 				Example of graphical selection
@@ -766,9 +697,6 @@
 \end{frame}
 
 \begin{frame}{Comparison of the Reduced Rank Method and Classical Principal Components}
-	
-	%If all curves are measured at the same time points, then $\mathbf{B}_i=\mathbf{B}$.\\
-	%WLOG, assume $\mathbf{B'B=I}$, minimizing the objective equation is equivalent to performing standard PCA on the spline coefficients.
 	\begin{itemize}
 		\item {
 			If all curves are measured at the same time points, then $\mathbf{B}_i=\mathbf{B}$.
@@ -841,7 +769,6 @@
   \begin{thebibliography}{10}
   	\beamertemplatearticlebibitems
 	% Followed by interesting articles. Keep the list short. 
-	 
 	\bibitem{Someone2000}
 	GARETH M. JAMES, TREVOR J. HASTIE, CATHERINE A. SUGAR
 	\newblock Principal component models for sparse functional data
@@ -850,13 +777,10 @@
     
   \beamertemplatebookbibitems
   % Start with overview books.
-
 	\bibitem{Author1990}
 		J.O. Ramsay, B.W. Silverman.
 		\newblock {\em Functional Data Analysis 2nd edition}.
 		\newblock Springer, 2005.
- 
-    
 
   \end{thebibliography}
 \end{frame}

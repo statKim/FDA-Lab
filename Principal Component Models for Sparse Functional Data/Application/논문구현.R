@@ -1,4 +1,4 @@
-setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\seminar\\application")
+setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\Principal Component Models for Sparse Functional Data\\Application")
 
 ## EM algorithm
 # White이면서 obs 개수가 1개인 경우 제외하면 딱 48개 curve가 됨!!
@@ -17,7 +17,7 @@ data <- data[,c(1,3,5)]   # 필요없는 변수 제거
 length(unique(data$idnum))   # 48
 
 
-source("EM_reduced_rank.R")
+source("sparseFPCA.R")
 library(splines)
 library(far)    # spline basis orthonormal하게 변환하기 위함
 par(mfrow=c(3,2))
@@ -128,7 +128,7 @@ for (kn in c(6)) {
   # print(sum(res^2))
 }
 
-source("EM_reduced_rank.R")
+source("sparseFPCA.R")
 par(mfrow=c(3,2))
 # for (start_point in seq(-5, 5, 0.5)) {
 # (sigma,D,alpha,theta0,Theta)   

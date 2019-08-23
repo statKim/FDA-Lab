@@ -1,59 +1,11 @@
-% Copyright 2004 by Till Tantau <tantau@users.sourceforge.net>.
-%
-% In principle, this file can be redistributed and/or modified under
-% the terms of the GNU Public License, version 2.
-%
-% However, this file is supposed to be a template to be modified
-% for your own needs. For this reason, if you use this file as a
-% template and not specifically distribute it as part of a another
-% package/program, I grant the extra permission to freely copy and
-% modify this file as you see fit and even to delete this copyright
-% notice. 
-
 \documentclass{beamer}
 
 \usepackage{kotex}
 \usepackage{graphicx,psfrag,amsfonts,amsmath,amssymb}
 \usepackage{multicol}
-%\usepackage{algorithm,algorithmic}
 \usepackage{algorithm2e}
 
-% There are many different themes available for Beamer. A comprehensive
-% list with examples is given here:
-% http://deic.uab.es/~iblanes/beamer_gallery/index_by_theme.html
-% You can uncomment the themes below if you would like to use a different
-% one:
-%\usetheme{Dresden}
-%\usetheme{AnnArbor}
-%\usetheme{Antibes}
-%\usetheme{Bergen}
-%\usetheme{Berkeley}
-%\usetheme{Berlin}
-%\usetheme{Boadilla}
-%\usetheme{boxes}
-%\usetheme{CambridgeUS}
-%\usetheme{Copenhagen}
-%\usetheme{Darmstadt}
-%\usetheme{default}
-%\usetheme{Frankfurt}
-%\usetheme{Goettingen}
-%\usetheme{Hannover}
-%\usetheme{Ilmenau}
-%\usetheme{JuanLesPins}
-%\usetheme{Luebeck}
-%\usetheme{Madrid}
-%\usetheme{Malmoe}
-%\usetheme{Marburg}
-%\usetheme{Montpellier}
-%\usetheme{PaloAlto}
-%\usetheme{Pittsburgh}
-%\usetheme{Rochester}
-%\usetheme{Singapore}
-%\usetheme{Szeged}
-%\usetheme{Warsaw}
 \usetheme{metropolis}
-
-%\usecolortheme{lily}
 \usefonttheme[onlymath]{serif}	% 수식 설정!!
 \setbeamertemplate{section in toc}[sections numbered]
 
@@ -237,7 +189,6 @@
 		 	\end{aligned}
 		 	$$
 	 	 }
-		%\caption{The algorithm of the reduced rank fit}
 	\end{algorithm}
 \end{frame}
 
@@ -261,8 +212,6 @@
 \end{frame}
 
 \begin{frame}{Applications}
-	%\begin{block}{The bone mineral density of 48 females}
-	%		\vspace{-0.5cm}
 	\begin{figure}[h] %%% t: top, b: bottom, h: here
 		\begin{center}
 			\includegraphics[width=0.8\linewidth]{img/curve.png}
@@ -298,7 +247,6 @@
 				\includegraphics[width=0.8\linewidth]{img/4knots_true.png}
 				\includegraphics[width=0.8\linewidth]{img/4knots.png}
 			\end{center}
-			%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
 			\label{fig:long}
 			\label{fig:onecol}
 		\end{figure}
@@ -312,7 +260,6 @@
 				\includegraphics[width=0.8\linewidth]{img/9knots_true.png}
 				\includegraphics[width=0.8\linewidth]{img/9knots.png}
 			\end{center}
-			%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
 			\label{fig:long}
 			\label{fig:onecol}
 		\end{figure}
@@ -326,7 +273,6 @@
 				\includegraphics[width=0.8\linewidth]{img/14knots_true.png}
 				\includegraphics[width=0.8\linewidth]{img/14knots.png}
 			\end{center}
-			%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
 			\label{fig:long}
 			\label{fig:onecol}
 		\end{figure}
@@ -351,9 +297,6 @@
 \end{frame}
 
 
-
-
-
 \appendix
 \section{Reference}
 \begin{frame}
@@ -363,7 +306,6 @@
   	\beamertemplatearticlebibitems
 	% Followed by interesting articles. Keep the list short. 
 	 \bibitem{Someone2000}
-		%GARETH M. JAMES, TREVOR J. HASTIE, CATHERINE A. SUGAR
 		James G.M., Hastie T.J., Sugar C.A.
 		\newblock Principal component models for sparse functional data
 		\newblock {\em Biometrika}, 87(3):587--602,
