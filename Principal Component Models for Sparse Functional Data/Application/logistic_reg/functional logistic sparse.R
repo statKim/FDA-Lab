@@ -82,7 +82,7 @@ system.time({
     kn <- 4
     accuracy <- c()
     result <- list()
-    for (i in 1:100) {
+    for (i in 1:5) {
       set.seed(100)
       y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
       data <- cbind(y, X.curves[[i]])
@@ -94,16 +94,16 @@ system.time({
       # functional PC 계산하기 위해 데이터 변환
       train.fpc.data <- melt(cbind(id=1:nrow(train), train[, -1]),
                              "id", variable.name="time", value.name="gene_exp") %>% 
-        arrange(id, time)
+                        arrange(id, time)
       train.fpc.data$time <- time
       test.fpc.data <- melt(cbind(id=1:nrow(test), test[, -1]),
                             "id", variable.name="time", value.name="gene_exp") %>% 
-        arrange(id, time)
+                        arrange(id, time)
       test.fpc.data$time <- time
       
       # 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
       # training set
-      samp <- sample(2:5, nrow(train.fpc.data), replace=T)   # curve의 obs 개수 선택
+      samp <- sample(2:4, length(unique(train.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
       ind.sparse <- c()
       for (j in unique(train.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
         ind <- which(train.fpc.data$id == j)
@@ -111,10 +111,8 @@ system.time({
           m <- sample(ind[1:(length(ind)-1)], 1)
         } else if (samp[j] == 3) {
           m <- sample(ind[1:(length(ind)-2)], 1)
-        } else if (samp[j] == 4) {
-          m <- sample(ind[1:(length(ind)-3)], 1)
         } else {
-          m <- sample(ind[1:(length(ind)-4)], 1)
+          m <- sample(ind[1:(length(ind)-3)], 1)
         }
         ind.sparse <- append(ind.sparse,
                              m:(m + samp[j] - 1) )
@@ -122,7 +120,7 @@ system.time({
       train.fpc.data <- train.fpc.data[ind.sparse, ]
       
       # test set
-      samp <- sample(2:5, nrow(test.fpc.data), replace=T)   # curve의 obs 개수 선택
+      samp <- sample(2:4, length(unique(test.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
       ind.sparse <- c()
       for (j in unique(test.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
         ind <- which(test.fpc.data$id == j)
@@ -130,13 +128,11 @@ system.time({
           m <- sample(ind[1:(length(ind)-1)], 1)
         } else if (samp[j] == 3) {
           m <- sample(ind[1:(length(ind)-2)], 1)
-        } else if (samp[j] == 4) {
-          m <- sample(ind[1:(length(ind)-3)], 1)
         } else {
-          m <- sample(ind[1:(length(ind)-4)], 1)
+          m <- sample(ind[1:(length(ind)-3)], 1)
         }
         ind.sparse <- append(ind.sparse,
-                             m:(m + samp[j]) )
+                             m:(m + samp[j] - 1) )
       }
       test.fpc.data <- test.fpc.data[ind.sparse, ]
       
@@ -165,13 +161,18 @@ system.time({
           }
         }
       }
-      
-      # PC score 계산
+
+      # train, test set 각각 PC score 계산
       train.new <- matrix(NA, nrow(train), k)
       for (j in unique(train.fpc.data$id)) {
         sub <- train.fpc.data[which(train.fpc.data$id == j), ]
-        train.new[j, ] <- matrix(sub[, 3], nrow=1) %*% pc_func_train[which(time %in% sub$time), ]   # PC score
-        # train.new <- (as.matrix(train[,-1]) - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% time),]) %*% fpca.train$PCfunction[which(fpca.train$Timegrid %in% time),]  # PC score
+        if (k == 1) {
+          train.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+            pc_func_train[which(time %in% sub$time)]   # PC score
+        } else {
+          train.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+            pc_func_train[which(time %in% sub$time), ]   # PC score
+        }
       }
       train.new <- cbind(train$y, as.data.frame(train.new))
       colnames(train.new) <- c("y", paste("PC", 1:k))
@@ -179,8 +180,13 @@ system.time({
       test.new <- matrix(NA, nrow(test), k)
       for (j in unique(test.fpc.data$id)) {
         sub <- test.fpc.data[which(test.fpc.data$id == j), ]
-        test.new[j, ] <- matrix(sub[, 3], nrow=1) %*% pc_func_test[which(time %in% sub$time), ]   # PC score
-      # test.new <- (as.matrix(test[,-1]) - fpca.test$MeanFunction[which(fpca.test$Timegrid %in% time),]) %*% fpca.test$PCfunction[which(fpca.test$Timegrid %in% time),]
+        if (k == 1) {
+          test.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+            pc_func_test[which(time %in% sub$time)]   # PC score
+        } else {
+          test.new[j, ] <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$time)], nrow=1) %*% 
+            pc_func_test[which(time %in% sub$time), ]   # PC score
+        }
       }
       test.new <- cbind(test$y, as.data.frame(test.new))
       colnames(test.new) <- c("y", paste("PC", 1:k))
@@ -210,12 +216,13 @@ system.time({
       
       print( paste(i, "th data's Accuracy :", acc) )
       # print( rbind(pred, true=test.new$y) )
+      FPC.plot(fpca.train, fpca.test)
     }
     # mean accuracy
     print( paste("Mean accuracy :", mean(accuracy)) )
     
     # RData로 저장
-    save(list=c("result", "accuracy"), file=paste("result_PC", k, ".RData", sep=""))
+    # save(list=c("result", "accuracy"), file=paste("result_PC", k, ".RData", sep=""))
   }
 })
 
@@ -289,8 +296,8 @@ pve <- apply(test.new[, -1], 2, var)
 cumsum(pve)
 
 # train FPC plot
-{
-  par(mfrow=c(2,3))
+FPC.plot <- function(fpca.train, fpca.test){
+  par(mfrow=c(2,k+1))
   fit <- fpca.train
   
   # curves and mean function
@@ -310,15 +317,12 @@ cumsum(pve)
   lines(fit$Timegrid, fit$MeanFunction, col="red", lwd=3, type="l")
   
   # PC function
-  for (i in 1:5){
-    plot(fit$Timegrid, fit$PCfunction[,i], type="l", lwd=3, ylim=c(-.4, .2),
+  for (i in 1:k){
+    plot(time, pc_func_train[,i], type="l", lwd=3, ylim=c(-.4, .2),
          xlab="minutes", ylab="Princ. comp.", main=paste("FPC", i))
   }
-}
-
-# test FPC plot
-{
-  par(mfrow=c(2,3))
+ 
+  # test FPC plot
   fit <- fpca.test
   
   # curves and mean function
@@ -338,9 +342,9 @@ cumsum(pve)
   lines(fit$Timegrid, fit$MeanFunction, col="red", lwd=3, type="l")
   
   # PC function
-  for (i in 1:5){
-    plot(fit$Timegrid, fit$PCfunction[,i], type="l", lwd=3, ylim=c(-.4, .2),
-         xlab="minutes", ylab="Princ. comp.", main=paste("PC", i))
+  for (i in 1:k){
+    plot(time, pc_func_test[,i], type="l", lwd=3, ylim=c(-.4, .2),
+         xlab="minutes", ylab="Princ. comp.", main=paste("FPC", i))
   }
 }
 
@@ -353,3 +357,159 @@ cumsum(pve)
 x <- diag(fpca.train$D)
 cumsum(x) / sum(x)
 x/ sum(x)
+
+
+
+
+
+
+
+
+##############################
+### bone mineral density data
+##############################
+setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\seminar\\application")
+
+# White이면서 obs 개수가 1개인 경우 제외하면 딱 48개 curve가 됨!!
+data <- read.csv("spnbmd.csv", stringsAsFactors=F)
+data <- data[which(data$ethnic %in% c("Asian","Black")), ]
+dim(data)
+library(dplyr)
+ind <- data %>% 
+  group_by(idnum) %>% 
+  summarise(n=n())
+ind <- ind[which(ind$n != 1), "idnum"]
+
+data <- data[which(data$idnum %in% t(ind)), ]
+dim(data)
+data <- data[,c(2,1,3,5)]   # 필요없는 변수 제거
+length(unique(data$idnum))   # 90
+head(data)
+# data$sex <- factor( ifelse(data$sex == "fem", 1, 0), levels=c(0,1) )
+data$ethnic <- factor( ifelse(data$ethnic == "Asian", 1, 0), levels=c(0,1) )
+
+source("EM_reduced_rank.R")
+kn <- 4
+k <- 5
+
+# training set
+set.seed(100)
+samp <- sample(unique(data$idnum), round(length(unique(data$idnum))/2))   # curve의 obs 개수 선택
+train.fpc.data <- data[which(data$id %in% samp), ]
+test.fpc.data <- data[-which(data$id %in% samp), ]
+
+# functional PC fitting
+fpca.train <- fpca.fit(train.fpc.data[, -1], iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=.1)
+fpca.test <- fpca.fit(test.fpc.data[, -1], iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=.1)
+
+# FPC로 train, test set 만들기
+pc_func_train <- fpca.train$PCfunction
+pc_func_test <- fpca.test$PCfunction
+
+# 만약 PC function이 complex인 경우, 넘어가기
+if (is.complex(pc_func_train) | is.complex(pc_func_test)) {
+  next
+}
+# PC function의 부호 같게 바꾸기(각 PC function의 첫 번째 값의 부호에 따라)
+if (is.null(dim(pc_func_train))) {   # k=1인 경우
+  if (sign(pc_func_train[1]) != sign(pc_func_test[1])) {
+    pc_func_test <- -pc_func_test
+  }
+} else {
+  for (col in 1:k) {
+    if (sign(pc_func_train[1, col]) != sign(pc_func_test[1, col])) {
+      pc_func_test[, col] <- -pc_func_test[, col]
+    }
+  }
+}
+
+# PC score 계산
+for (j in unique(train.fpc.data$id)) {
+  sub <- train.fpc.data[which(train.fpc.data$id == j), ]
+  pc.score <- matrix(sub[, 3] - fpca.train$MeanFunction[which(fpca.train$Timegrid %in% sub$age)], nrow=1) %*% 
+              pc_func_train[which(fpca.train$Timegrid %in% sub$age), ]   # PC score
+  if (j == unique(train.fpc.data$id)[1]) {
+    train.new <- pc.score
+  } else {
+    train.new <- rbind(train.new, pc.score)
+  }
+}
+train.new <- cbind(unique(train.fpc.data[, 1:2])[, 1], as.data.frame(train.new))
+colnames(train.new) <- c("y", paste("PC", 1:k))
+
+for (j in unique(test.fpc.data$id)) {
+  sub <- test.fpc.data[which(test.fpc.data$id == j), ]
+  pc.score <- matrix(sub[, 3] - fpca.test$MeanFunction[which(fpca.test$Timegrid %in% sub$age)], nrow=1) %*% 
+    pc_func_test[which(fpca.test$Timegrid %in% sub$age), ]   # PC score
+  if (j == unique(test.fpc.data$id)[1]) {
+    test.new <- pc.score
+  } else {
+    test.new <- rbind(test.new, pc.score)
+  }
+}
+test.new <- cbind(unique(test.fpc.data[, 1:2])[, 1], as.data.frame(test.new))
+colnames(test.new) <- c("y", paste("PC", 1:k))
+
+
+# fit logistic regression
+fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
+# summary(fit.logit)
+
+# predict
+test.data <- test.new[, -1]
+if (!is.data.frame(test.data)) {   # k=1인 경우(vector로 변환되기 때문)
+  test.data <- data.frame(test.data)
+  colnames(test.data) <- "PC 1"
+}
+pred <- predict(fit.logit, test.data, type="response")
+pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
+acc <- mean(pred == train.new$y)   # accuracy 계산
+acc
+
+
+{ # train FPC plot
+  par(mfrow=c(2,k+1))
+  # curves and mean function
+  ind <- unique(train.fpc.data[,2])
+  sub <- train.fpc.data[which(train.fpc.data[,2]==ind[1]), ]
+  plot(sub[,3], sub[,4],
+       type="o",
+       xlim=c(range(train.fpc.data[,3])[1], range(train.fpc.data[,3])[2]),
+       ylim=c(range(train.fpc.data[,4])[1], range(train.fpc.data[,4])[2]),
+       xlab="minutes",
+       ylab="gene expression level")
+  for (i in ind) {
+    sub <- train.fpc.data[which(train.fpc.data[,2]==i), ]
+    lines(sub[,3], sub[,4], type="o")
+  }
+  lines(fpca.train$Timegrid, fpca.train$MeanFunction, col="red", lwd=3, type="l")
+  
+  # PC function
+  for (i in 1:k){
+    plot(fpca.train$Timegrid, pc_func_train[,i], type="l", lwd=3, ylim=c(-.2, .2),
+         xlab="minutes", ylab="Princ. comp.", main=paste("FPC", i))
+  }
+}
+
+{ # test FPC plot
+  # curves and mean function
+  ind <- unique(test.fpc.data[,2])
+  sub <- test.fpc.data[which(test.fpc.data[,2]==ind[1]), ]
+  plot(sub[,3], sub[,4],
+       type="o",
+       xlim=c(range(test.fpc.data[,3])[1], range(test.fpc.data[,3])[2]),
+       ylim=c(range(test.fpc.data[,4])[1], range(test.fpc.data[,4])[2]),
+       xlab="minutes",
+       ylab="gene expression level")
+  for (i in ind) {
+    sub <- test.fpc.data[which(test.fpc.data[,2]==i), ]
+    lines(sub[,3], sub[,4], type="o")
+  }
+  lines(fpca.test$Timegrid, fpca.test$MeanFunction, col="red", lwd=3, type="l")
+  
+  # PC function
+  for (i in 1:k){
+    plot(fpca.test$Timegrid, pc_func_test[,i], type="l", lwd=3, ylim=c(-.2, .2),
+         xlab="minutes", ylab="Princ. comp.", main=paste("FPC", i))
+  }
+}
