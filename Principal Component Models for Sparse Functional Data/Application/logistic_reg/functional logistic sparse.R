@@ -63,6 +63,7 @@ for (set.i in random.sets) {
 source("../sparseFPCA.R")
 library(dplyr)
 library(reshape2)
+library(e1071)
 
 # time points 변수 만들기
 time <- colnames(gene)[-1]
@@ -71,9 +72,10 @@ time <- as.integer(gsub(pattern="alpha|min",
                         x=time))
 system.time({
 # 100개의 generated data로 accuracy 계산
-k <- 5
-kn <- 7
+k <- 2
+kn <- 9
 accuracy <- c()
+accuracy.svm <- c()
 result <- list()
 for (i in 1:10) {
   set.seed(100)
@@ -94,40 +96,27 @@ for (i in 1:10) {
                     arrange(id, time)
   test.fpc.data$time <- time
   
-  # # 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
-  # # training set
-  # samp <- sample(2:4, length(unique(train.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
-  # ind.sparse <- c()
-  # for (j in unique(train.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
-  #   ind <- which(train.fpc.data$id == j)
-  #   if (samp[j] == 2) {
-  #     m <- sample(ind[1:(length(ind)-1)], 1)
-  #   } else if (samp[j] == 3) {
-  #     m <- sample(ind[1:(length(ind)-2)], 1)
-  #   } else {
-  #     m <- sample(ind[1:(length(ind)-3)], 1)
-  #   }
-  #   ind.sparse <- append(ind.sparse,
-  #                        m:(m + samp[j] - 1) )
-  # }
-  # train.fpc.data <- train.fpc.data[ind.sparse, ]
-  # 
-  # # test set
-  # samp <- sample(2:4, length(unique(test.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
-  # ind.sparse <- c()
-  # for (j in unique(test.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
-  #   ind <- which(test.fpc.data$id == j)
-  #   if (samp[j] == 2) {
-  #     m <- sample(ind[1:(length(ind)-1)], 1)
-  #   } else if (samp[j] == 3) {
-  #     m <- sample(ind[1:(length(ind)-2)], 1)
-  #   } else {
-  #     m <- sample(ind[1:(length(ind)-3)], 1)
-  #   }
-  #   ind.sparse <- append(ind.sparse,
-  #                        m:(m + samp[j] - 1) )
-  # }
-  # test.fpc.data <- test.fpc.data[ind.sparse, ]
+  # 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
+  samp <- sample(2:6, length(unique(train.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
+  ind.sparse <- c()
+  for (j in unique(train.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
+    ind <- which(train.fpc.data$id == j)
+    m <- sort(sample(ind, samp[j]))
+    ind.sparse <- append(ind.sparse,
+                         m)
+  }
+  train.fpc.data <- train.fpc.data[ind.sparse, ]
+
+  # test set
+  samp <- sample(2:6, length(unique(test.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
+  ind.sparse <- c()
+  for (j in unique(test.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
+    ind <- which(test.fpc.data$id == j)
+    m <- sort(sample(ind, samp[j]))
+    ind.sparse <- append(ind.sparse,
+                         m)
+  }
+  test.fpc.data <- test.fpc.data[ind.sparse, ]
   
   
   ### fpca package 사용한 경우
@@ -152,20 +141,32 @@ for (i in 1:10) {
   pc_func_test <- fpca.test$eigenfunctions
   for (col in 1:k) {   # 부호 비교해서 PC function 부호 통일
     # if (sign(pc_func_train[col, 1]) != sign(pc_func_test[col, 1])) {
-    if (which.max(table(sign(pc_func_train[col, ]))) != which.max(table(sign(pc_func_test[col, ]))) |
-        sum(sign(pc_func_train[col, c(1, ncol(pc_func_train))]) == sign(pc_func_test[col, c(1, ncol(pc_func_test))])) == 0) {
-      pc_func_test[col, ] <- -pc_func_test[col, ]
+    if ( (which.max(table(sign(pc_func_train[col, ]))) != which.max(table(sign(pc_func_test[col, ]))) &
+         (table(sign(pc_func_train[col, ]))[which.max(table(sign(pc_func_train[col, ])))] > 334 &
+          table(sign(pc_func_test[col, ]))[which.max(table(sign(pc_func_test[col, ])))] > 334) ) |
+    # if (((table(sign(pc_func_train[col, ]))[1] / length(fpca.train$grid) > 2/3) &
+    #      !(table(sign(pc_func_test[col, ]))[1] / length(fpca.test$grid) > 2/3)) |
+    #     ((table(sign(pc_func_train[col, ]))[2] / length(fpca.train$grid) > 2/3) &
+    #      !(table(sign(pc_func_test[col, ]))[2] / length(fpca.test$grid) > 2/3)) |
+        sum( sign(pc_func_train[col, c(1, ncol(pc_func_train))]) == sign(pc_func_test[col, c(1, ncol(pc_func_test))]) ) == 0) {
+    # if ( length( setdiff(which.peaks(pc_func_train[col,]), c(1, ncol(pc_func_train))) ) !=
+    #         length( setdiff(which.peaks(pc_func_test[col,]), c(1, ncol(pc_func_test))) ) &
+    #      length( setdiff(which.peaks(-pc_func_train[col,]), c(1, ncol(pc_func_train))) ) !=
+    #      length( setdiff(which.peaks(-pc_func_test[col,]), c(1, ncol(pc_func_test))) ) ) {
+       pc_func_test[col, ] <- -pc_func_test[col, ]
     }
   }
+  fpca.train$eigenfunctions <- pc_func_train
+  fpca.test$eigenfunctions <- pc_func_test
   
   # PC scores - 마지막 원소(grid_sep)는 timepoints 간격이 1, 0.1, 0.01, ...를 지정해줘야함
   train.new <- fpca.score(train.fpc.data, fpca.train$grid, fpca.train$fitted_mean, fpca.train$eigenvalues, 
-                            pc_func_train, fpca.train$error_var, k, 1)   
+                          fpca.train$eigenfunctions, fpca.train$error_var, k, 1)   
   train.new <- cbind(train$y, as.data.frame(train.new))
   colnames(train.new) <- c("y", paste("PC", 1:k))
   
   test.new <- fpca.score(test.fpc.data, fpca.test$grid, fpca.test$fitted_mean, fpca.test$eigenvalues, 
-                         pc_func_test, fpca.test$error_var, k, 1)
+                         fpca.test$eigenfunctions, fpca.test$error_var, k, 1)
   test.new <- cbind(test$y, as.data.frame(test.new))
   colnames(test.new) <- c("y", paste("PC", 1:k))
 
@@ -225,11 +226,18 @@ for (i in 1:10) {
   # }
   # test.new <- cbind(test$y, as.data.frame(test.new))
   # colnames(test.new) <- c("y", paste("PC", 1:k))
-  # 
+  
   
   # fit logistic regression
   fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
   # summary(fit.logit)
+  
+  # fit svm
+  fit.svm <- svm(y ~ ., data=train.new)
+  tune.svm <- tune(svm, train.x=train.new[, -1], train.y=train.new[, 1], kernel="linear", 
+                   ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))
+  fit.svm <- svm(y ~ ., data=train.new, kernel="linear",
+                 cost=tune.svm$best.parameters[1], gamma=tune.svm$best.parameters[2])
   
   # predict
   test.data <- test.new[, -1]
@@ -242,24 +250,26 @@ for (i in 1:10) {
   pred <- factor(round(pred), levels=c(0, 1))
   acc <- mean(pred == test.new$y)   # accuracy 계산
   
+  pred.svm <- predict(fit.svm, test.data)
+  acc.svm <- mean(pred.svm == test.new$y)   # accuracy 계산
   
   # output 저장
+  accuracy.svm[i] <- acc.svm
   accuracy[i] <- acc   # accuracy
   res <- list("accuracy"=acc,
               "cross.table"=table(pred, true=test.new$y))
   result[[i]] <- res
   
   print( paste(i, "th data's Accuracy :", acc) )
+  print( paste(i, "th data's Accuracy(svm) :", acc.svm) )
   # print( rbind(pred, true=test.new$y) )
   # FPC.plot(fpca.train, fpca.test)
-  par(mfrow=c(2, k))
-  # PC function
-  for(j in 1:k){
-    plot(fpca.train$grid, pc_func_train[j, ], type="l", xlab="Age (years)", ylab="Princ. comp.", main=paste("PC", j))
-  }
-  for(j in 1:k){
-    plot(fpca.test$grid, pc_func_test[j, ], type="l", xlab="Age (years)", ylab="Princ. comp.", main=paste("PC", j))
-  }
+  
+  par(mfrow=c(2, k+1))
+  # train set curves and mean function, PC function
+  fpc.plot(train.fpc.data, fpca.train, xlab="minute", ylab="gene expression level")
+  # test set curves and mean function, PC function
+  fpc.plot(test.fpc.data, fpca.test, xlab="minute", ylab="gene expression level")
   mtext(paste(i, "th :", acc), 
                side = 3, # which margin to place text. 1=bottom, 2=left, 3=top, 4=right
                line = 3, # to indicate the line in the margin starting with 0 and moving out
@@ -269,11 +279,32 @@ for (i in 1:10) {
 }
 # mean accuracy
 print( paste("Mean accuracy :", mean(accuracy)) )
+print( paste("Mean accuracy(svm) :", mean(accuracy.svm)) )
 
 # RData로 저장
 # save(list=c("result", "accuracy"), file=paste("sparse_result/result_PC", k, ".RData", sep=""))
 })
 
+# find local maxima index from https://gist.github.com/jamiefolson/5831746
+which.peaks <- function(x,partial=TRUE,decreasing=FALSE){
+  if (decreasing){
+    if (partial){
+      which(diff(c(TRUE,diff(x)<=0,FALSE))>0)
+    }else {
+      which(diff(diff(x)<=0)>0)
+    }    
+  }else {
+    if (partial){
+      which(diff(c(TRUE,diff(x)>=0,FALSE))<0)
+    }else {
+      which(diff(diff(x)>=0)<0)
+    }
+  }
+}
+
+# predicted curve
+pred.plot(train.fpc.data, fpca.train, xlab="minutes", ylab="gene expression level")
+pred.plot(test.fpc.data, fpca.test, xlab="minutes", ylab="gene expression level")
 
 # error rate 계산
 load("result_PC5.RData")

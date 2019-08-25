@@ -357,3 +357,56 @@ fpca.score <- function(data.m, grids.u, muhat, eigenvals, eigenfuncs, sig2hat, K
   }
   return(result)
 }
+
+
+# mean function, PC function grpah
+fpc.plot <- function(fpc.data, fpca.object, xlab="time", ylab="y") {
+  ind <- unique(fpc.data[,1])
+  sub <- fpc.data[which(fpc.data[,1]==ind[1]), ]
+  plot(sub[, 3], sub[, 2],
+       type="o",
+       xlim=c(range(fpc.data[, 3])[1], range(fpc.data[, 3])[2]),
+       ylim=c(range(fpc.data[, 2])[1], range(fpc.data[, 2])[2]),
+       xlab=xlab,
+       ylab=ylab)
+  for (i in ind) {
+    sub <- fpc.data[which(fpc.data[,1]==i), ]
+    lines(sub[,3], sub[,2], type="o")
+  }
+  lines(fpca.object$grid, fpca.object$fitted_mean, col="red", lwd=3, type="l")
+  
+  # PC function
+  for(j in 1:k){
+    plot(fpca.object$grid, fpca.object$eigenfunctions[j, ], type="l", xlab=xlab, ylab="Princ. comp.", main=paste("PC", j))
+  }
+}
+
+# predicted curve plot
+pred.plot <- function(fpc.data, fpca.object, xlab="time", ylab="obs") {
+  # fpc score
+  fpcs <- fpca.score(fpc.data, fpca.object$grid, fpca.object$fitted_mean, fpca.object$eigenvalues, 
+                     fpca.object$eigenfunctions, fpca.object$error_var, k, 1)
+  
+  # predicted curve
+  pred <- fpca.pred(fpcs, fpca.object$fitted_mean, fpca.object$eigenfunctions)
+  
+  # true curve와 predicted curve 비교
+  tt <- sort(unique(fpc.data[,3]))
+  tt <- cbind(tt, seq(0.01, 1, length.out = length(tt)))
+  N <- length(fpca.object$grid)
+  par(mfrow=c(3,3))
+  for (i in 1:length(unique(fpc.data[,1]))){
+    id <- unique(fpc.data[,1])[i]      # for curve i
+    t.c <- fpc.data[fpc.data[,1] == id, 3]  # measurement points
+    meastime2 <- tt[which(tt[,1] %in% t.c), 2]
+    t.proj <- ceiling(N*meastime2)   # measurement points projected on the grid
+    t.proj <- apply(matrix(t.c), 1, function(x){ which( round(fpca.object$grid, 1) %in% x )[2] })
+    y.c <- fpc.data[fpc.data[,1]==id, 2]   # obs
+    y.pred.proj <- pred[t.proj, i]   # predicted obs on the measurement points
+    
+    # plots
+    plot(t.c, y.c, ylim=range(fpc.data[, 2]),
+         xlab=xlab, ylab=ylab, main=paste("predicted trajectory of curve", id))
+    points(fpca.object$grid, pred[, i], col=3, type='l')
+  }
+}
