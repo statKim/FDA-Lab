@@ -73,11 +73,16 @@ time <- as.integer(gsub(pattern="alpha|min",
 system.time({
 # 100개의 generated data로 accuracy 계산
 k <- 2
-kn <- 9
-accuracy <- c()
+kn <- 8
+# mean.acc.logit <- c()
+# mean.acc.svm <- c()
+# for (kn in 4:12) {
+# print(paste("=====", kn, "====="))
+  
+accuracy.logit <- c()
 accuracy.svm <- c()
-result <- list()
-for (i in 1:10) {
+# result <- list()
+for (i in 1:100) {
   set.seed(100)
   y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
   data <- cbind(y, X.curves[[i]])
@@ -96,7 +101,8 @@ for (i in 1:10) {
                     arrange(id, time)
   test.fpc.data$time <- time
   
-  # 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
+  ## 데이터 sparse하게 변환 => curve의 연속된 index random하게 구하기
+  # train set
   samp <- sample(2:6, length(unique(train.fpc.data$id)), replace=T)   # curve의 obs 개수 선택
   ind.sparse <- c()
   for (j in unique(train.fpc.data$id)) {   # 각 curve 별로 개수별로 obs 뽑기
@@ -119,7 +125,7 @@ for (i in 1:10) {
   test.fpc.data <- test.fpc.data[ind.sparse, ]
   
   
-  ### fpca package 사용한 경우
+  ### fpca package 사용한 경우 - PACE 방법으로 PC score 계산
   # column 순서 변경
   train.fpc.data <- as.matrix( train.fpc.data[, c(1,3,2)] )
   test.fpc.data <- as.matrix( test.fpc.data[, c(1,3,2)] )
@@ -226,17 +232,17 @@ for (i in 1:10) {
   # }
   # test.new <- cbind(test$y, as.data.frame(test.new))
   # colnames(test.new) <- c("y", paste("PC", 1:k))
-  
+  #
+  # FPC.plot(fpca.train, fpca.test)
   
   # fit logistic regression
   fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
-  # summary(fit.logit)
   
   # fit svm
   fit.svm <- svm(y ~ ., data=train.new)
-  tune.svm <- tune(svm, train.x=train.new[, -1], train.y=train.new[, 1], kernel="linear", 
+  tune.svm <- tune(svm, train.x=train.new[, -1], train.y=train.new[, 1], kernel="radial", 
                    ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))
-  fit.svm <- svm(y ~ ., data=train.new, kernel="linear",
+  fit.svm <- svm(y ~ ., data=train.new, kernel="radial",
                  cost=tune.svm$best.parameters[1], gamma=tune.svm$best.parameters[2])
   
   # predict
@@ -245,32 +251,30 @@ for (i in 1:10) {
     test.data <- data.frame(test.data)
     colnames(test.data) <- "PC 1"
   }
-  pred <- predict(fit.logit, test.data, type="response")
-  # pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
-  pred <- factor(round(pred), levels=c(0, 1))
-  acc <- mean(pred == test.new$y)   # accuracy 계산
+  pred.logit <- predict(fit.logit, test.data, type="response")
+  pred.logit <- factor(ifelse(pred.logit > 0.5, 1, 0), levels=c(0, 1))
+  # pred.logit <- factor(round(pred.logit), levels=c(0, 1))
+  acc.logit <- mean(pred.logit == test.new$y)   # accuracy 계산
   
   pred.svm <- predict(fit.svm, test.data)
   acc.svm <- mean(pred.svm == test.new$y)   # accuracy 계산
   
   # output 저장
+  accuracy.logit[i] <- acc.logit   # accuracy
   accuracy.svm[i] <- acc.svm
-  accuracy[i] <- acc   # accuracy
-  res <- list("accuracy"=acc,
-              "cross.table"=table(pred, true=test.new$y))
-  result[[i]] <- res
+  # res <- list("accuracy"=acc.logit,
+  #             "cross.table"=table(pred, true=test.new$y))
+  # result[[i]] <- res
   
-  print( paste(i, "th data's Accuracy :", acc) )
+  print( paste(i, "th data's Accuracy(logit) :", acc.logit) )
   print( paste(i, "th data's Accuracy(svm) :", acc.svm) )
-  # print( rbind(pred, true=test.new$y) )
-  # FPC.plot(fpca.train, fpca.test)
   
   par(mfrow=c(2, k+1))
   # train set curves and mean function, PC function
   fpc.plot(train.fpc.data, fpca.train, xlab="minute", ylab="gene expression level")
   # test set curves and mean function, PC function
   fpc.plot(test.fpc.data, fpca.test, xlab="minute", ylab="gene expression level")
-  mtext(paste(i, "th :", acc), 
+  mtext(paste(i, "th :", acc.logit),
                side = 3, # which margin to place text. 1=bottom, 2=left, 3=top, 4=right
                line = 3, # to indicate the line in the margin starting with 0 and moving out
                adj = 1, # adj=0 for left/bottom alignment or adj=1 for top/right alignment
@@ -278,12 +282,18 @@ for (i in 1:10) {
                outer = F)
 }
 # mean accuracy
-print( paste("Mean accuracy :", mean(accuracy)) )
+print( paste("Mean accuracy(logit) :", mean(accuracy.logit)) )
 print( paste("Mean accuracy(svm) :", mean(accuracy.svm)) )
 
+# mean.acc.logit <- append(mean.acc.logit, mean(accuracy.logit))
+# mean.acc.svm <- append(mean.acc.svm, mean(accuracy.svm))
+# }
 # RData로 저장
 # save(list=c("result", "accuracy"), file=paste("sparse_result/result_PC", k, ".RData", sep=""))
 })
+
+acc.knots <- setNames(data.frame(rbind(mean.acc.logit, mean.acc.svm), row.names = c("logit","svm")),4:12)
+save(acc.knots, file="sparse_result/accuracy_knots.RData")
 
 # find local maxima index from https://gist.github.com/jamiefolson/5831746
 which.peaks <- function(x,partial=TRUE,decreasing=FALSE){

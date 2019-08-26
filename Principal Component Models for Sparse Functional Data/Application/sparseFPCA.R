@@ -207,10 +207,10 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
     # M-step
     sigma[t+1] <- proc_sigma(data, B, theta0[t,], Theta[[t]], alpha[[t]], D[t,], sigma[t], Tgrid)
     D[t+1,] <- proc_D(data, B, Theta[[t]], alpha[[t]], D[t,], sigma[t+1], Tgrid)
-    
+
     theta0[t+1,] <- sol_theta0(data, B, Theta[[t]], alpha[[t]], Tgrid)
     Theta[[t+1]] <- sol_Theta(data, B, theta0[t,], Theta[[t]], D[t+1,], alpha[[t]], sigma[t+1], alpha_outer, Tgrid)
-    
+
     # E-step (predict alpha)
     alpha[[t+1]] <- sol_alpha(data, B, theta0[t+1,], Theta[[t+1]], D[t+1,], sigma[t+1], Tgrid)
     alpha_outer <- sol_alpha_outprod(data, B, Theta[[t+1]], alpha[[t+1]], D[t+1,], sigma[t+1], Tgrid)
@@ -342,13 +342,13 @@ fpca.score <- function(data.m, grids.u, muhat, eigenvals, eigenfuncs, sig2hat, K
     Y <- as.vector(data.u[(current+1):(current+m.l[i]),1])  # observed  measurements of ith curve
     meastime <- data.u[(current+1):(current+m.l[i]),2]      # measurement times of the ith curve
     meastime2 <- tt[which(tt[,1] %in% meastime), 2]
-    # round한 gridpoint와 timepoints를 비교해서(같은 것 여러개 나옴) 같은 것의 2번째 값 사용
+    # round한 gridpoint와 timepoints를 비교해서(같은 것 여러개 나옴) 같은 것의 2번째 값 사용(별 의미 X)
     gridtime <- apply(matrix(meastime), 1, function(x){ which( round(grids.u, interval) %in% x )[2] })   
     muy <- muhat[gridtime]
     Phiy  <- matrix(eigenfuncs.u[gridtime,1:K], ncol=K)
     Sigy <- Phiy %*% evalmat %*% t(Phiy) + sig2hat * diag(m.l[i])
     temp.y <- matrix(Y-muy)
-    result[i,] <- evalmat %*% t(Phiy) %*% solve(Sigy, temp.y)
+    result[i,] <- evalmat %*% t(Phiy) %*% solve(Sigy, temp.y)   # PACE 방법으로 PC score 계산
     current <- current + m.l[i]
     
     # # gridpoint와 실제 timepoint가 비슷한지 비교하기 위함
