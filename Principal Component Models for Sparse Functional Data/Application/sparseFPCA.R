@@ -375,20 +375,20 @@ fpc.plot <- function(fpc.data, fpca.object, xlab="time", ylab="y") {
   }
   lines(fpca.object$grid, fpca.object$fitted_mean, col="red", lwd=3, type="l")
   
+  pve <- as.numeric( fpca.object$PVE )
+  
   # PC function
   for(j in 1:k){
-    plot(fpca.object$grid, fpca.object$eigenfunctions[j, ], type="l", xlab=xlab, ylab="Princ. comp.", main=paste("PC", j))
+    plot(fpca.object$grid, fpca.object$eigenfunctions[j, ], type="l", xlab=xlab, ylab="Princ. comp.",
+         main=paste("PC", j, "(", round(pve[j] * 100, 2), "% )" ))
   }
 }
 
-# predicted curve plot
-pred.plot <- function(fpc.data, fpca.object, xlab="time", ylab="obs") {
-  # fpc score
-  fpcs <- fpca.score(fpc.data, fpca.object$grid, fpca.object$fitted_mean, fpca.object$eigenvalues, 
-                     fpca.object$eigenfunctions, fpca.object$error_var, k, 1)
-  
+# predicted curve plot - Karhunen-Loeve expansion
+# xrange : 각 그래프 x축 범위를 전체 curve obs 범위로 할거면 TRUE, 각 curve의 범위로 할거면 FALSE(default)
+pred.plot <- function(fpc.data, fpca.object, fpca.score, xlab="time", ylab="obs", xrange=F) {
   # predicted curve
-  pred <- fpca.pred(fpcs, fpca.object$fitted_mean, fpca.object$eigenfunctions)
+  pred <- fpca.pred(fpca.score, fpca.object$fitted_mean, fpca.object$eigenfunctions)
   
   # true curve와 predicted curve 비교
   tt <- sort(unique(fpc.data[,3]))
@@ -405,8 +405,15 @@ pred.plot <- function(fpc.data, fpca.object, xlab="time", ylab="obs") {
     y.pred.proj <- pred[t.proj, i]   # predicted obs on the measurement points
     
     # plots
-    plot(t.c, y.c, ylim=range(fpc.data[, 2]),
-         xlab=xlab, ylab=ylab, main=paste("predicted trajectory of curve", id))
+    if (xrange == T) {
+      plot(t.c, y.c,
+           xlim=range(fpc.data[, 3]), ylim=range(fpc.data[, 2]),
+           xlab=xlab, ylab=ylab, main=paste("predicted trajectory of curve", id))
+    } else {
+      plot(t.c, y.c,
+           ylim=range(fpc.data[, 2]),
+           xlab=xlab, ylab=ylab, main=paste("predicted trajectory of curve", id))
+    }
     points(fpca.object$grid, pred[, i], col=3, type='l')
   }
 }
