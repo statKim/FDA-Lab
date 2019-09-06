@@ -1,5 +1,4 @@
 ﻿.ipynb_checkpoints/
-*.RData
 *.html
 *.Rhistory
 #*.pdf
@@ -13,4 +12,3 @@ canadian_weather 그래프.hwp
 reference/
 code.ipynb
 code.Rmd
-fpca/

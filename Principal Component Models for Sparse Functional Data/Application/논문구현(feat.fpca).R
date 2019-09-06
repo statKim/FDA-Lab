@@ -31,8 +31,8 @@ source( paste(path, "functions_Optimization.R", sep="") )
 
 
 # spline knots 개수, PC 개수 정의
-kn <- c(4, 9, 14)   # knots 개수
-k <- c(2)   # PC 개수
+kn <- c(5, 10, 15)   # knots 개수
+k <- 2   # PC 개수
 
 # parameters for fpca.mle
 ini.method <- "EM"        # optimization method
