@@ -407,13 +407,13 @@ pred.plot <- function(fpc.data, fpca.object, fpca.score, xlab="time", ylab="obs"
     # plots
     if (xrange == T) {
       plot(t.c, y.c,
-           xlim=range(fpc.data[, 3]), ylim=range(fpc.data[, 2]),
+           xlim=range(fpc.data[, 3]), ylim=range(fpc.data[, 2]), cex=1.5,
            xlab=xlab, ylab=ylab, main=paste("predicted trajectory of curve", id))
     } else {
       plot(t.c, y.c,
-           ylim=range(fpc.data[, 2]),
+           ylim=range(fpc.data[, 2]), cex=1.5,
            xlab=xlab, ylab=ylab, main=paste("predicted trajectory of curve", id))
     }
-    points(fpca.object$grid, pred[, i], col=3, type='l')
+    lines(fpca.object$grid, pred[, i], col=3, lwd=2, type='l')
   }
 }

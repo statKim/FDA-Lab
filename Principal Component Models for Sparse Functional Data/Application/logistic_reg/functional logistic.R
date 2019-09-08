@@ -79,7 +79,7 @@ system.time({
 for (k in 1:5) {
   # 100개의 generated data로 accuracy 계산
   # k <- 5
-  kn <- 4
+  kn <- 7
   accuracy <- c()
   result <- list()
   for (i in 1:100) {
@@ -105,8 +105,9 @@ for (k in 1:5) {
     fpca.test <- fpca.fit(test.fpc.data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots=kn, num_pc=k, grid_sep=1)
     
     # FPC로 train, test set 만들기
-    pc_func_train <- fpca.train$PCfunction[which(fpca.train$Timegrid %in% time),]
-    pc_func_test <- fpca.test$PCfunction[which(fpca.test$Timegrid %in% time),]
+    pc_func_train <- fpca.train$PCfunction[which(fpca.train$Timegrid %in% time), ]
+    pc_func_test <- fpca.test$PCfunction[which(fpca.test$Timegrid %in% time), ]
+    
     
     # 만약 PC function이 complex인 경우, 넘어가기
     if (is.complex(pc_func_train) | is.complex(pc_func_test)) {
@@ -114,13 +115,21 @@ for (k in 1:5) {
     }
     # PC function의 부호 같게 바꾸기(각 PC function의 첫 번째 값의 부호에 따라)
     if (is.null(dim(pc_func_train))) {   # k=1인 경우
-      if (sign(pc_func_train[1]) != sign(pc_func_test[1])) {
+      L2.same <- sum( (pc_func_train - pc_func_test)^2 )
+      L2.diff <- sum( (pc_func_train + pc_func_test)^2 )
+      # L2 norm 비교
+      if (L2.same > L2.diff) {
         pc_func_test <- -pc_func_test
+        fpca.test$PCfunction <- -fpca.test$PCfunction
       }
     } else {
       for (col in 1:k) {
-        if (sign(pc_func_train[1, col]) != sign(pc_func_test[1, col])) {
+        L2.same <- sum( (pc_func_train[, col] - pc_func_test[, col])^2 )
+        L2.diff <- sum( (pc_func_train[, col] + pc_func_test[, col])^2 )
+        # L2 norm 비교
+        if (L2.same > L2.diff) {
           pc_func_test[, col] <- -pc_func_test[, col]
+          fpca.test$PCfunction[, col] <- -fpca.test$PCfunction[, col]
         }
       }
     }
@@ -138,8 +147,6 @@ for (k in 1:5) {
     colnames(test.new) <- c("y", paste("PC", 1:k))
     
 
-
-  
     # fit logistic regression
     fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
     # summary(fit.logit)
@@ -264,7 +271,7 @@ cumsum(pve)
   lines(fit$Timegrid, fit$MeanFunction, col="red", lwd=3, type="l")
   
   # PC function
-  for (i in 1:5){
+  for (i in 1:k){
     plot(fit$Timegrid, fit$PCfunction[,i], type="l", lwd=3, ylim=c(-.4, .2),
          xlab="minutes", ylab="Princ. comp.", main=paste("FPC", i, "(", round(pve[i]*100, 1), "%)"))
   }
@@ -292,11 +299,31 @@ cumsum(pve)
   lines(fit$Timegrid, fit$MeanFunction, col="red", lwd=3, type="l")
   
   # PC function
-  for (i in 1:5){
+  for (i in 1:k){
     plot(fit$Timegrid, fit$PCfunction[,i], type="l", lwd=3, ylim=c(-.4, .2),
          xlab="minutes", ylab="Princ. comp.", main=paste("PC", i))
   }
 }
+
+
+# predicted curve
+fit <- fpca.train
+par(mfrow=c(3,3))
+for (i in 1:length(unique(train.fpc.data[, 1]))){
+  ind <- which(fit$Timegrid %in% train.fpc.data[which(train.fpc.data[, 1]==unique(train.fpc.data[, 1])[i]), 2])
+  time_point <- fit$Timegrid[ind]
+  t_range <- range(ind)
+  y_hat <- fit$MeanFunction[t_range[1]:t_range[2]] + fit$PCfunction[t_range[1]:t_range[2],]%*%fit$alpha[i,]
+  
+  y <- matrix(train.fpc.data[which(train.fpc.data[, 1]==unique(train.fpc.data[, 1])[i]), 3], ncol=1)
+  
+  plot(time_point, y,
+       xlim=range(train.fpc.data[, 2]), ylim=range(train.fpc.data[, 3]),
+       xlab="minutes", ylab="gene expression level",
+       main=paste("predicted trajectory of curve", unique(train.fpc.data[, 1])[i]))
+  points(fit$Timegrid[t_range[1]:t_range[2]], y_hat, col=3, type='l')
+}
+
 
 
 # PVE

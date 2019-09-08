@@ -1,4 +1,4 @@
-setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\Principal Component Models for Sparse Functional Data\\Application\\logistic_reg")
+setwd("C:\\Users\\user\\Desktop\\KHS\\Thesis\\Principal Component Models for Sparse Functional Data\\Application\\sparse_classification")
 
 #####################
 ### Data generating
@@ -9,7 +9,7 @@ library(ggplot2)
 library(data.table)
 
 set.seed(100)
-cell <- read.delim("mbc_9_12_3273__CDCDATA.txt")
+cell <- read.delim("../logistic_reg/mbc_9_12_3273__CDCDATA.txt")
 gene <- cell[, c(1, 6:23)] # 0~120min, 18 points
 gene <- na.omit(gene)
 
@@ -81,24 +81,19 @@ time <- as.integer(gsub(pattern="alpha|min",
                         x=time))
 system.time({
 # 100개의 generated data로 accuracy 계산
-k <- 5
+k <- 3
 kn <- 8
-num.obs <- 5
-# mean.acc.logit <- c()
-# mean.acc.svm <- c()
-# for (kn in 4:12) {
-# print(paste("=====", kn, "====="))
+num.obs <- 10
 
 ## k, num.obs로 반복문 돌리기
-for (k in 2:5){
-  for (num.obs in 2:18) {
+# for (k in 2:5){
+#   for (num.obs in 2:18) {
 
 accuracy.logit <- c()
 accuracy.svm.linear <- c()
 accuracy.svm.radial <- c()
 accuracy.svm.sigmoid <- c()
 accuracy.svm.poly <- c()
-# result <- list()
 for (i in 1:100) {
   set.seed(100)
   y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
@@ -332,16 +327,13 @@ print( paste("Mean accuracy(svm-radial) :", mean(accuracy.svm.radial, na.rm=T)) 
 print( paste("Mean accuracy(svm-sigmoid) :", mean(accuracy.svm.sigmoid, na.rm=T)) )
 print( paste("Mean accuracy(svm-poly) :", mean(accuracy.svm.poly, na.rm=T)) )
 
-# mean.acc.logit <- append(mean.acc.logit, mean(accuracy.logit))
-# mean.acc.svm <- append(mean.acc.svm, mean(accuracy.svm))
-# }
 result <- cbind(accuracy.logit,
                 accuracy.svm.linear,
                 accuracy.svm.radial,
                 accuracy.svm.sigmoid,
                 accuracy.svm.poly)
 # RData로 저장
-save(result, file=paste("sparse_result/acc_", k, "PC_", kn, "knots_", num.obs, "obs.RData", sep=""))
+# save(result, file=paste("sparse_result/acc_", k, "PC_", kn, "knots_", num.obs, "obs.RData", sep=""))
 
 # 전체 mean accuracy 저자
 if (k == 2 & num.obs == 2) {
@@ -354,25 +346,24 @@ if (k == 2 & num.obs == 2) {
   rownames(final.result) <- c(rnames,
                               paste(k, "PC_", num.obs, "obs", sep=""))
 }
-save(final.result, file="sparse_result/all_results.RData")
-  }  # k, num.obs
-}    # 반복문 부분
+# save(final.result, file="sparse_result/all_results.RData")
+#   }  # k, num.obs
+# }    # 반복문 부분
 })
 
-# acc.knots <- setNames(data.frame(rbind(mean.acc.logit, mean.acc.svm), row.names = c("logit","svm")),4:12)
-# save(acc.knots, file="sparse_result/accuracy_knots.RData")
 
+# logistic, kernel svm 별로 가장 높은 accuracy 확인
+apply(final.result, 2, which.max)
+final.result[apply(final.result, 2, which.max), ]
 
-xxx <- tryCatch(3+1,
-         error = function(e){
-           xxx[2] <- 5
-           return(5)
-         })
-
+colMeans(final.result[1:17, ])
+colMeans(final.result[18:34, ])
+colMeans(final.result[35:51, ])
+colMeans(final.result[52:68, ])
 
 
 # predicted curve
-pred.plot(train.fpc.data, fpca.train, train.new[, -1], xlab="minutes", ylab="gene expression level")
+pred.plot(train.fpc.data, fpca.train, train.new[, -1], xlab="minutes", ylab="gene expression level", xrange=T)
 pred.plot(test.fpc.data, fpca.test, test.new[, -1], xlab="minutes", ylab="gene expression level")
 
 

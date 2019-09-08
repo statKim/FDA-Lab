@@ -12,3 +12,5 @@ canadian_weather 그래프.hwp
 reference/
 code.ipynb
 code.Rmd
+daily_avg.RData
+hourly_data.RData
