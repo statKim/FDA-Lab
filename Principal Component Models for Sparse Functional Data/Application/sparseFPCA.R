@@ -147,7 +147,7 @@ orthog_Theta <- function(Theta, D) {
   r <- eigen(Gamma)
   eigenvector <- r$vectors[,1:K]
   eigenvalues <- r$values[1:K]
-  return(list(eigenvector=eigenvector, eigenvalues=eigenvalues))
+  return(list(eigenvector=eigenvector, eigenvalues=eigenvalues, Gamma=Gamma))
 }
 
 
@@ -231,8 +231,9 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   # fpc <- 
   
   # PVE 계산
-  PVE <- t( data.frame(individual=orth_Theta$eigenvalues / sum(orth_Theta$eigenvalues),
-                       cumulative=cumsum(orth_Theta$eigenvalues) / sum(orth_Theta$eigenvalues)) )
+  eig <- eigen(orth_Theta$Gamma)
+  PVE <- t( data.frame(individual=orth_Theta$eigenvalues / sum(eig$values[eig$values > 0]),
+                       cumulative=cumsum(orth_Theta$eigenvalues) / sum(eig$values[eig$values > 0])) )
   colnames(PVE) <- paste("PC", 1:k, sep="")
   
   # log likelihood
@@ -286,7 +287,8 @@ fpca.fit <- function(data, iter=100, init_value=c(.1, .1, .1, .1, .1), num_knots
   result[["Loglik"]] <- loglik
   result[["predcurve"]] <- pred.curve
   result[["PVE"]] <- PVE
-  
+  result[["Sigma"]] <- orth_Theta$Gamma + diag(rep(sigma[[t]], q))
+  result[["eigenvalues"]] <- orth_Theta$eigenvalues
   return(result)
 }
 
@@ -343,7 +345,8 @@ fpca.score <- function(data.m, grids.u, muhat, eigenvals, eigenfuncs, sig2hat, K
     meastime <- data.u[(current+1):(current+m.l[i]),2]      # measurement times of the ith curve
     meastime2 <- tt[which(tt[,1] %in% meastime), 2]
     # round한 gridpoint와 timepoints를 비교해서(같은 것 여러개 나옴) 같은 것의 2번째 값 사용(별 의미 X)
-    gridtime <- apply(matrix(meastime), 1, function(x){ which( round(grids.u, interval) %in% x )[2] })   
+    # gridtime <- apply(matrix(meastime), 1, function(x){ which( round(grids.u, interval) %in% x )[2] })   
+    gridtime <- apply(matrix(meastime), 1, function(x){ ceiling(median(which( round(grids.u, interval) %in% x ))) })   
     muy <- muhat[gridtime]
     Phiy  <- matrix(eigenfuncs.u[gridtime,1:K], ncol=K)
     Sigy <- Phiy %*% evalmat %*% t(Phiy) + sig2hat * diag(m.l[i])
@@ -400,7 +403,8 @@ pred.plot <- function(fpc.data, fpca.object, fpca.score, xlab="time", ylab="obs"
     t.c <- fpc.data[fpc.data[,1] == id, 3]  # measurement points
     meastime2 <- tt[which(tt[,1] %in% t.c), 2]
     t.proj <- ceiling(N*meastime2)   # measurement points projected on the grid
-    t.proj <- apply(matrix(t.c), 1, function(x){ which( round(fpca.object$grid, 1) %in% x )[2] })
+    # t.proj <- apply(matrix(t.c), 1, function(x){ which( round(fpca.object$grid, 1) %in% x )[2] })
+    gridtime <- apply(matrix(t.c), 1, function(x){ ceiling(median(which( round(fpca.object$grid, 1) %in% x ))) })
     y.c <- fpc.data[fpc.data[,1]==id, 2]   # obs
     y.pred.proj <- pred[t.proj, i]   # predicted obs on the measurement points
     

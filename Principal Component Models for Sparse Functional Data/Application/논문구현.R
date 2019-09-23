@@ -71,10 +71,10 @@ for (kn in c(6)) {
   
   # estimate PC functions and mean function
   orth_Theta <- orthog_Theta(Theta[[t]], D[t,])
-  fpc <- B%*%orth_Theta
+  fpc <- B%*%orth_Theta$eigenvector
   if (sum(fpc[,1]) < 0) {   # 1st PC의 부호를 양수로 만들기 위해
-    orth_Theta <- -orthog_Theta(Theta[[t]], D[t,])
-    fpc <- B%*%orth_Theta
+    orth_Theta$eigenvector <- -orth_Theta$eigenvector
+    fpc <- B%*%orth_Theta$eigenvector
   }
   mean_fn <- B%*%theta0[t,]
   
@@ -167,21 +167,38 @@ for (kn in c(4)) {
 # }
 
 # predicted curve
-fit <- fpca.fit(data, iter=100, init_value=init_value, num_knots=4, num_pc=2)
-par(mfrow=c(5,5))
+fit <- fpca.fit(data, iter=100, init_value=init_value, num_knots=9, num_pc=5)
+par(mfrow=c(3,3))
 for (i in 1:25){
   ind <- which(fit$Timegrid %in% data$age[which(data$idnum==unique(data$idnum)[i])])
   time_point <- fit$Timegrid[ind]
   t_range <- range(ind)
-  y_hat <- fit$MeanFunction[t_range[1]:t_range[2]] + fit$PCfunction[t_range[1]:t_range[2],]%*%fit$alpha[i,]
-  
+  # y_hat <- fit$MeanFunction[t_range[1]:t_range[2]] + fit$PCfunction[t_range[1]:t_range[2],]%*%fit$alpha[i,]
+  y_hat <- fit$MeanFunction + fit$PCfunction%*%fit$alpha[i,]
+
   y <- matrix(data$spnbmd[which(data$idnum==unique(data$idnum)[i])], ncol=1)
-  
+
+
+  pc.function <- fit$PCfunction[which(data$idnum==unique(data$idnum)[i]), ]
+  mean.function <- fit$MeanFunction[which(data$idnum==unique(data$idnum)[i]), ]
+  cov.mat <- (1/nrow(y)) * y%*%t(y) + diag(rep(fit$sigma2, nrow(y)))
+
+  # eig <- eigen(fit$Sigma)
+  # pc.function <- eig$vectors[, 1:5]
+  # eig$values
+  eig <- eigen(fit$basis %*% fit$Sigma %*% t(fit$basis))
+  eig <- eigen(fit$basis %*% fit$Theta%*%fit$D%*%t(fit$Theta) %*% t(fit$basis))
+  pc.function <- eig$vectors[which(data$idnum==unique(data$idnum)[i]), 1:5]
+
+  # PACE
+  pc.score <- diag(fit$eigenvalues) %*% t(pc.function) %*% solve(cov.mat) %*% (y - mean.function)
+  y_hat <- fit$MeanFunction + fit$PCfunction%*%pc.score
+
   plot(time_point, y,
        xlim=range(data$age), ylim=range(data$spnbmd),
        xlab="Age (years)", ylab="Spinal bone density",
        main=paste("predicted trajectory of curve", unique(data$idnum)[i]))
-  points(fit$Timegrid[t_range[1]:t_range[2]], y_hat, col=3, type='l')
+  lines(fit$Timegrid, y_hat, col=3, lwd=2)
 }
 
 # 1st PC function
