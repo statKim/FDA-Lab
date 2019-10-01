@@ -97,8 +97,6 @@
 \begin{frame}{PVE}
 	\begin{block}{PVE(Proportion of Variance Explained)}
 		\vspace{0.2cm}
-%		$$ PVE_i = \frac{\lambda_i}{\sum_{j=1}^{\infty}\lambda_j} $$
-%		$$ Cumulative \ PVE = \frac{\sum_{j=1}^{K}\lambda_j}{\sum_{j=1}^{\infty}\lambda_j} $$
 		$$ \begin{aligned}
 			PVE_i &= \frac{\lambda_i}{\sum_{j=1}^{\infty}\lambda_j} \\
 			PVE &= \frac{\sum_{j=1}^{K}\lambda_j}{\sum_{j=1}^{\infty}\lambda_j}
@@ -106,26 +104,10 @@
 		$$
 		
 		Select $K$, the number of PCs, where 
-%		\vspace{-0.1cm}
 		$$ PVE \ge 0.95 $$
-%		\begin{itemize}
-%			\item {
-%				Select $K$, the number of PCs where 
-%				\vspace{-0.1cm}
-%				$$ Cumulative \ PVE > 0.95 $$
-%			}
-%			\item {
-%				Using the \texttt{EM} option, it solves the reduced rank model(James \textit{et al.}) to obtain FPC functions.
-%			}		
-%			\item {
-%				It uses PACE method(Yao \textit{et al.}) not the numerical integration to estimate FPC scores.
-%			}
-%		\end{itemize}
 	\end{block}
 \end{frame}
 
-
-%\section{Cross-Validation}
 \begin{frame}{Cross-Validation}
 	\begin{block}{Leave-one-curve-out cross validation}
 		\vspace{0.1cm}
@@ -133,7 +115,7 @@
 		where
 		$$ \widehat{Y_i}^{-i}(t) = \hat\mu(t) + \sum_{k=1}^K \hat\phi_k^{-i}(t) \hat\xi_{ik}^{-i} $$
 		
-		Select $K$, the number of FPCs, by minimizing the $LOOCV$ score.
+		Select $K$, the number of FPCs, by minimizing the $LOOCV$ error.
 	\end{block}
 \end{frame}
 
@@ -176,10 +158,10 @@
 				Estimate the FPC functions and scores using the sparse FPCA method with $7$ knots.
 			}
 			\item {
-				Perform the $5$ classification methods for the training sets, and predict for the test sets with the different number of FPCs.
-			}
-			\item {
 				Choose the number of FPCs satisfied $PVE \ge 0.95$
+			}		
+			\item {
+				Perform the $5$ classification methods for the training sets, and predict for the test sets with the different number of FPCs.
 			}
 		\end{itemize}
 	\end{block}

@@ -285,9 +285,6 @@ registerDoParallel(ncores)
 i <- 1
 num.obs <- 10
 
-# result <- list()
-# result.sse <- list()
-# result.kl <- list()
 start.time <- Sys.time()   # 연산속도 체크
 for (num.obs in 2:18) {
   # for (i in 1:100) {
@@ -406,103 +403,13 @@ for (num.obs in 2:18) {
       }
     }
     
-  
-    # # selected k
-    # k <- which.min(cv.loocv)
-    # 
-    # # select된 k를 사용해서 fpca fit
-    # fpca.train <- fpca.mle(train.fpc.data, kn, k, ini.method, basis.method, sl.v, max.step, grid.l, grids)
-    # 
-    # # PC scores - 마지막 원소(grid_sep)는 timepoints 간격이 1, 0.1, 0.01, ...를 지정해줘야함
-    # train.new <- tryCatch(fpca.score(train.fpc.data, fpca.train$grid, fpca.train$fitted_mean, fpca.train$eigenvalues, 
-    #                                  fpca.train$eigenfunctions, fpca.train$error_var, k, 1),
-    #                       error = function(e) {
-    #                         print(paste(i, "th data's train set fpca error"))
-    #                         return(TRUE)
-    #                       })
-    # test.new <- tryCatch(fpca.score(test.fpc.data, fpca.train$grid, fpca.train$fitted_mean, fpca.train$eigenvalues, 
-    #                                 fpca.train$eigenfunctions, fpca.train$error_var, k, 1),
-    #                      error = function(e) {
-    #                        print(paste(i, "th data's train set fpca error"))
-    #                        return(TRUE)
-    #                      })
-    # 
-    # 
-    # # score 계산 중 에러가 발생하지 않을 때, fpca.train의 Newton-iteration이 수렴하지 못했을 때(error_var>>, cv_score 계산 X)
-    # if (!is.numeric(train.new) & !is.numeric(test.new) & fpca.train$converge < 1) {
-    #   train.new <- cbind(train$y, as.data.frame(train.new))
-    #   colnames(train.new) <- c("y", paste("PC", 1:k))
-    #   test.new <- cbind(test$y, as.data.frame(test.new))
-    #   colnames(test.new) <- c("y", paste("PC", 1:k))
-    #   
-    #   # fit logistic regression
-    #   fit.logit <- glm(y ~ ., data=train.new, family = "binomial")
-    #   
-    #   # fit svm
-    #   fit.svm.linear <- tune(svm, y ~ ., data=train.new, kernel="linear",
-    #                          ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))$best.model
-    #   fit.svm.radial <- tune(svm, y ~ ., data=train.new, kernel="radial",
-    #                          ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))$best.model
-    #   fit.svm.sigmoid <- tune(svm, y ~ ., data=train.new, kernel="sigmoid",
-    #                           ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))$best.model
-    #   fit.svm.poly <- tune(svm, y ~ ., data=train.new, kernel="poly",
-    #                        ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))$best.model
-    #   
-    #   # predict
-    #   test.data <- test.new[, -1]
-    #   if (!is.data.frame(test.data)) {   # k=1인 경우(vector로 변환되기 때문)
-    #     test.data <- data.frame(test.data)
-    #     colnames(test.data) <- "PC 1"
-    #   }
-    #   
-    #   # logit predict
-    #   pred.logit <- predict(fit.logit, test.data, type="response")
-    #   pred.logit <- factor(ifelse(pred.logit > 0.5, 1, 0), levels=c(0, 1))
-    #   acc.logit <- mean(pred.logit == test.new$y)   # accuracy 계산
-    #   
-    #   # svm predict
-    #   pred.svm.linear <- predict(fit.svm.linear, test.data)
-    #   acc.svm.linear <- mean(pred.svm.linear == test.new$y)   # accuracy 계산
-    #   pred.svm.radial <- predict(fit.svm.radial, test.data)
-    #   acc.svm.radial <- mean(pred.svm.radial == test.new$y)   # accuracy 계산
-    #   pred.svm.sigmoid <- predict(fit.svm.sigmoid, test.data)
-    #   acc.svm.sigmoid <- mean(pred.svm.sigmoid == test.new$y)   # accuracy 계산
-    #   pred.svm.poly <- predict(fit.svm.poly, test.data)
-    #   acc.svm.poly <- mean(pred.svm.poly == test.new$y)   # accuracy 계산
-    #   
-    #   # output 저장
-    #   output <- data.frame(logit=acc.logit, 
-    #                        svm.linear=acc.svm.linear,
-    #                        svm.radial=acc.svm.radial,
-    #                        svm.sigmoid=acc.svm.sigmoid,
-    #                        svm.poly=acc.svm.poly,
-    #                        K=k,
-    #                        PVE=round(fpca.train$PVE[2, k], 3))
-    # } else {
-    #   output <- data.frame(logit=NA, 
-    #                        svm.linear=NA,
-    #                        svm.radial=NA,
-    #                        svm.sigmoid=NA,
-    #                        svm.poly=NA,
-    #                        K=k,
-    #                        PVE=round(fpca.train$PVE[2, k], 3))
-    # }
-    
-    # if (i > 1) {
     if (num.obs > 2) {
       cv.sse <- rbind(cv.sse, cv.loocv)
       cv.kl <- rbind(cv.kl, cv.fpca)
-      # res <- rbind(res, output)
     } else {
       cv.sse <- cv.loocv
       cv.kl <- cv.fpca
-      # res <- output
     }
-  # }
-  
-#   result[[paste(num.obs, "obs", sep="")]] <- res
-#   result.sse[[paste(num.obs, "obs", sep="")]] <- cv.sse
-#   result.kl[[paste(num.obs, "obs", sep="")]] <- cv.kl
 }
 end.time <- Sys.time()
 end.time - start.time   # 연산 속도 측정
@@ -512,16 +419,15 @@ rownames(cv.kl) <- 2:18
 
 save(list=c("cv.sse", "cv.kl"), file="results/cv_result.RData")
 
-par(mfrow=c(3,2))
+par(mfrow=c(3,3))
 for (i in 2:18) {
   plot(2:8, cv.sse[i-1, -1], type="o", xlab="No. of FPC", ylab="MSE", main=paste(i, "obs"))
-  points(which.min(cv.sse[i-1, -1])+1, 
-         cv.sse[i-1, -1][which.min(cv.sse[i-1, -1])], 
+  points(which.min(cv.sse[i-1, -1])+1,
+         cv.sse[i-1, -1][which.min(cv.sse[i-1, -1])],
          col="red", pch=19, cex=1.5)
   plot(2:8, cv.kl[i-1, -1], type="o", xlab="No. of FPC", ylab="Kullback–Leibler Loss", main=paste(i, "obs"))
   points(which.min(cv.kl[i-1, -1])+1,
          cv.kl[i-1, -1][which.min(cv.kl[i-1, -1])],
          col="red", pch=19, cex=1.5)
 }
-
 
