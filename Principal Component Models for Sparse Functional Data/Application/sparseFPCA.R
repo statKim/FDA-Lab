@@ -378,7 +378,7 @@ fpc.plot <- function(fpc.data, fpca.object, xlab="time", ylab="y") {
   }
   lines(fpca.object$grid, fpca.object$fitted_mean, col="red", lwd=3, type="l")
   
-  pve <- as.numeric( fpca.object$PVE )
+  pve <- as.numeric( fpca.object$PVE[1, ] )
   
   # PC function
   for(j in 1:k){
