@@ -1,7 +1,20 @@
 setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Principal Component Models for Sparse Functional Data\\Application\\pc_selection_2")
 
 
+# load simulated data
+load("../simulated_data.RData")
+
+# 10-fold CV
+library(tidyverse)
+library(doParallel)   # parallel computing
 library(fdapace)
+library(rlist)
+library(MASS)
+
+# parallel computing setting
+ncores <- detectCores() - 2
+registerDoParallel(ncores)
+
 
 i <- 1
 set.seed(100)
@@ -15,162 +28,69 @@ test <- as.matrix(data[-ind, -1])
 train_data <- Sparsify(train, time, sparsity = c(2:10))
 test_data <- Sparsify(test, time, sparsity = c(2:10))
 
-# fit FPCA
-fpca.train <- FPCA(train_data$Ly, 
-                   train_data$Lt, 
-                   list(dataType="Sparse",
-                        methodXi="CE",
-                        FVEthreshold=1,   # fit할 수 있는 최대의 k까지 fit
-                        rho="cv",
-                        verbose=T))
 
-# predict FPC score of test set
-fpc.test <- predict(fpca.train, test_data$Ly, test_data$Lt, K=5)
+packages <- c("fdapace","MASS")   # foreach에서 사용할 package 정의
+k <- 3
 
-# plot predicted curve of test set
-pred.test <- matrix(rep(fpca.train$mu, nrow(test)), nrow(test), byrow=T) + fpc.test %*% t(fpca.train$phi[, 1:5])
-pred.test <- as.list(as.data.frame(t(pred.test)))
+X <- train_data
+N <- length(X$Ly)
 
-time.grid <- fpca.train$workGrid
-ind <- lapply(test_data$Lt, function(y){ sapply(y, function(x){which.min( abs(x - time.grid) )}) } )
-
-# calculate mse
-mse <- mean( mapply(function(x, y, z){ mean( (z[x] - y)^2 ) }, 
-                    ind,
-                    test_data$Ly,
-                    pred.test) )
-mse
-
-
-
-### pseudo inverse approach (approximate correct PRESS)
-# https://stats.stackexchange.com/questions/93845/how-to-perform-cross-validation-for-pca-to-determine-the-number-of-principal-com/115477#115477
-cv.pca.sparse <- function(X, packages=c("fdapace"), plot=T) {
-  fit <- FPCA(X$Ly, 
-              X$Lt, 
+system.time(
+# Eigenvector cross-validation
+eig.cv <- foreach(i=1:N, .combine="rbind", .packages=packages) %dopar% {
+  cv.error <- c()
+  fit <- FPCA(X$Ly[-i], 
+              X$Lt[-i], 
               optns=list(dataType="Sparse",
                          methodXi="CE",
                          FVEthreshold=1,   # fit할 수 있는 최대의 k까지 fit
                          verbose=T))
   
-  N <- length(X$Ly)   # number of curves
+  time.grid <- fit$workGrid
+  ind <- sapply(X$Lt[[i]], function(x){which.min( abs(x - time.grid) )})   # time point index
+  x.center <- X$Ly[[i]] - fit$mu[ind]
+  J <- length(X$Lt[[i]])
   
-  # calculate AIC, BIC
-  aic <- c()
-  bic <- c()
-  # AIC <- foreach(k=1:length(fit$lambda), .combine="c", .packages=packages) %dopar% {
-  for (k in 1:length(fit$lambda)) {
-    aic[k] <- GetLogLik(fit, k) + 2*k
-    bic[k] <- GetLogLik(fit, k) + k*log(N)
+  for (k in 1:20) {
+    if (k == 1) {
+      eig.mat <- matrix(fit$phi[, 1:k], ncol=1)
+    } else {
+      eig.mat <- fit$phi[, 1:k]
+    }
+    
+    loocv <- 0
+    for (j in 1:J) {
+      # predict FPC score of test set
+      if (J > 2) {
+        score.pred <- t(x.center[-j]) %*% eig.mat[ind[-j], ] %*% ginv( t(eig.mat[ind[-j], ]) %*% eig.mat[ind[-j], ] )
+      } else {
+        score.pred <- t(x.center[-j]) %*% eig.mat[ind[-j], ] %*% ginv( matrix(eig.mat[ind[-j], ], ncol=1) %*% matrix(eig.mat[ind[-j], ], nrow=1) )
+      }
+      
+      x.hat <- score.pred %*% eig.mat[ind[j], ]
+      loocv <- loocv + (x.center[j] - x.hat)^2
+    }
+    cv.error[k] <- loocv
   }
-  
-  # approximate PCA PRESS
-  cv.error <- foreach(k=1:length(fit$lambda), .combine="c", .packages=packages) %dopar% {
-    U <- fit$phi[, 1:k]   # eigenvector matrix without ith curve
-    if (!is.matrix(U)) { U <- matrix(U, ncol=1) }  # transform to matrix
-    uu.t <- U %*% t(U)
-    w <- diag(1, nrow(uu.t)) - uu.t + diag(diag(uu.t))
-    
-    # calculate PRESS
-    err <- mapply(function(t, y){
-      time.ind <- sapply(t, function(x){ which.min( abs(x - fit$workGrid) ) })   # time point에 해당되는 grid 찾기
-      sum( (w[, time.ind] %*% y)^2 )
-    },
-    X$Lt,
-    X$Ly)
-    
-    return( sum(err) )
-  }
-  
-  # 각 measure로 plot
-  if (plot==T) {
-    par(mfrow=c(1,3))
-    plot(1:length(aic), 
-         aic, 
-         type="o",
-         xlab="Nunber of PCs",
-         ylab="AIC",
-         main="AIC")
-    points(which.min(aic),
-           aic[which.min(aic)],
-           col="red",
-           pch=19,
-           cex=2)    
-    
-    plot(1:length(bic), 
-         bic, 
-         type="o",
-         xlab="Nunber of PCs",
-         ylab="BIC",
-         main="BIC")
-    points(which.min(bic),
-           bic[which.min(bic)],
-           col="red",
-           pch=19,
-           cex=2)
-    
-    plot(1:length(cv.error), 
-         cv.error, 
-         type="o",
-         xlab="Nunber of PCs",
-         ylab="Cross-validation error",
-         main="Leave-one-curve-out CV")
-    points(which.min(cv.error),
-           cv.error[which.min(cv.error)],
-           col="red",
-           pch=19,
-           cex=2)
-  }
-
-  
-  return( list(cv.error=cv.error,
-               AIC=aic,
-               BIC=bic,
-               selected.K=data.frame(AIC=which.min(aic),
-                                     BIC=which.min(bic),
-                                     LOOCV=which.min(cv.error)),
-               model=fit) )
-  
-  
-  
-  
-  
-  # cv.error <- foreach(i=1:length(X$Lt), .combine="rbind", .packages=packages) %dopar% {
-  #   x.i <- X$Ly[[i]]   # ith curve
-  #   t.i <- X$Lt[[i]]   # ith curve's time points
-  #   
-  #   fit <- FPCA(X$Ly[-i], 
-  #               X$Lt[-i], 
-  #               optns=list(dataType="Sparse",
-  #                          methodXi="CE",
-  #                          FVEthreshold=1,   # fit할 수 있는 최대의 k까지 fit
-  #                          rho="cv",
-  #                          verbose=T))
-  #   
-  #   time.grid <- fit$workGrid   # time grid
-  #   err <- c()
-  #   for (k in 1:length(fit$lambda)) {
-  #     U <- fit$phi[, 1:k]   # eigenvector matrix without ith curve
-  #     dec <- svd(U[-i, ])
-  #     U.plus <- dec$v %*% diag(1/dec$d, ncol(dec$v), ncol(dec$u)) %*% t(dec$u)
-  #     
-  #     # 아마 time point 찾아서 계산해줘야 될듯
-  #     
-  #     time.ind <- time.grid[ sapply(t.i, function(x){ which.min( abs(x - time.grid) ) }) ]
-  #     sub <- U %*% U.plus %*% x.i
-  #     
-  #     err[k] <- sum( (x.i - sub)^2 )
-  #   }
-  # }
-  # 
-  # cv.error <- data.frame(cv.error)
-  # colnames(cv.error) <- 1:ncol(fit$phi)
-  # return( colMeans(cv.error) )
+  return(cv.error)
 }
+)
+cv.error <- colSums(eig.cv)
+plot(1:length(cv.error), cv.error, type="o", xlab="No. of PCs", ylab="Cross-validation Error")
+points(which.min(cv.error),
+       cv.error[which.min(cv.error)],
+       col="blue", pch=19, cex=1.5)
+# score.pred <- predict(fit, 
+#                       list(X$Ly[[i]][-j]), 
+#                       list(X$Lt[[i]][-j]), 
+#                       K=k)
+
+
+### generalized inverse approach (approximate correct PRESS)
+# https://stats.stackexchange.com/questions/93845/how-to-perform-cross-validation-for-pca-to-determine-the-number-of-principal-com/115477#115477
+source("cv_fdapace.R")
 fit <- cv.pca.sparse(train_data)
-
 cv.error <- fit$cv.error
-
 qplot(1:length(cv.error), 
       cv.error, 
       # type="o",
@@ -178,23 +98,10 @@ qplot(1:length(cv.error),
       ylab="Cross-validation error",
       main="Leave-one-curve-out CV") + geom_line(colour="red")
 
-# load simulated data
-load("../simulated_data.RData")
-
-# 10-fold CV
-library(tidyverse)
-library(doParallel)   # parallel computing
-library(fdapace)
-library(rlist)
-
-# parallel computing setting
-ncores <- detectCores() - 3
-registerDoParallel(ncores)
-
-packages <- c("tidyverse","fdapace")   # foreach에서 사용할 package 정의
 
 
-i <- 5
+### cross-validation => Overfitting
+i <- 1
 set.seed(100)
 y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
 ind <- sample(1:200, 100)
@@ -299,17 +206,26 @@ which.min(test.error)
 which.min(train.error)
 train.error
 test.error
-plot(1:18, test.error, type="o")
-lines(1:18, train.error, type="o", col="red")
-
-
-
+plot(1:18, test.error, type="o", col="red", xlab="No. of PCs", ylab="CV Error")
+lines(1:18, train.error, type="o")
+points(which.min(test.error),
+       test.error[which.min(test.error)],
+       col="red", pch=19, cex=1.5)
+points(which.min(train.error),
+       train.error[which.min(train.error)],
+       pch=19, cex=1.5)
+legend("topright",
+       c("Training CV error", "Test CV error"),
+       col=c("black","red"),
+       lty=c(1,1))
 
 ## Real data analysis => train set에 max time point가 없으면 test set에서 predict 못합
 data <- read.csv("../spnbmd.csv", stringsAsFactors=F)
 data <- data[which(data$sex=="fem" & data$ethnic=="White"), ]
 dim(data)
 library(dplyr)
+source("GetLogLik.R")
+
 ind <- data %>% 
   group_by(idnum) %>% 
   summarise(n=n())
