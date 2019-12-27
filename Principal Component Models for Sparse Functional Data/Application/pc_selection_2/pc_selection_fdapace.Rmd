@@ -27,6 +27,10 @@ registerDoParallel(ncores)
 packages <- c("fdapace","MASS")   # foreach에서 사용할 package 정의
 ```
 
+
+<br>
+
+## Simulation for sparse functional data
 ```{r, include=FALSE}
 i <- 1
 set.seed(100)
@@ -44,8 +48,7 @@ test_data <- Sparsify(test, time, sparsity = c(2:10))
 <br>
 
 ### 1. 10-fold cross-validation
-```{r, include=FALSE}
-start.time <- Sys.time()   # 연산속도 체크
+```{r, echo=FALSE}
 # apply 10-fold cross validation
 set.seed(777)
 k <- 10  # CV parameter
@@ -116,14 +119,10 @@ cv.error <- foreach(i = 1:k, .packages=packages) %dopar% {
   return( list(test.error=cv.error,
                train.error=cv.error.train) )
 }
-end.time <- Sys.time()
-end.time - start.time   # 연산 속도 측정
 
 test.error <- colMeans( list.rbind( lapply(cv.error, function(x){ x$test.error }) ) )
 train.error <- colMeans( list.rbind( lapply(cv.error, function(x){ x$train.error }) ) )
-```
 
-```{r, echo=F}
 plot(1:18, test.error, type="o", col="blue", xlab="No. of PCs", ylab="Cross-validation Error")
 lines(1:18, train.error, type="o", col="red")
 points(which.min(test.error),
@@ -232,7 +231,6 @@ cv.pca.sparse <- function(X, packages=c("fdapace"), plot=T) {
                model=fit) )
 }
 ```
-
 ```{r, message=F, echo=F}
 fit <- cv.pca.sparse(train_data)
 ```
@@ -271,11 +269,10 @@ fit <- cv.pca.sparse(train_data)
 
 - $x_{ij}$ and $\hat{x}_{ij}$ are actually independent.
 
-```{r, include=F}
+```{r, echo=F}
 X <- train_data
 N <- length(X$Ly)
 
-system.time(
 # Eigenvector cross-validation
 eig.cv <- foreach(i=1:N, .combine="rbind", .packages=packages) %dopar% {
   cv.error <- c()
@@ -314,15 +311,197 @@ eig.cv <- foreach(i=1:N, .combine="rbind", .packages=packages) %dopar% {
   }
   return(cv.error)
 }
-)
-```
-
-```{r, echo=F}
 cv.error <- colSums(eig.cv)
+cv.error
+```
+```{r, echo=F}
 plot(1:length(cv.error), cv.error, type="o", xlab="No. of PCs", ylab="Cross-validation Error")
 points(which.min(cv.error),
        cv.error[which.min(cv.error)],
        col="blue", pch=19, cex=1.5)
 ```
 
+<br>
 
+---
+
+## Simulation for dense functional data
+- The data from 5 functional PCs
+
+<br>
+
+```{r, include=FALSE}
+i <- 1
+set.seed(100)
+y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0, 1))
+data <- cbind(y, X.curves[[i]])
+ind <- sample(1:nrow(data), 100)   # train set index
+train <- as.matrix(data[ind, -1])
+test <- as.matrix(data[-ind, -1])
+
+# sparsify train, test set
+train_data <- Sparsify(train, time, sparsity = 18)
+test_data <- Sparsify(test, time, sparsity = 18)
+```
+
+<br>
+
+### 1. 10-fold cross-validation
+```{r, include=FALSE}
+# apply 10-fold cross validation
+set.seed(777)
+k <- 10  # CV parameter
+samp <- sample(1:nrow(data), nrow(data))   # train set index
+cv.error <- foreach(i = 1:k, .packages=packages) %dopar% {
+  ind <- samp[(((i-1)*k)+1):(i*k)]
+  # ind <- i   # LOOCV
+  
+  train <- as.matrix(data[-ind, -1])
+  test <- as.matrix(data[ind, -1])
+  
+  # sparsify train, test set
+  train_data <- Sparsify(train, time, sparsity=10)
+  test_data <- Sparsify(test, time, sparsity=10)
+  
+  # fit FPCA
+  fpca.train <- FPCA(train_data$Ly, 
+                     train_data$Lt, 
+                     optns=list(dataType="Sparse",
+                                methodXi="CE",
+                                FVEthreshold=1,   # fit할 수 있는 최대의 k까지 fit
+                                rho="cv",
+                                verbose=T))
+  
+  # pc 개수별로 mse 확인
+  cv.error <- 0
+  cv.error.train <- 0
+  for (num.pc in 1:length(time)) {
+    # predict FPC score of test set
+    fpc.test <- predict(fpca.train, test_data$Ly, test_data$Lt, K=num.pc, xiMethod="CE")
+    
+    # plot predicted curve of test set
+    pred.test <- matrix(rep(fpca.train$mu, nrow(test)), nrow(test), byrow=T) + fpc.test %*% t(fpca.train$phi[, 1:num.pc])
+    pred.test <- as.list(as.data.frame(t(pred.test)))
+    
+    time.grid <- fpca.train$workGrid
+    ind <- lapply(test_data$Lt, function(y){ sapply(y, function(x){which.min( abs(x - time.grid) )}) } )
+    
+    # calculate mse
+    mse <- mapply(function(x, y, z){ mean( (z[x] - y)^2 ) }, 
+                  ind,
+                  test_data$Ly,
+                  pred.test)
+    cv.error[num.pc] <- mean(mse)
+    
+    
+    # calculate traininig error
+    fpc.train <- predict(fpca.train, train_data$Ly, train_data$Lt, K=num.pc, xiMethod="CE")
+    
+    # plot predicted curve of test set
+    # pred.train <- matrix(rep(fpca.train$mu, nrow(train)), nrow(train), byrow=T) + fpc.train %*% t(fpca.train$phi[, 1:num.pc])
+    pred.train <- fitted(fpca.train, 
+                         ciOptns=list(alpha=0.05,
+                                      cvgMethod = "interval"),                    
+                         K=num.pc)
+    pred.train <- as.list(as.data.frame(t(pred.train$fitted)))
+    
+    time.grid <- fpca.train$workGrid
+    ind <- lapply(train_data$Lt, function(y){ sapply(y, function(x){which.min( abs(x - time.grid) )}) } )
+    
+    # calculate mse
+    mse <- mapply(function(x, y, z){ mean( (z[x] - y)^2 ) }, 
+                  ind,
+                  train_data$Ly,
+                  pred.train)
+    cv.error.train[num.pc] <- mean(mse)
+  }
+  return( list(test.error=cv.error,
+               train.error=cv.error.train) )
+}
+
+test.error <- colMeans( list.rbind( lapply(cv.error, function(x){ x$test.error }) ) )
+train.error <- colMeans( list.rbind( lapply(cv.error, function(x){ x$train.error }) ) )
+```
+
+```{r, echo=F}
+plot(1:18, test.error, type="o", col="blue", xlab="No. of PCs", ylab="Cross-validation Error")
+lines(1:18, train.error, type="o", col="red")
+points(which.min(test.error),
+       test.error[which.min(test.error)],
+       col="blue", pch=19, cex=1.5)
+points(which.min(train.error),
+       train.error[which.min(train.error)],
+       col="red", pch=19, cex=1.5)
+legend("topright",
+       c("Training CV error", "Test CV error"),
+       col=c("black","red"),
+       lty=c(1,1))
+```
+
+<br>
+
+### 2. AIC, BIC and another cross-validation method for PCA
+- [Selecting the Number of Principal Components in Functional Data, Li *et al.*](https://www.jstor.org/stable/pdf/24247061.pdf)
+- [How to perform cross-validation for PCA to determine the number of principal components?](https://stats.stackexchange.com/questions/93845/how-to-perform-cross-validation-for-pca-to-determine-the-number-of-principal-com/115477#115477)
+
+```{r, message=F, echo=F}
+fit <- cv.pca.sparse(train_data)
+```
+
+
+<br>
+
+### 3. Eigenvector cross-validation 
+- [Cross-validation of component models: A critical look at current methods, Bro *et al.*](https://www.researchgate.net/publication/5638191_Cross-validation_of_component_models_A_critical_look_at_current_methods)
+
+```{r, echo=F}
+X <- train_data
+N <- length(X$Ly)
+
+# Eigenvector cross-validation
+eig.cv <- foreach(i=1:N, .combine="rbind", .packages=packages) %dopar% {
+  cv.error <- c()
+  fit <- FPCA(X$Ly[-i], 
+              X$Lt[-i], 
+              optns=list(dataType="Sparse",
+                         methodXi="CE",
+                         FVEthreshold=1,   # fit할 수 있는 최대의 k까지 fit
+                         verbose=T))
+  
+  time.grid <- fit$workGrid
+  ind <- sapply(X$Lt[[i]], function(x){which.min( abs(x - time.grid) )})   # time point index
+  x.center <- X$Ly[[i]] - fit$mu[ind]
+  J <- length(X$Lt[[i]])
+  
+  for (k in 1:20) {
+    if (k == 1) {
+      eig.mat <- matrix(fit$phi[, 1:k], ncol=1)
+    } else {
+      eig.mat <- fit$phi[, 1:k]
+    }
+    
+    loocv <- 0
+    for (j in 1:J) {
+      # predict FPC score of test set
+      if (J > 2) {
+        score.pred <- t(x.center[-j]) %*% eig.mat[ind[-j], ] %*% ginv( t(eig.mat[ind[-j], ]) %*% eig.mat[ind[-j], ] )
+      } else {
+        score.pred <- t(x.center[-j]) %*% eig.mat[ind[-j], ] %*% ginv( matrix(eig.mat[ind[-j], ], ncol=1) %*% matrix(eig.mat[ind[-j], ], nrow=1) )
+      }
+      
+      x.hat <- score.pred %*% eig.mat[ind[j], ]
+      loocv <- loocv + (x.center[j] - x.hat)^2
+    }
+    cv.error[k] <- loocv
+  }
+  return(cv.error)
+}
+cv.error <- colSums(eig.cv)
+cv.error
+```
+```{r, echo=F}
+plot(1:length(cv.error), cv.error, type="o", xlab="No. of PCs", ylab="Cross-validation Error")
+points(which.min(cv.error),
+       cv.error[which.min(cv.error)],
+       col="blue", pch=19, cex=1.5)
+```
