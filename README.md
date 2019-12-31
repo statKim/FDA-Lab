@@ -7,6 +7,7 @@
 
 
 ## Contents
-- [**FDA**](https://github.com/statKim/FDA-Lab/tree/master/FDA)
-- [**Spatio-temporal FDA**](https://github.com/statKim/FDA-Lab/tree/master/Spatio-temporal FDA)
-- [**Sparse FPCA**](https://github.com/statKim/FDA-Lab/tree/master/Sparse FPCA)
+- [FDA](https://github.com/statKim/FDA-Lab/tree/master/FDA)
+- [Spatio-temporal FDA](https://github.com/statKim/FDA-Lab/tree/master/Spatio-temporal%20FDA)
+- [Sparse FPCA](https://github.com/statKim/FDA-Lab/tree/master/Sparse%20FPCA)
+
