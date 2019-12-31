@@ -1,4 +1,4 @@
-setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Principal Component Models for Sparse Functional Data\\Application\\pc_selection_2")
+setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\pc_selection_2")
 
 
 # load simulated data
