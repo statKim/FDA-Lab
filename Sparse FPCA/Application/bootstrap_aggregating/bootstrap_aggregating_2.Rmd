@@ -1,0 +1,95 @@
+---
+title: "Bootstrap aggregated sparse FPCA for classification"
+author: "Hyunsung Kim"
+date: January 9, 2020
+institute: Department of Statistics \newline Chung-Ang University
+fonttheme: "professionalfonts"
+output:
+  beamer_presentation:
+    theme: "metropolis"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Simulation
+
+- 3 different simulations
+  - The classifiers applied sparse FPCA for 1st simulated data
+  - The classifiers with bootstrap aggregating for 1st simulated data
+    - Bootstrapping to curves
+    - Bootstrapping to FPC scores
+- The number of FPCs are selected by the proportion of variance explained(PVE) with over 99\%.
+
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers after FPCA}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+    No. \\of obs & Logistic & SVM(Linear) & SVM(Gaussian) & SVM(Sigmoid) & SVM(Poly) & KNN & LDA & QDA & Naive bayes \\ 
+    \hline
+     2 & 0.750 & 0.750 & 0.760 & 0.750 & 0.770 & 0.760 & 0.770 & 0.740 \\ 
+     3 & 0.730 & 0.740 & 0.720 & 0.760 & 0.830 & 0.730 & 0.690 & 0.670 \\ 
+     4 & 0.750 & 0.770 & 0.750 & 0.750 & 0.880 & 0.720 & 0.710 & 0.700 \\ 
+     5 & 0.780 & 0.750 & 0.750 & 0.760 & 0.800 & 0.760 & 0.740 & 0.750 \\ 
+     6 & 0.800 & 0.820 & 0.810 & 0.820 & 0.880 & 0.820 & 0.800 & 0.730 \\ 
+     7 & 0.800 & 0.820 & 0.840 & 0.840 & 0.880 & 0.830 & 0.830 & 0.760 \\ 
+     8 & 0.790 & 0.770 & 0.790 & 0.800 & 0.830 & 0.780 & 0.780 & 0.740 \\ 
+     9 & 0.790 & 0.790 & 0.780 & 0.740 & 0.860 & 0.770 & 0.780 & 0.720 \\ 
+    10 & 0.900 & 0.840 & 0.900 & 0.880 & 0.850 & 0.850 & 0.910 & 0.830 \\ 
+    11 & 0.820 & 0.810 & 0.820 & 0.820 & 0.890 & 0.820 & 0.830 & 0.780 \\ 
+    12 & 0.840 & 0.840 & 0.840 & 0.840 & 0.890 & 0.820 & 0.850 & 0.790 \\ 
+    13 & 0.810 & 0.790 & 0.790 & 0.770 & 0.850 & 0.820 & 0.820 & 0.750 \\ 
+    14 & 0.810 & 0.800 & 0.830 & 0.790 & 0.850 & 0.810 & 0.830 & 0.780 \\ 
+    15 & 0.810 & 0.810 & 0.810 & 0.750 & 0.870 & 0.810 & 0.820 & 0.750 \\ 
+    16 & 0.810 & 0.800 & 0.780 & 0.780 & 0.840 & 0.800 & 0.840 & 0.780 \\ 
+    17 & 0.810 & 0.770 & 0.790 & 0.800 & 0.870 & 0.810 & 0.850 & 0.760 \\ 
+    18 & 0.800 & 0.780 & 0.830 & 0.810 & 0.860 & 0.800 & 0.860 & 0.770 \\ 
+    \hline
+    Average & 0.800 & 0.791 & 0.799 & 0.792 & 0.853 & 0.795 & 0.806 & 0.753 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with bootstrap aggregated curves}
+  \centering
+  \tiny
+  \begin{tabular}{cccccc}
+    \hline
+    No. \\of obs & Logistic & SVM(Linear) & SVM(Gaussian) & SVM(Sigmoid) & KNN & LDA & QDA & Naive bayes \\ 
+    \hline
+     2 & 0.75 & 0.75 & 0.74 & 0.70 \\ 
+     3 & 0.76 & 0.76 & 0.75 & 0.74 \\ 
+     4 & 0.78 & 0.79 & 0.78 & 0.78 \\ 
+     5 & 0.71 & 0.73 & 0.73 & 0.72 \\ 
+     6 & 0.77 & 0.77 & 0.76 & 0.76 \\ 
+     7 & 0.85 & 0.85 & 0.85 & 0.84 \\ 
+     8 & 0.77 & 0.76 & 0.81 & 0.77 \\ 
+     9 & 0.77 & 0.80 & 0.77 & 0.80 \\ 
+    10 & 0.82 & 0.82 & 0.82 & 0.83 \\ 
+    11 & \textcolor{red}{0.86} & 0.83 & 0.83 & 0.86 \\ 
+    12 & 0.83 & \textcolor{red}{0.86} & 0.83 & 0.83 \\ 
+    13 & 0.81 & 0.81 & 0.80 & 0.81 \\ 
+    14 & 0.83 & 0.78 & 0.81 & 0.84 \\ 
+    15 & 0.80 & 0.81 & 0.80 & 0.76 \\ 
+    16 & 0.81 & 0.77 & 0.80 & 0.80 \\ 
+    17 & 0.81 & 0.76 & 0.78 & 0.76 \\ 
+    18 & 0.80 & 0.82 & 0.81 & 0.81 \\ 
+    \hline
+    Average & \textcolor{red}{0.796} & 0.792 & 0.792 & 0.789 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+
