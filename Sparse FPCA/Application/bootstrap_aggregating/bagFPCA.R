@@ -28,6 +28,9 @@ majority_vote <- function(x) {
 #   - Logistic regression("glm" function)
 #   - SVM("svm" function in "e1071" package)
 #   - KNN("knn" function in "class" package)
+#   - LDA("lda" function in "e1071" package)
+#   - qDA("qda" function in "e1071" package)
+#   - Naive bayes("naiveBayes" function in "e1071" package)
 # - Input parameters
 #   - X.train : input data for "FPCA" function("fdapace" package)
 #   - y.train : factor type vector of train set
@@ -36,8 +39,9 @@ majority_vote <- function(x) {
 #   - method : classification method("logit", "svm", "knn)
 #   - kernel : (only method="svm")option of "svm" function("radial","linear","polynomial","sigmoid"), "radial" is default.
 #   - B : the number of bootstrap replication
+#   - ncores : the number of cores to use parallel computing
 fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", method="logit", kernel=NULL, B=10, ncores=2) {
-  set.seed(1000)
+  set.seed(777)
   
   # parallel computing setting
   # ncores <- detectCores() - 2
@@ -64,6 +68,7 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
                             x=fpc.score)
     colnames(train.fpc) <- c("y", paste("FPC", 1:k, sep=""))
     
+    # fit the classification model
     if (method == "svm") {
       if (kernel == "linear") {
         tune.linear <- tune.svm(y ~ ., data=train.fpc, 
@@ -84,10 +89,10 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
                          cost=tune.sigmoid$cost,
                          gamma=tune.sigmoid$gamma)
       } else if (kernel == "polynomial") {
-        fit.svm.poly <- tune.svm(y ~ ., data=train.fpc, 
-                                 kernel="polynomial",
-                                 cost=c(10^(-3:1), 2^(5:10)), 
-                                 gamma=c(10^(-3:1), 2^(5:10)) )$best.model
+        tune.poly <- tune.svm(y ~ ., data=train.fpc, 
+                              kernel="polynomial",
+                              cost=c(10^(-3:1), 2^(5:10)), 
+                              gamma=c(10^(-3:1), 2^(5:10)) )$best.model
         fit.class <- svm(y ~ ., train.fpc,
                          kernel="polynomial",
                          probability=T,
@@ -150,6 +155,16 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
                  model = fit.class,
                  oob.error = oob.error) )
   }
+  
+  # define method of SVM for kernel
+  if (method == "svm") {
+    if (is.null(kernel)) {
+      method <- "svm.radial"
+    } else {
+      method <- paste(method, kernel, sep="")
+    }
+  }
+
   
   K <- sapply(y.pred, function(x) { x$K }) 
   fpca.fit <- lapply(y.pred, function(x) { x$fpca.fit })
@@ -287,7 +302,8 @@ predict.fpca.bag.classifier <- function(fit.fpca.bag.obj, X.test, y.test, probab
 
 ### print function of "fpca.bag.classifier" object
 print.fpca.bag.classifier <- function(obj) {
-  cat( "Object :", class(obj), "\n",
+  cat( "The bootstrap aggregating classifier using ", obj$FPC.method, "FPCA \n",
+       # "Type :", class(obj), "\n",
        obj$B, "Iterations", "\n", 
        "FPCA method :", obj$FPCA.method, "\n" ,
        "Classification method :", obj$method, "\n",

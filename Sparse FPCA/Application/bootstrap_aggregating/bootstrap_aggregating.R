@@ -12,7 +12,7 @@ load("../simulated_data.RData")
 ncores <- detectCores() - 2
 registerDoParallel(ncores)
 
-packages <- c("fdapace","e1071")   # foreach에서 사용할 package 정의
+packages <- c("fdapace","e1071","class","MASS")   # foreach에서 사용할 package 정의
 
 # majority voting functon
 majority_vote <- function(x) {
@@ -108,7 +108,7 @@ for (s in 2:18) {
     # predict
     pred.logit <- predict(fit.logit, test.fpc, type="response")
     pred.logit <- factor(ifelse(pred.logit > 0.5, 1, 0), levels=c(0, 1))
-    pred.svm.linear <- predict(fit.svm.linear, test.fpc, probability=T)
+    pred.svm.linear <- predict(fit.svm.linear, test.fpc)
     pred.svm.radial <- predict(fit.svm.radial, test.fpc)
     pred.svm.sigmoid <- predict(fit.svm.sigmoid, test.fpc)
     # pred.svm.poly <- predict(fit.svm.poly, test.fpc)
@@ -119,14 +119,14 @@ for (s in 2:18) {
     pred.qda <- predict(fit.qda, test.fpc)$class
     pred.nb <- predict(fit.nb, test.fpc, type="class")
 
-    return( list(logit=pred.logit,
-                 svm.linear=pred.svm.linear,
-                 svm.radial=pred.svm.radial,
-                 svm.sigmoid=pred.svm.sigmoid,
-                 knn=pred.knn,
-                 lda=pred.lda,
-                 qda=pred.qda,
-                 nb=pred.nb) )
+    return( list(logit = pred.logit,
+                 svm.linear = pred.svm.linear,
+                 svm.radial = pred.svm.radial,
+                 svm.sigmoid = pred.svm.sigmoid,
+                 knn = pred.knn,
+                 lda = pred.lda,
+                 qda = pred.qda,
+                 nb = pred.nb) )
   }
   
   # save the accuracy
@@ -140,7 +140,6 @@ for (s in 2:18) {
     acc[j] <- mean(pred == y.test)
   }
 
-  
   # apply(sapply(y.pred, function(x){ cbind( x[[j]] ) })-1,
   #       2,
   #       function(x){mean(x==y.test)}
