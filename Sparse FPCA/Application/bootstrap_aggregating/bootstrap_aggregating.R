@@ -4,6 +4,8 @@ library(tidyverse)
 library(doParallel)   # parallel computing
 library(fdapace)
 library(e1071)
+library(class)
+library(MASS)
 
 # load simulated data
 load("../simulated_data.RData")
@@ -21,7 +23,16 @@ majority_vote <- function(x) {
   return(val)
 }
 
+# The LSE-based weighting("Support Vector Machine Ensemble with Bagging"(2003), Kim et al.)
+LSE_weight <- function(x) {
+  A <- ifelse(x == 1, -1, 1)   # transform to -1 and 1
+  w <- ginv(A) %*% ifelse(as.numeric(y.test) == 1, -1, 1)   # using generalized inverse(Not symmetric)
+  val <- factor(ifelse(A %*% w < 0, 0, 1), levels=c(0,1))
+  return(val)
+}
 
+
+mod <- list()
 ## Bagging to curves
 system.time({   # running time check
 for (s in 2:18) {
@@ -43,6 +54,7 @@ for (s in 2:18) {
   # Bootstrap aggregating
   B <- 100
   N <- nrow(X.train)
+  set.seed(100)
   y.pred <- foreach(b=1:B, .packages=packages) %dopar% {
     # fit FPCA for bootstrapped data
     boot.ind <- sample(1:N, N, replace=T)
@@ -77,15 +89,18 @@ for (s in 2:18) {
     fit.logit <- glm(y~., train.fpc, family=binomial)
     fit.svm.linear <- svm(y ~ ., train.fpc, 
                           kernel="linear", 
-                          cost=tune.linear$cost)
+                          cost=tune.linear$cost,
+                          probability=T)
     fit.svm.radial <- svm(y ~ ., train.fpc, 
                           kernel="radial", 
                           cost=tune.radial$cost,
-                          gamma=tune.radial$gamma)
+                          gamma=tune.radial$gamma,
+                          probability=T)
     fit.svm.sigmoid <- svm(y ~ ., train.fpc, 
                            kernel="sigmoid", 
                            cost=tune.sigmoid$cost,
-                           gamma=tune.sigmoid$gamma)
+                           gamma=tune.sigmoid$gamma,
+                           probability=T)
     # fit.svm.poly <- svm(y ~ ., train.fpc,
     #                     kernel="polynomial",
     #                     cost=tune.poly$cost,
@@ -113,11 +128,57 @@ for (s in 2:18) {
     pred.svm.sigmoid <- predict(fit.svm.sigmoid, test.fpc)
     # pred.svm.poly <- predict(fit.svm.poly, test.fpc)
     pred.knn <- knn(train = cbind(y=fit.knn$cl,
-                                  fit.knn$train), 
+                                  fit.knn$train),
                     test = test.fpc, cl = fit.knn$cl, k = fit.knn$k)
     pred.lda <- predict(fit.lda, test.fpc)$class
     pred.qda <- predict(fit.qda, test.fpc)$class
     pred.nb <- predict(fit.nb, test.fpc, type="class")
+    
+    # # predict
+    # pred.logit <- predict(fit.logit, test.fpc, type="response")
+    # pred.svm.linear <- attr(predict(fit.svm.linear, test.fpc, probability = T), "prob")[, 1]
+    # pred.svm.radial <- attr(predict(fit.svm.radial, test.fpc, probability = T), "prob")[, 1]
+    # pred.svm.sigmoid <- attr(predict(fit.svm.sigmoid, test.fpc, probability = T), "prob")[, 1]
+    # # pred.svm.poly <- predict(fit.svm.poly, test.fpc)
+    # pred.knn <- knn(train = cbind(y=fit.knn$cl,
+    #                               fit.knn$train), 
+    #                 test = test.fpc, cl = fit.knn$cl, k = fit.knn$k,
+    #                 prob=T)
+    # pred.knn <- ifelse(pred.knn == 1, attr(pred.knn, "prob"), 1-attr(pred.knn, "prob"))
+    # pred.lda <- predict(fit.lda, test.fpc)$posterior[, 2]
+    # pred.qda <- predict(fit.qda, test.fpc)$posterior[, 2]
+    # pred.nb <- predict(fit.nb, test.fpc, type="raw")[, 2]
+
+    
+    # OOB FPC scores
+    fpc.score.oob <- predict(fpca.fit, 
+                             train.data$Ly[-unique(boot.ind)], 
+                             train.data$Lt[-unique(boot.ind)], 
+                             K=k, 
+                             xiMethod="CE")
+    oob.fpc <- data.frame(y=y.train[-unique(boot.ind)], 
+                          x=fpc.score.oob)
+    colnames(oob.fpc) <- c("y", paste("FPC", 1:k, sep=""))
+    
+    # OOB error rate
+    oob.error <- c(mean(predict(fit.svm.linear, oob.fpc) != oob.fpc$y),
+                   mean(predict(fit.svm.radial, oob.fpc) != oob.fpc$y),
+                   mean(predict(fit.svm.sigmoid, oob.fpc) != oob.fpc$y),
+                   mean(factor(ifelse(predict(fit.logit, oob.fpc, type="response") > 0.5, 1, 0), levels=c(0, 1)) != oob.fpc$y),
+                   mean(knn(train = train.fpc, test = oob.fpc, cl = train.fpc$y, k = fit.knn$k) != oob.fpc$y),
+                   mean(predict(fit.lda, oob.fpc)$class != oob.fpc$y),
+                   mean(predict(fit.qda, oob.fpc)$class != oob.fpc$y),
+                   mean(predict(fit.nb, oob.fpc, type='class') != oob.fpc$y) )
+    
+    # train error rate
+    train.error <- c(mean(predict(fit.svm.linear, train.fpc) != train.fpc$y),
+                     mean(predict(fit.svm.radial, train.fpc) != train.fpc$y),
+                     mean(predict(fit.svm.sigmoid, train.fpc) != train.fpc$y),
+                     mean(factor(ifelse(predict(fit.logit, train.fpc, type="response") > 0.5, 1, 0), levels=c(0, 1)) != train.fpc$y),
+                     mean(knn(train = train.fpc, test = train.fpc, cl = train.fpc$y, k = fit.knn$k) != train.fpc$y),
+                     mean(predict(fit.lda, train.fpc)$class != train.fpc$y),
+                     mean(predict(fit.qda, train.fpc)$class != train.fpc$y),
+                     mean(predict(fit.nb, train.fpc, type='class') != train.fpc$y) )
 
     return( list(logit = pred.logit,
                  svm.linear = pred.svm.linear,
@@ -126,17 +187,51 @@ for (s in 2:18) {
                  knn = pred.knn,
                  lda = pred.lda,
                  qda = pred.qda,
-                 nb = pred.nb) )
+                 nb = pred.nb,
+                 oob.error = oob.error,
+                 train.error = train.error,
+                 fitted.logit = factor(ifelse(predict(fit.logit, train.fpc, type="response") > 0.5, 1, 0), levels=c(0, 1)),
+                 fitted.svm.linear = predict(fit.svm.linear, train.fpc),
+                 fitted.svm.radial = predict(fit.svm.radial, train.fpc),
+                 fitted.svm.sigmoid = predict(fit.svm.sigmoid, train.fpc),
+                 fitted.knn = knn(train = train.fpc, test = train.fpc, cl = train.fpc$y, k = fit.knn$k),
+                 fitted.lda = predict(fit.lda, train.fpc)$class,
+                 fitted.qda = predict(fit.qda, train.fpc)$class,
+                 fitted.nb = predict(fit.nb, train.fpc, type='class'),
+                 prop = sum(as.numeric(y.train[boot.ind])-1) / N) )
   }
   
+  mod[[s]] <- y.pred
+  
+  w <- matrix(NA, 8, B)
+  for (j in 11:18) {
+    A <- ifelse(sapply(y.pred, function(x){ as.numeric( x[[j]] ) }) == 1, -1, 1)   # transform to -1 and 1
+    w[j-10, ] <- ginv(A) %*% matrix(ifelse(as.numeric(y.train) == 1, -1, 1), ncol=1)   # using generalized inverse(Not symmetric)
+    # w[[j-10]] <- ginv( t(A)%*%A ) %*% t(A) %*% ifelse(as.numeric(y.train) == 1, -1, 1)
+  }
   # save the accuracy
   cname <- c("logit","svm.linear","svm.radial","svm.sigmoid","knn","lda","qda","naivebayes")
   acc <- c()
   for (j in 1:8) {
-    pred <- apply(sapply(y.pred, function(x){ cbind( x[[j]] ) }),
-                  1,
-                  majority_vote)
-    pred <- factor(pred-1, levels=c(0,1))
+    # # majority voting
+    # pred <- apply(sapply(y.pred, function(x){ cbind( x[[j]] ) }),
+    #               1,
+    #               majority_vote)
+    # pred <- factor(pred-1, levels=c(0,1))
+    
+    # The LSE-based weighting
+    # pred <- LSE_weight( sapply(y.pred, function(x){ cbind( x[[j]] ) }) )
+    A <- ifelse(sapply(y.pred, function(x){ cbind( x[[j]] ) }) == 1, -1, 1)   # transform to -1 and 1
+    # w <- ginv(A) %*% ifelse(as.numeric(y.train) == 1, -1, 1)   # using generalized inverse(Not symmetric)
+    pred <- factor(ifelse(A %*% matrix(w[j, ], ncol=1) < 0, 0, 1), levels=c(0, 1))
+    
+    # pred <- apply(sapply(y.pred, function(x){ cbind( x[[j]] ) }),
+    #               1,
+    #               # function(x){ mean( x * sapply(y.pred, function(x){ c( x$prop ) }) ) })
+    #               # function(x){ mean( x * (1-sapply(y.pred, function(x){ c( x$oob.error[j] ) })) ) })
+    #               function(x){ mean( (as.numeric(x)-1) * (1-sapply(y.pred, function(x){ c( x$train.error[j] ) })) ) })
+    # pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0,1))
+    
     acc[j] <- mean(pred == y.test)
   }
 
@@ -166,7 +261,7 @@ system.time({   # running time check
 for (s in 2:18) {
   print(paste("s=", s, sep=""))
   # train, test split
-  acc <- foreach(i=1:100, .combine="rbind", .packages=packages) %dopar% {
+  acc <- foreach(i=1:1, .combine="rbind", .packages=packages) %dopar% {
     set.seed(100)
     y <- factor(c(rep(0, 100), rep(1, 100)), level=c(0,1))
     ind <- sample(1:length(y), 100)   # train set index
@@ -205,9 +300,15 @@ for (s in 2:18) {
     fit.svm.sigmoid <- tune(svm, y ~ ., data=train.fpc, kernel="sigmoid",
                             ranges=list(cost=c(10^(-3:1), 2^(5:10)), 
                                         gamma=c(10^(-3:1), 2^(5:10))))$best.model
-    fit.svm.poly <- tune(svm, y ~ ., data=train.fpc, kernel="poly",
-                         ranges=list(cost=c(10^(-3:1), 2^(5:10)), 
-                                     gamma=c(10^(-3:1), 2^(5:10))))$best.model
+    # fit.svm.poly <- tune(svm, y ~ ., data=train.fpc, kernel="poly",
+    #                      ranges=list(cost=c(10^(-3:1), 2^(5:10)), 
+    #                                  gamma=c(10^(-3:1), 2^(5:10))))$best.model
+    fit.knn <- tune.knn(x = train.fpc[, -1],
+                        y = train.fpc[, 1],
+                        k = 1:ceiling(N/2))$best.model
+    fit.lda <- lda(y~., train.fpc)
+    fit.qda <- qda(y~., train.fpc)
+    fit.nb <- naiveBayes(y~., train.fpc)
     
     # test FPC scores
     fpc.score.test <- predict(fpca.fit, test.data$Ly, test.data$Lt, K=k, xiMethod="CE")
@@ -221,35 +322,54 @@ for (s in 2:18) {
     pred.svm.linear <- predict(fit.svm.linear, test.fpc)
     pred.svm.radial <- predict(fit.svm.radial, test.fpc)
     pred.svm.sigmoid <- predict(fit.svm.sigmoid, test.fpc)
-    pred.svm.poly <- predict(fit.svm.poly, test.fpc)
+    # pred.svm.poly <- predict(fit.svm.poly, test.fpc)
+    pred.knn <- knn(train = cbind(y=fit.knn$cl,
+                                  fit.knn$train), 
+                    test = test.fpc, cl = fit.knn$cl, k = fit.knn$k)
+    pred.lda <- predict(fit.lda, test.fpc)$class
+    pred.qda <- predict(fit.qda, test.fpc)$class
+    pred.nb <- predict(fit.nb, test.fpc, type="class")
     
     y.pred <- list(logit=pred.logit,
                    svm.linear=pred.svm.linear,
                    svm.radial=pred.svm.radial,
                    svm.sigmoid=pred.svm.sigmoid,
-                   svm.poly=pred.svm.poly)
+                   # svm.poly=pred.svm.poly,
+                   knn = pred.knn,
+                   lda = pred.lda,
+                   qda = pred.qda,
+                   nb = pred.nb)
     
     # save the accuracy
-    cname <- c("logit","svm.linear","svm.radial","svm.sigmoid","svm.poly")
+    cname <- c("logit","svm.linear","svm.radial","svm.sigmoid","knn","lda","qda","naivebayes")
     acc <- c()
-    for (j in 1:5) {
+    for (j in 1:8) {
       pred <- factor(y.pred[[j]], levels=c(0,1))
       acc[j] <- mean(pred == y.test)
     }
-    
+
     return( acc ) 
   }
 
-  
+  # 1 simulations
   if (s == 2) {
-    result <- data.frame(matrix(colMeans(acc), nrow=1))
+    result <- data.frame(matrix(acc, nrow=1))
     colnames(result) <- cname
   } else {
-    result <- rbind(result, colMeans(acc))
+    result <- rbind(result, acc)
   }
+  # # 100 simulations
+  # if (s == 2) {
+  #   result <- data.frame(matrix(colMeans(acc), nrow=1))
+  #   colnames(result) <- cname
+  # } else {
+  #   result <- rbind(result, colMeans(acc))
+  # }
   
   if (s == 18) { rownames(result) <- paste("s=", 2:18, sep="") }
 }
 })   # running time check
 
 save(result, file="results/result_fpc.RData")
+
+

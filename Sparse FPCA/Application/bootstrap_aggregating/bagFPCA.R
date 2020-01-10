@@ -23,6 +23,14 @@ majority_vote <- function(x) {
   return(val)
 }
 
+### The LSE-based weighting("Support Vector Machine Ensemble with Bagging"(2003), Kim et al.)
+LSE_weight <- function(x) {
+  A <- ifelse(x == 1, -1, 1)   # transform to -1 and 1
+  w <- ginv(A) %*% ifelse(as.numeric(y.test) == 1, -1, 1)   # using generalized inverse(Not symmetric)
+  val <- factor(ifelse(A %*% w < 0, 0, 1), levels=c(0,1))
+  return(val)
+}
+
 ### Fit the bagged classifier using sparse FPCA
 # - Provide classification models
 #   - Logistic regression("glm" function)
@@ -40,11 +48,11 @@ majority_vote <- function(x) {
 #   - kernel : (only method="svm")option of "svm" function("radial","linear","polynomial","sigmoid"), "radial" is default.
 #   - B : the number of bootstrap replication
 #   - ncores : the number of cores to use parallel computing
-fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", method="logit", kernel=NULL, B=10, ncores=2) {
+fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", method="logit", kernel=NULL, B=10, ncores=NULL) {
   set.seed(777)
   
   # parallel computing setting
-  # ncores <- detectCores() - 2
+  ncores <- ceiling(detectCores() / 3)
   cl <- makeCluster(ncores)
   registerDoParallel(cl)
   
@@ -141,7 +149,7 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
       pred.oob <- predict(fit.class, oob.fpc, type="response")
       pred.oob <- factor(ifelse(pred.oob > 0.5, 1, 0), levels=c(0, 1))
     } else if (method == "knn") {
-      pred.oob <- knn(train = train.fpc, test = oob.fpc, cl = y.train, k = fit.class$k)
+      pred.oob <- knn(train = train.fpc, test = oob.fpc, cl = train.fpc$y, k = fit.class$k)
     } else if (method %in% c("lda","qda")) {
       pred.oob <- predict(fit.class, oob.fpc)$class
     } else if (method == "naivebayes") {
@@ -149,11 +157,27 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
     }
     oob.error <- mean(pred.oob != oob.fpc$y)
     
+    # training error rate
+    if (method == "svm") {
+      pred.train <- predict(fit.class, train.fpc)
+    } else if (method == "logit") {
+      pred.train <- predict(fit.class, train.fpc, type="response")
+      pred.train <- factor(ifelse(pred.train > 0.5, 1, 0), levels=c(0, 1))
+    } else if (method == "knn") {
+      pred.train <- knn(train = train.fpc, test = train.fpc, cl = train.fpc$y, k = fit.class$k)
+    } else if (method %in% c("lda","qda")) {
+      pred.train <- predict(fit.class, train.fpc)$class
+    } else if (method == "naivebayes") {
+      pred.train <- predict(fit.class, train.fpc, type='class')
+    }
+    train.error <- mean(pred.train != train.fpc$y)
+    
     return( list(fpca.fit = fpca.fit,
                  K = k,
                  boot.index = boot.ind,
                  model = fit.class,
-                 oob.error = oob.error) )
+                 oob.error = oob.error,
+                 train.error = train.error) )
   }
   
   # define method of SVM for kernel
@@ -171,15 +195,17 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
   boot.index <- lapply(y.pred, function(x) { x$boot.index })
   model <- lapply(y.pred, function(x) { x$model })
   OOB.error <- sapply(y.pred, function(x) { x$oob.error }) 
+  train.error <- sapply(y.pred, function(x) { x$train.error }) 
   
-  result <- list(FPC.method=FPC.method,
+  result <- list(FPC.method = FPC.method,
                  method = method,
                  fpca.fit = fpca.fit,
                  K = K,
                  boot.index = boot.index,
                  model = model,
                  B = B,
-                 OOB.error = OOB.error)
+                 OOB.error = OOB.error,
+                 train.error = train.error)
   class(result) <- "fpca.bag.classifier"   # define class of object
   
   stopCluster(cl)    # End the parallel computing
@@ -190,12 +216,12 @@ fit.fpca.bag <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", m
 
 ### predict function of "fpca.bag.classifier" object(the bagged classifier using FPCA)
 # - X.test : input data for "FPCA" function("fdapace" package)
-predict.fpca.bag.classifier <- function(fit.fpca.bag.obj, X.test, y.test, probability=F, ncores=2) {
+predict.fpca.bag.classifier <- function(fit.fpca.bag.obj, X.test, y.test, probability=F, ncores=NULL) {
   # the number of bootstrap resamples
   B <- fit.fpca.bag.obj$B
   
   # parallel computing setting
-  # ncores <- detectCores() - 2
+  ncores <- ceiling(detectCores() / 3)
   cl <- makeCluster(ncores)
   registerDoParallel(cl)
   
@@ -287,11 +313,14 @@ predict.fpca.bag.classifier <- function(fit.fpca.bag.obj, X.test, y.test, probab
   if (probability == T) {
     pred <- rowMeans(y.pred)
   } else {
-    # marjority vote
-    pred <- apply(y.pred,
-                  1,
-                  majority_vote)
-    pred <- factor(pred-1, levels=c(0,1))
+    # # marjority vote
+    # pred <- apply(y.pred,
+    #               1,
+    #               majority_vote)
+    # pred <- factor(pred-1, levels=c(0,1))
+    
+    # The LSE-based weighting
+    pred <- LSE_weight( sapply(y.pred, function(x){ cbind( x[[j]] ) }) )
   }
   
   stopCluster(cl)   # End the parallel computing
@@ -302,21 +331,22 @@ predict.fpca.bag.classifier <- function(fit.fpca.bag.obj, X.test, y.test, probab
 
 ### print function of "fpca.bag.classifier" object
 print.fpca.bag.classifier <- function(obj) {
-  cat( "The bootstrap aggregating classifier using ", obj$FPC.method, "FPCA \n",
+  cat( "The bootstrap aggregating classifier using", obj$FPC.method, "FPCA \n",
        # "Type :", class(obj), "\n",
        obj$B, "Iterations", "\n", 
-       "FPCA method :", obj$FPCA.method, "\n" ,
+       "FPCA method :", obj$FPC.method, "\n" ,
        "Classification method :", obj$method, "\n",
-       "OOB error rate :", mean(obj$OOB.error) )
+       "OOB error rate :", mean(obj$OOB.error), "\n",
+       "training error rate :", mean(obj$train.error) )
 }
 
 
 # Not bagged classifier
-fit.fpca.classifier <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", method="logit", kernel=NULL, ncores=2) {
+fit.fpca.classifier <- function(X.train, y.train, FPC.method="Sparse", selectK="FVE", method="logit", kernel=NULL, ncores=NULL) {
   set.seed(1000)
   
   # parallel computing setting
-  # ncores <- detectCores() - 2
+  ncores <- ceiling(detectCores() / 3)
   cl <- makeCluster(ncores)
   registerDoParallel(cl)
   
@@ -408,12 +438,12 @@ fit.fpca.classifier <- function(X.train, y.train, FPC.method="Sparse", selectK="
 
 ### predict function of "fpca.classifier" object(the classifier using FPCA)
 # - X.test : input data for "FPCA" function("fdapace" package)
-predict.fpca.classifier <- function(fit.fpca.obj, X.test, y.test, probability=F, ncores=2) {
+predict.fpca.classifier <- function(fit.fpca.obj, X.test, y.test, probability=F, ncores=NULL) {
   # the number of bootstrap resamples
   B <- fit.fpca.obj$B
   
   # parallel computing setting
-  # ncores <- detectCores() - 2
+  ncores <- ceiling(detectCores() / 3)
   cl <- makeCluster(ncores)
   registerDoParallel(cl)
   
