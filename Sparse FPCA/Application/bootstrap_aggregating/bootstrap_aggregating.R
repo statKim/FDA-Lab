@@ -208,6 +208,8 @@ for (s in 2:18) {
     A <- ifelse(sapply(y.pred, function(x){ as.numeric( x[[j]] ) }) == 1, -1, 1)   # transform to -1 and 1
     w[j-10, ] <- ginv(A) %*% matrix(ifelse(as.numeric(y.train) == 1, -1, 1), ncol=1)   # using generalized inverse(Not symmetric)
     # w[[j-10]] <- ginv( t(A)%*%A ) %*% t(A) %*% ifelse(as.numeric(y.train) == 1, -1, 1)
+    # w[j-10, ] <- (w[j-10, ] - min(w[j-10, ])) / (max(w[j-10, ]) - min(w[j-10, ]))
+    # w[j-10, ] <- w[j-10, ] / sum(w[j-10, ])
   }
   # save the accuracy
   cname <- c("logit","svm.linear","svm.radial","svm.sigmoid","knn","lda","qda","naivebayes")
