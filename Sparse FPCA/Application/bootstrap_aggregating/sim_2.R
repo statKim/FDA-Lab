@@ -109,7 +109,7 @@ acc
 
 
 
-## Bagging to curves
+## Bagging
 system.time({   # running time check
 # Bootstrap aggregating
 B <- 200
