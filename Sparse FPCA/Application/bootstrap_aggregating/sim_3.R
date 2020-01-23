@@ -4,37 +4,43 @@ library(tidyverse)
 library(doParallel)   # parallel computing
 library(fdapace)
 library(e1071)
-library(class)
-library(MASS)
+# library(class)
+# library(MASS)
 library(data.table)
 
 # parallel computing setting
 ncores <- detectCores() - 2
 registerDoParallel(ncores)
 
-packages <- c("fdapace","e1071","class","MASS")   # foreach에서 사용할 package 정의
+packages <- c("fdapace","e1071")   # foreach에서 사용할 package 정의
 
-# majority voting functon
-majority_vote <- function(x) {
-  key <- sort(unique(x))
-  val <- key[which.max( table(x) )]
-  return(val)
+# calculate mode
+Mode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 
 # load data
 data <- read.csv("../spnbmd.csv", header=T)
 
+# ind <- data %>%
+#   group_by(idnum) %>%
+#   summarise(n=n(),
+#             max.age=max(age)) %>%
+#   filter(n >= 2 & max.age < 18) %>%
+#   dplyr::select(idnum)
 ind <- data %>%
   group_by(idnum) %>%
-  summarise(n=n(),
-            max.age=max(age)) %>%
-  filter(n >= 2 & max.age < 18) %>%
+  summarise(n=n()) %>%
+  filter(n >= 2) %>%
   dplyr::select(idnum)
 data <- data[which(data$idnum %in% ind$idnum), ]
 
-# response class 0, 1 coding
-data$sex <- factor(ifelse(data$sex == "fem", 1, 0), levels=c(0,1))
-
+# gender classification
+data <- data %>% 
+  mutate(y = factor(ifelse(sex == "fem", 1, 0), levels=c(0, 1))) %>% 
+  dplyr::select(y, idnum, age, spnbmd)
+length(unique(data$idnum))   # 280
 
 
 acc.single <- numeric(30)
@@ -47,27 +53,28 @@ for (num in 1:30) {
   ### train, test split => train set에 없는 time point 포함시 에러
   # range(test set) > range(train set) => 넘는 부분에 해당하는 id 제거
   set.seed(100*num)
-  id.train <- sample(unique(data$idnum), 100)
+  id <- unique(data$idnum)
+  id.train <- sample(id, floor(length(id) * 2/3))
   id.test <- NULL
   range.train <- range(data$age[which(data$idnum %in% id.train)])
   range.test <- range(data$age[-which(data$idnum %in% id.train)])
   if (range.test[1] < range.train[1]) {
     over.ind <- which(data$age[-which(data$idnum %in% id.train)] < range.train[1] )
     over.ind <- data$idnum[-which(data$idnum %in% id.train)][over.ind]
-    id.test <- unique(data$idnum)[-which(unique(data$idnum) %in% c(id.train, over.ind))]
+    id.test <- id[-which(id %in% c(id.train, over.ind))]
   }
   if (range.test[2] > range.train[2]) {
     over.ind <- which(data$age[-which(data$idnum %in% id.train)] > range.train[2] )
     over.ind <- data$idnum[-which(data$idnum %in% id.train)][over.ind]
     if (is.numeric(id.test)) {
       id.test <- intersect(id.test,
-                           unique(data$idnum)[-which(unique(data$idnum) %in% c(id.train, over.ind))])
+                           id[-which(unique(data$idnum) %in% c(id.train, over.ind))])
     } else {
-      id.test <- unique(data$idnum)[-which(unique(data$idnum) %in% c(id.train, over.ind))]
+      id.test <- id[-which(id %in% c(id.train, over.ind))]
     }
   }
   if (!is.numeric(id.test)) {
-    id.test <- unique(data$idnum)[-which(unique(data$idnum) %in% c(id.train, over.ind))]
+    id.test <- id[-which(id %in% id.train)]
   }
   
   # transform to FPCA input
@@ -80,12 +87,11 @@ for (num in 1:30) {
   X.test <- MakeFPCAInputs(IDs = test$idnum,
                            tVec = test$age,
                            yVec = test$spnbmd)
-  y.train <- unique(train[, c("idnum", "sex")])[, "sex"]
-  y.test <- unique(test[, c("idnum", "sex")])[, "sex"]
+  y.train <- unique(train[, c("idnum", "y")])[, "y"]
+  y.test <- unique(test[, c("idnum", "y")])[, "y"]
   
   
   ### Single classifier
-  set.seed(100*num)
   fpca.fit <- FPCA(X.train$Ly, 
                    X.train$Lt, 
                    optns=list(dataType="Sparse",
@@ -102,26 +108,30 @@ for (num in 1:30) {
   colnames(train.fpc) <- c("y", paste("FPC", 1:k, sep=""))
   
   # classifiers with bootstrapped FPC scores
-  fit.logit <- glm(y~., train.fpc, family=binomial)
-  # tune.radial <- tune.svm(y ~ ., data=train.fpc,
-  #                         kernel="radial",
-  #                         cost=c(10^(-3:1), 2^(5:10)),
-  #                         gamma=c(10^(-3:1), 2^(5:10)) )$best.model
-  # fit.svm.radial <- svm(y ~ ., train.fpc,
-  #                       kernel="radial",
-  #                       cost=tune.radial$cost,
-  #                       gamma=tune.radial$gamma)
+  # fit.logit <- glm(y~., train.fpc, family=binomial)
+  tuned.svm <- tune.svm(y ~ .,
+                        data = train.fpc,
+                        kernel = "linear",
+                        # kernel = "radial",
+                        # gamma = c(10^(-3:1), 2^(5:10)),
+                        cost = c(10^(-3:1), 2^(5:10)) )
+  fit.svm <- svm(y ~ .,
+                 data = train.fpc,
+                 kernel = "linear",
+                 # kernel = "radial",
+                 # gamma = tuned.svm$best.model$gamma,
+                 cost = tuned.svm$best.model$cost)
   
   # test FPC scores
   fpc.score.test <- predict(fpca.fit, X.test$Ly, X.test$Lt, K=k, xiMethod="CE")
-  test.fpc <- data.frame(y=y.test, 
-                         x=fpc.score.test)
+  test.fpc <- data.frame(y = y.test, 
+                         x = fpc.score.test)
   colnames(test.fpc) <- c("y", paste("FPC", 1:k, sep=""))
   
   # predict
-  pred <- predict(fit.logit, test.fpc, type="response")
-  pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
-  # pred <- predict(fit.svm.radial, test.fpc)
+  # pred <- predict(fit.logit, test.fpc, type="response")
+  # pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
+  pred <- predict(fit.svm, test.fpc)
   
   # save the accuracy
   acc.single[num] <- mean(pred == y.test)
@@ -129,11 +139,12 @@ for (num in 1:30) {
   
   ## Bagging
   # Bootstrap aggregating
-  B <- 200
+  B <- 100
   N <- length(X.train$Ly)
   set.seed(100*num)
+  boot.mat <- matrix(sample(1:N, N*B, replace=T), N, B)
   y.pred <- foreach(b=1:B, .packages=packages) %dopar% {
-    boot.ind <- sample(1:N, N, replace=T)
+    boot.ind <- boot.mat[, b]
     
     # bootstrap sample의 time range를 벗어나는 test set sample 제거
     id.test <- NULL
@@ -193,20 +204,24 @@ for (num in 1:30) {
     fpc.score <- fpca.fit$xiEst
     
     # train FPC scores
-    train.fpc <- data.frame(y=y.train[boot.ind], 
-                            x=fpc.score)
+    train.fpc <- data.frame(y = y.train[boot.ind], 
+                            x = fpc.score)
     colnames(train.fpc) <- c("y", paste("FPC", 1:k, sep=""))
     
     # classifiers with bootstrapped FPC scores
-    fit.logit <- glm(y~., train.fpc, family=binomial)
-    # tune.radial <- tune.svm(y ~ ., data=train.fpc,
-    #                         kernel="radial",
-    #                         cost=c(10^(-3:1), 2^(5:10)),
-    #                         gamma=c(10^(-3:1), 2^(5:10)) )$best.model
-    # fit.svm.radial <- svm(y ~ ., train.fpc,
-    #                       kernel="radial",
-    #                       cost=tune.radial$cost,
-    #                       gamma=tune.radial$gamma)
+    # fit.logit <- glm(y~., train.fpc, family=binomial)
+    # tuned.svm <- tune.svm(y ~ .,
+    #                       data = train.fpc,
+    #                       # kernel = "linear",
+    #                       kernel = "radial",
+    #                       gamma = c(10^(-3:1), 2^(5:10)),
+    #                       cost = c(10^(-3:1), 2^(5:10)) )
+    fit.svm <- svm(y ~ .,
+                   data = train.fpc,
+                   kernel = "linear",
+                   # kernel = "radial",
+                   # gamma = tuned.svm$best.model$gamma,
+                   cost = tuned.svm$best.model$cost)
     
     # test FPC scores
     ind <- which(unlist(X.test$Lid) %in% id.test)
@@ -216,9 +231,9 @@ for (num in 1:30) {
     colnames(test.fpc) <- c("y", paste("FPC", 1:k, sep=""))
     
     # predict
-    pred <- predict(fit.logit, test.fpc, type="response")
-    pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
-    # pred <- predict(fit.svm.radial, test.fpc)
+    # pred <- predict(fit.logit, test.fpc, type="response")
+    # pred <- factor(ifelse(pred > 0.5, 1, 0), levels=c(0, 1))
+    pred <- predict(fit.svm, test.fpc)
     
     # OOB FPC scores
     oob.ind <- which(X.train$Lid %in% id.oob)
@@ -232,8 +247,8 @@ for (num in 1:30) {
     colnames(oob.fpc) <- c("y", paste("FPC", 1:k, sep=""))
     
     # OOB error rate
-    oob.error <- mean(factor(ifelse(predict(fit.logit, oob.fpc, type="response") > 0.5, 1, 0), levels=c(0, 1)) != oob.fpc$y)
-    # oob.error <- mean(predict(fit.svm.radial, oob.fpc) != oob.fpc$y)
+    # oob.error <- mean(factor(ifelse(predict(fit.logit, oob.fpc, type="response") > 0.5, 1, 0), levels=c(0, 1)) != oob.fpc$y)
+    oob.error <- mean(predict(fit.svm, oob.fpc) != oob.fpc$y)
     return( list(oob.error = oob.error,
                  boot = data.frame(id = id.test,
                                    y = y.test[ind],
@@ -247,7 +262,7 @@ for (num in 1:30) {
   # majority voting
   pred <- res %>% 
     group_by(id, y) %>% 
-    summarise( pred = factor(ifelse(median(as.numeric(pred)) > 1, 1, 0), levels=c(0, 1)) )
+    summarise(pred = Mode(pred))
   acc.majority[num] <- mean(pred$y == pred$pred)
   
   # oob error
@@ -292,6 +307,19 @@ data.frame(Iteration = 1:30,
   theme_bw() +
   theme(legend.title = element_blank())
   
-
-
-
+res.logit <- data.frame(seed = 100*1:30,
+                        Single = acc.single,
+                        Majority = acc.majority,
+                        OOB = acc.oob)
+res.svm <- data.frame(seed = 100*1:30,
+                      Single = acc.single,
+                      Majority = acc.majority,
+                      OOB = acc.oob)
+res.svm.tune <- data.frame(seed = 100*1:30,
+                           Single = acc.single,
+                           Majority = acc.majority,
+                           OOB = acc.oob)
+result <- list(logit = res.logit,
+               svm = res.svm,
+               svm.tune = res.svm.tune)
+save(result, file="result.RData")
