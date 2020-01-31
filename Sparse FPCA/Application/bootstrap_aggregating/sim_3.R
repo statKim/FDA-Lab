@@ -111,15 +111,23 @@ for (num in 1:30) {
   # fit.logit <- glm(y~., train.fpc, family=binomial)
   tuned.svm <- tune.svm(y ~ .,
                         data = train.fpc,
-                        kernel = "linear",
+                        # kernel = "linear",
                         # kernel = "radial",
-                        # gamma = c(10^(-3:1), 2^(5:10)),
+                        # kernel = "sigmoid",
+                        kernel = "polynomial",
+                        gamma = c(10^(-3:1), 2^(5:10)),
+                        # coef0 = ,
+                        degree = 2,
                         cost = c(10^(-3:1), 2^(5:10)) )
   fit.svm <- svm(y ~ .,
                  data = train.fpc,
-                 kernel = "linear",
+                 # kernel = "linear",
                  # kernel = "radial",
-                 # gamma = tuned.svm$best.model$gamma,
+                 # kernel = "sigmoid",
+                 kernel = "polynomial",
+                 gamma = tuned.svm$best.model$gamma,
+                 # coef0 = tuned.svm$best.model$coef0,
+                 degree = tuned.svm$best.model$degree,
                  cost = tuned.svm$best.model$cost)
   
   # test FPC scores
@@ -218,9 +226,13 @@ for (num in 1:30) {
     #                       cost = c(10^(-3:1), 2^(5:10)) )
     fit.svm <- svm(y ~ .,
                    data = train.fpc,
-                   kernel = "linear",
+                   # kernel = "linear",
                    # kernel = "radial",
-                   # gamma = tuned.svm$best.model$gamma,
+                   # kernel = "sigmoid",
+                   kernel = "polynomial",
+                   gamma = tuned.svm$best.model$gamma,
+                   # coef0 = tuned.svm$best.model$coef0,
+                   degree = tuned.svm$best.model$degree,
                    cost = tuned.svm$best.model$cost)
     
     # test FPC scores
@@ -319,7 +331,29 @@ res.svm.tune <- data.frame(seed = 100*1:30,
                            Single = acc.single,
                            Majority = acc.majority,
                            OOB = acc.oob)
-result <- list(logit = res.logit,
-               svm = res.svm,
-               svm.tune = res.svm.tune)
+res.svm.linear <- data.frame(seed = 100*1:30,
+                             Single = acc.single,
+                             Majority = acc.majority,
+                             OOB = acc.oob)
+res.svm.sigmoid <- data.frame(seed = 100*1:30,
+                              Single = acc.single,
+                              Majority = acc.majority,
+                              OOB = acc.oob)
+res.svm.ploy <- data.frame(seed = 100*1:30,
+                           Single = acc.single,
+                           Majority = acc.majority,
+                           OOB = acc.oob)
+res.svm.ploy.2 <- data.frame(seed = 100*1:30,
+                             Single = acc.single,
+                             Majority = acc.majority,
+                             OOB = acc.oob)
+# result <- list(logit = res.logit,
+#                svm = res.svm,
+#                svm.tune = res.svm.tune,
+#                svm.linear = res.svm.linear,
+#                svm.sigmoid = res.svm.sigmoid,
+#                svm.poly = res.svm.ploy)
+result$svm.poly.degree2 <- res.svm.ploy.2
 save(result, file="result.RData")
+
+lapply(result, function(x){colMeans(x[,-1])})
