@@ -4,6 +4,7 @@ reference/
 fda_packages/
 reference/
 paper/
+build/
 
 # RData
 daily_avg.RData

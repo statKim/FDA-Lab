@@ -1,21 +1,11 @@
-% Copyright 2004 by Till Tantau <tantau@users.sourceforge.net>.
-%
-% In principle, this file can be redistributed and/or modified under
-% the terms of the GNU Public License, version 2.
-%
-% However, this file is supposed to be a template to be modified
-% for your own needs. For this reason, if you use this file as a
-% template and not specifically distribute it as part of a another
-% package/program, I grant the extra permission to freely copy and
-% modify this file as you see fit and even to delete this copyright
-% notice. 
-
 \documentclass{beamer}
 
 \usepackage{kotex}
 \usepackage{graphicx,psfrag,amsfonts,amsmath,amssymb}
 \usepackage{multicol}
-
+\usepackage{multirow}
+% hyperlink
+\usepackage{hyperref}
 % code block option
 \usepackage{listings}
 \usepackage{xcolor}
@@ -43,51 +33,17 @@
 	showtabs=false,                  
 	tabsize=2
 }
-
 \lstset{style=mystyle}
 
-% There are many different themes available for Beamer. A comprehensive
-% list with examples is given here:
-% http://deic.uab.es/~iblanes/beamer_gallery/index_by_theme.html
-% You can uncomment the themes below if you would like to use a different
-% one:
-%\usetheme{Dresden}
-%\usetheme{AnnArbor}
-%\usetheme{Antibes}
-%\usetheme{Bergen}
-%\usetheme{Berkeley}
-\usetheme{Berlin}
-%\usetheme{Boadilla}
-%\usetheme{boxes}
-%\usetheme{CambridgeUS}
-%\usetheme{Copenhagen}
-%\usetheme{Darmstadt}
-%\usetheme{default}
-%\usetheme{Frankfurt}
-%\usetheme{Goettingen}
-%\usetheme{Hannover}
-%\usetheme{Ilmenau}
-%\usetheme{JuanLesPins}
-%\usetheme{Luebeck}
-%\usetheme{Madrid}
-%\usetheme{Malmoe}
-%\usetheme{Marburg}
-%\usetheme{Montpellier}
-%\usetheme{PaloAlto}
-%\usetheme{Pittsburgh}
-%\usetheme{Rochester}
-%\usetheme{Singapore}
-%\usetheme{Szeged}
-%\usetheme{Warsaw}
+\usetheme{metropolis}
 
-\usecolortheme{lily}
 \usefonttheme[onlymath]{serif}	% 수식 설정!!
 
 \title{Introduction to \LaTeX}
 %\date{\today}
 \date[Short Occasion]{Febrary 5, 2020}
 \author{Hyunsung Kim}
-\institute[Dept. of Statistics]
+\institute[Deptartment of Statistics]
 	{Department of Statistics\\
 	Chung-Ang University}
 
@@ -129,12 +85,12 @@
 
 % Delete this, if you do not want the table of contents to pop up at
 % the beginning of each subsection:
-\AtBeginSubsection[]
-{
-  \begin{frame}<beamer>{Outline}
-    \tableofcontents[currentsection,currentsubsection]
-  \end{frame}
-}
+%\AtBeginSubsection[]
+%{
+%  \begin{frame}<beamer>{Outline}
+%    \tableofcontents[currentsection,currentsubsection]
+%  \end{frame}
+%}
 
 % Let's get started
 \begin{document}
@@ -144,25 +100,159 @@
 \end{frame}
 
 \begin{frame}{Outline}
-  \tableofcontents
-  % You might wish to add the option [pausesections]
+	\setbeamertemplate{section in toc}[ball unnumbered]
+	\setbeamertemplate{subsection in toc}[ball unnumbered]
+	\tableofcontents
+	% You might wish to add the option [pausesections]
 \end{frame}
 
-% Section and subsections will appear in the presentation overview
-% and table of contents.
-\section{Useful methods}
 
-\subsection{\texttt{xtable} package}
+\section{Tables}
+
+\begin{frame}[containsverbatim]{How to make table?}
+	\begin{lstlisting}[language=TeX, basicstyle=\tiny, caption=Table example code]
+	\begin{table}[ht]
+		\centering
+		\begin{tabular}{ccc}       % alignment(c: center, l: left, r: right)
+			\hline                   % horizontal line
+			Var1 & Var2 & Var3 \\    % table elements(variable name + value)
+			\hline
+			1 & 2 & 3 \\
+			4 & 5 & 6 \\
+			7 & 8 & 9 \\
+			\hline
+		\end{tabular}
+		\caption{Table example}    % caption
+	\end{table}   \end{lstlisting}
+\end{frame}
+
+\begin{frame}{How to make table?}
+	\begin{table}[ht]
+		\centering
+		\begin{tabular}{ccc}
+			\hline
+			Var1 & Var2 & Var3 \\ 
+			\hline
+			1 & 2 & 3 \\ 
+			4 & 5 & 6 \\
+			7 & 8 & 9 \\
+			\hline
+		\end{tabular}
+		\caption{Table example}
+	\end{table}
+\end{frame}
+
+\begin{frame}[containsverbatim]{Multiple columns and rows}
+	\begin{multicols}{2}
+		\noindent  
+		$\triangleright$ Multiple rows
+		\begin{lstlisting}[language=TeX, basicstyle=\tiny]
+		\usepackage{multirow}
+		
+		\begin{table}[ht]
+			\centering
+			\begin{tabular}{ccc}
+				\hline  
+				Var1 & Var2 & Var3 \\ 
+				\hline
+				\multirow{2}{4em}{multi row} & 3 \\
+				  & 5 & 6 \\
+				7 & 8 & 9 \\
+				\hline
+			\end{tabular}
+		\end{table}   \end{lstlisting}
+		
+		\columnbreak
+		
+		$\triangleright$ Multiple columns
+		\begin{lstlisting}[language=TeX, basicstyle=\tiny]
+		\begin{table}[ht]
+			\centering
+			\begin{tabular}{ccc}
+				\hline 
+				Var1 & Var2 & Var3 \\ 
+				\hline
+				1 & 2 & 3 \\
+				4 & 5 & 6 \\
+				7 & 8 & 9 \\
+				\hline
+			\end{tabular}
+		\end{table}   \end{lstlisting}
+	\end{multicols}
+\end{frame}
+
+\begin{frame}{Multiple columns and rows}
+	\begin{multicols}{2}
+		\noindent  
+		$\triangleright$ Multiple rows
+		\begin{table}[ht]
+			\centering
+			\begin{tabular}{ccc}
+			\hline  
+			Var1 & Var2 & Var3 \\ 
+			\hline
+			\multirow{2}{4em}{\textcolor{red}{multi row}} & 2 & 3 \\
+			  & 5 & 6 \\
+			7 & 8 & 9 \\
+			\hline
+		\end{tabular}
+		\end{table} 
+		
+		\columnbreak
+		
+		$\triangleright$ Multiple columns
+		\begin{table}[ht]
+		\centering
+		\begin{tabular}{ccc}
+		\hline 
+		Var1 & Var2 & Var3 \\ 
+		\hline
+		1 & \multicolumn{2}{c}{\textcolor{red}{multi col}} \\
+		4 & 5 & 6 \\
+		7 & 8 & 9 \\
+		\hline
+		\end{tabular}
+		\end{table} 
+	\end{multicols}
+\end{frame}
+
+\begin{frame}{Tables generator}
+	\begin{itemize}
+		\item {
+			GUI 형태로 값을 입력하는 방식
+		}
+		\item {
+			입력된 테이블을 \textrm{\LaTeX} 코드로 변환해줌
+		}
+		\item {
+			\href{https://www.tablesgenerator.com/}{\underline{링크}}
+		}
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Tables generator}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/table_generator.png}
+		\end{center}
+		\caption{Example table using table generator}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+
+%\subsection{\texttt{xtable} package}
 
 \begin{frame}{\texttt{xtable} package}
-  \begin{itemize}
-  	\item {
-	    \texttt{R}의 dataframe or matrix 형태를 \textrm{\LaTeX} 코드로 변환시켜주는 package
-	}
-	\item {
-		print되는 output을 그대로 복사해서 사용하면 됨
-	}
-  \end{itemize}
+	\begin{itemize}
+		\item {
+			\texttt{R}의 \texttt{dataframe} or \texttt{matrix} 형태를 \textrm{\LaTeX} 코드로 변환시켜주는 package
+		}
+		\item {
+			\textrm{\LaTeX} 코드가 반환
+		}
+	\end{itemize}
 \end{frame}
 
 \begin{frame}{\texttt{xtable} package}
@@ -203,12 +293,158 @@
 			6 & 5.40 & 3.90 & 1.70 & 0.40 & setosa \\ 
 			\hline
 		\end{tabular}
-	\caption{The table using output of \texttt{xtable} function}
+		\caption{The table using output of \texttt{xtable} function}
 	\end{table}
 \end{frame}
 
 
-\subsection{User defined command}
+\section{Figures}
+
+\begin{frame}[containsverbatim]{How to input figures?}
+	\begin{lstlisting}[language=TeX, basicstyle=\tiny, caption=Figure example code]
+	\begin{figure}[h]   % t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/figure.png}
+		\end{center}
+		\caption{Figure example}   % caption
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}   \end{lstlisting}
+\end{frame}
+
+\begin{frame}{How to input figures?}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/figure.png}
+		\end{center}
+		\caption{Figure example}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+
+
+\section{Beamer Template}
+
+%\subsection{Beamer Template}
+
+\begin{frame}{What is Beamer?}
+	\begin{itemize}
+		\item {
+			발표자료 형태의 \textrm{\LaTeX} 문서
+		}
+		\item {
+			각 슬라이드에 내용을 넣는 방식으로 구성됨
+		}
+		\item {
+			theme, color에 따라 다양한 양식 존재
+		}	
+		\item {
+			\href{https://hartwork.org/beamer-theme-matrix/}{\underline{Beamer theme matrix}}
+		}	
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{What is Beamer?}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/beamer_1.pdf}
+		\end{center}
+		\caption{Beamer example}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{What is Beamer?}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/beamer_2.pdf}
+		\end{center}
+		\caption{\texttt{Berlin} theme}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{What is Beamer?}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/beamer_3.pdf}
+		\end{center}
+		\caption{\texttt{Berlin} theme + \texttt{wolverine} colortheme}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+%\subsection{Example Code}
+
+\begin{frame}[containsverbatim]{Example Code - Title}
+	\begin{lstlisting}[language=TeX, basicstyle=\tiny, caption=Title code]
+	\documentclass{beamer}      % document type
+	
+	\usetheme{Berlin}           % theme
+	\usecolortheme{wolverine}   % color theme
+	
+	\title{Introduction to \LaTeX}   
+	\date[Short Occasion]{Febrary 5, 2020}
+	\author{Hyunsung Kim}
+	\institute[Deptartment of Statistics]
+	{Department of Statistics\\ Chung-Ang University}
+	\subject{Introduction to \LaTeX}
+	
+	% create slides here
+	\begin{document}
+		
+		% main title
+		\begin{frame}
+			\titlepage
+		\end{frame}
+		
+	\end{document}   \end{lstlisting}
+\end{frame}
+
+\begin{frame}[containsverbatim]{Example Code - Slides}
+	\begin{lstlisting}[language=TeX, basicstyle=\tiny, caption=Slides code]
+	\begin{document}
+	
+		\section{Section 1}
+		
+		\subsection{Subsection 1}
+		
+		% slide 1
+		\begin{frame}{Frame 1}
+			\begin{itemize}
+				\item {
+					item 1
+				}
+				\item {
+					item 2
+				}
+			\end{itemize}
+		\end{frame}
+	
+	\end{document}   \end{lstlisting}
+\end{frame}
+
+\begin{frame}{Example Code - Slides}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.7\linewidth]{img/beamer_item.pdf}
+		\end{center}
+		\caption{Slides example}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+
+
+\section{Useful Tips}
+
+%\subsection{User defined command}
 
 \begin{frame}{User defined command}
 	\begin{itemize}
@@ -221,16 +457,31 @@
 	\end{itemize}
 \end{frame}
 
-\begin{frame}[fragile]{Before using user defined command}
-	$$ \mathbf{B}_i\boldsymbol{\Theta}\mathbf{D}\boldsymbol{\Theta}^T\mathbf{B}^T_i $$
+\begin{frame}[fragile]{Difference of codes}
+	$$ \mathbf{B}_i \boldsymbol{\Theta} \mathbf{D} \boldsymbol{\Theta}^T \mathbf{B}^T_i $$
+	\begin{multicols}{2}
+	\noindent  
+	$\triangleright$ Original code
+	\begin{lstlisting}[language=TeX]
+	$$ 
+	\mathbf{B}_i \boldsymbol{\Theta} \mathbf{D} \boldsymbol{\Theta}^T \mathbf{B}^T_i 
+	$$  \end{lstlisting}
 	
-	\begin{lstlisting}
-	% Don't use user defined command
-	$$ \mathbf{B}_i \boldsymbol{\Theta} \mathbf{D} \boldsymbol{\Theta}^T \mathbf{B}^T_i $$  \end{lstlisting}
+	\columnbreak
+	
+	$\triangleright$ User defined code
+	%\vspace{-0.154cm}
+	\begin{lstlisting}[language=TeX]
+	$$ 
+	\bB_i \bTheta \bD \bTheta^T \bB^T_i 
+	$$ \end{lstlisting}
+	\end{multicols}
 \end{frame}
 
 \begin{frame}[fragile]{User defined command}
-	\begin{lstlisting}
+	$\triangleright$ 다음과 같이 정의하여 사용하면 됨
+	
+	\begin{lstlisting}[language=TeX]
 	\def \bY { \mathbf{Y} }
 	\def \bB { \mathbf{B} }
 	\def \bI { \mathbf{I} }
@@ -241,121 +492,99 @@
 	\def \balpha { \boldsymbol{\alpha} }  \end{lstlisting}
 \end{frame}
 
-\begin{frame}[fragile]{After using user defined command}
-	\def \bY {\mathbf{Y}}
-	\def \bB {\mathbf{B}}
-	\def \bI {\mathbf{I}}
-	\def \bD {\mathbf{D}}
-	\def \bbeta {\boldsymbol{\beta}}
-	\def \btheta {\boldsymbol{\theta}}
-	\def \bTheta {\boldsymbol{\Theta}}
-	\def \balpha {\boldsymbol{\alpha}}
-	
-	$$ \bB_i\bTheta\bD\bTheta^T\bB^T_i $$
-	
-	\begin{lstlisting}
-	% Use user defined command
-	$$ \bB_i \bTheta \bD \bTheta^T \bB^T_i $$ \end{lstlisting}
-\end{frame}
 
-
-\subsection{Code block}
+%\subsection{Code block}
 
 \begin{frame}{Code block}
 	\begin{itemize}
 		\item {
-			간혹 과제 제출할 때, 코드를 같이 제출하게 되는 강의를 들을 때 유용(통계계산론, 데이터마이닝 등등)
+			코드를 같이 제출하는 과제가 있는 강의를 들을 때 유용 (통계계산론, 데이터마이닝 등)
 		}
 		\item {
-			단순히 코드 복사해서 붙여넣는 것보다는 나름 깔끔하게 정리 가능
+			단순 코드 복붙보다 깔끔하게 정리 가능
 		}
 		\item {
-			설명은 링크로 대체 $\Rightarrow$ \url{https://www.overleaf.com/learn/latex/Code_listing}
+			코드를 \textrm{\LaTeX} 파일에 직접 넣지 않고 코드 파일을 첨부하여 사용 가능
+		}
+		\item {
+			\href{https://www.overleaf.com/learn/latex/Code_listing}{\underline{Reference}}
 		}
 	\end{itemize}
 \end{frame}
 
-\begin{frame}{Cross-covariance and cross-correlation functions}{Cantour plots of correlation functions}
-	\begin{multicols}{2}
-		\begin{figure}[h] %%% t: top, b: bottom, h: here
-			\begin{center}
-				\includegraphics[width=0.9\linewidth]{img/xtable1.png}
-			\end{center}
-			%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
-			\label{fig:long}
-			\label{fig:onecol}
-		\end{figure}
-		\begin{figure}[h] %%% t: top, b: bottom, h: here
-			\begin{center}
-				\includegraphics[width=0.9\linewidth]{img/xtable2.png}
-			\end{center}
-			%\caption{Sampling two normal mixture(histogram) VS True normal mixture(red line)}
-			\label{fig:long}
-			\label{fig:onecol}
-		\end{figure}
-	\end{multicols}
+\begin{frame}{Build directory}
+	\begin{itemize}
+		\item {
+			\textrm{\LaTeX} 파일 compile시, \texttt{pdf} 뿐만 아니라 다른 파일들이 같이 생김
+		}
+		\item {
+			임시 파일들이 따로 폴더에 들어가도록 설정할 수 있음
+		}
+		\item {
+			\texttt{texstudio} + \texttt{Miktex} 기준의 설정 방법
+		}
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{How to config Build directory?}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.8\linewidth]{img/texstudio_config.png}
+		\end{center}
+		\caption{Settings in texstudio}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{Before configuration}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.8\linewidth]{img/config_before.png}
+		\end{center}
+		\caption{Before configuration}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+\begin{frame}{After configuration}
+	\begin{figure}[h] %%% t: top, b: bottom, h: here
+		\begin{center}
+			\includegraphics[width=0.8\linewidth]{img/config_after.png}
+		\end{center}
+		\caption{After configuration}
+		\label{fig:long}
+		\label{fig:onecol}
+	\end{figure}
+\end{frame}
+
+%\subsection{Rmarkdown to Beamer}
+
+\begin{frame}{Rmarkdown to Beamer}
+	\begin{itemize}
+		\item {
+			\texttt{Rmarkdown}으로 \textrm{\LaTeX} 문서 작성 가능 \\
+			(단, \textrm{\LaTeX} 설치되어 있는 경우만 가능)
+		}
+		\item {
+			\texttt{Markdown} 문법 + \textrm{\LaTeX} 혼용 가능
+		}
+		\item {
+			\href{https://github.com/statKim/TIL/blob/master/R/R\%20markdown\%EC\%97\%90\%EC\%84\%9C\%20Beamer(Tex)\%20\%EC\%8A\%AC\%EB\%9D\%BC\%EC\%9D\%B4\%EB\%93\%9C\%20\%EB\%A7\%8C\%EB\%93\%A4\%EA\%B8\%B0.md}{\underline{Reference}}
+		}
+	\end{itemize}
 \end{frame}
 
 
-%\appendix
-\section*{Appendix}
-\subsection<presentation>*{Reference}
 
 \begin{frame}
-  \frametitle<presentation>{Reference}
-    
-  \begin{thebibliography}{10}
-    
-  \beamertemplatebookbibitems
-  % Start with overview books.
-
-	\bibitem{Author1990}
-		J.O. Ramsay, B.W. Silverman.
-		\newblock {\em Functional Data Analysis 2nd edition}.
-		\newblock Springer, 2005.
- 
-    
-%  \beamertemplatearticlebibitems
-%  % Followed by interesting articles. Keep the list short. 
-%
-%  \bibitem{Someone2000}
-%    S.~Someone.
-%    \newblock On this and that.
-%    \newblock {\em Journal of This and That}, 2(1):50--100,
-%    2000.
-  \end{thebibliography}
+	\begin{center}
+		\huge
+		감사합니다!
+	\end{center}
 \end{frame}
-\section*{Appendix}
 
-% All of the following is optional and typically not needed. 
-%\appendix
-%\section<presentation>*{\appendixname}
-%\subsection<presentation>*{For Further Reading}
-%
-%\begin{frame}[allowframebreaks]
-%  \frametitle<presentation>{For Further Reading}
-%    
-%  \begin{thebibliography}{10}
-%    
-%  \beamertemplatebookbibitems
-%  % Start with overview books.
-%
-%  \bibitem{Author1990}
-%    A.~Author.
-%    \newblock {\em Handbook of Everything}.
-%    \newblock Some Press, 1990.
-% 
-%    
-%  \beamertemplatearticlebibitems
-%  % Followed by interesting articles. Keep the list short. 
-%
-%  \bibitem{Someone2000}
-%    S.~Someone.
-%    \newblock On this and that.
-%    \newblock {\em Journal of This and That}, 2(1):50--100,
-%    2000.
-%  \end{thebibliography}
-%\end{frame}
 
 \end{document}
 
