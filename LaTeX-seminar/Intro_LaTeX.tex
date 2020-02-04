@@ -144,40 +144,40 @@
 
 \begin{frame}[containsverbatim]{Multiple columns and rows}
 	\begin{multicols}{2}
-		\noindent  
-		$\triangleright$ Multiple rows
-		\begin{lstlisting}[language=TeX, basicstyle=\tiny]
-		\usepackage{multirow}
-		
-		\begin{table}[ht]
-			\centering
-			\begin{tabular}{ccc}
-				\hline  
-				Var1 & Var2 & Var3 \\ 
-				\hline
-				\multirow{2}{4em}{multi row} & 3 \\
-				  & 5 & 6 \\
-				7 & 8 & 9 \\
-				\hline
-			\end{tabular}
-		\end{table}   \end{lstlisting}
-		
-		\columnbreak
-		
-		$\triangleright$ Multiple columns
-		\begin{lstlisting}[language=TeX, basicstyle=\tiny]
-		\begin{table}[ht]
-			\centering
-			\begin{tabular}{ccc}
-				\hline 
-				Var1 & Var2 & Var3 \\ 
-				\hline
-				1 & 2 & 3 \\
-				4 & 5 & 6 \\
-				7 & 8 & 9 \\
-				\hline
-			\end{tabular}
-		\end{table}   \end{lstlisting}
+	\noindent  
+	$\triangleright$ Multiple rows
+	\begin{lstlisting}[language=TeX, basicstyle=\tiny]
+	\usepackage{multirow}
+	
+	\begin{table}[ht]
+		\centering
+		\begin{tabular}{ccc}
+			\hline  
+			Var1 & Var2 & Var3 \\ 
+			\hline
+			\multirow{2}{4em}{multi row} & 3 \\
+			  & 5 & 6 \\
+			7 & 8 & 9 \\
+			\hline
+		\end{tabular}
+	\end{table}   \end{lstlisting}
+	
+	\columnbreak
+	
+	$\triangleright$ Multiple columns
+	\begin{lstlisting}[language=TeX, basicstyle=\tiny]
+	\begin{table}[ht]
+		\centering
+		\begin{tabular}{ccc}
+			\hline 
+			Var1 & Var2 & Var3 \\ 
+			\hline
+			1 & 2 & 3 \\
+			4 & 5 & 6 \\
+			7 & 8 & 9 \\
+			\hline
+		\end{tabular}
+	\end{table}   \end{lstlisting}
 	\end{multicols}
 \end{frame}
 
@@ -216,7 +216,7 @@
 	\end{multicols}
 \end{frame}
 
-\begin{frame}{Tables generator}
+\begin{frame}{Tables Generator}
 	\begin{itemize}
 		\item {
 			GUI 형태로 값을 입력하는 방식
@@ -225,17 +225,17 @@
 			입력된 테이블을 \textrm{\LaTeX} 코드로 변환해줌
 		}
 		\item {
-			\href{https://www.tablesgenerator.com/}{\underline{링크}}
+			\href{https://www.tablesgenerator.com/}{\underline{Table Generator}}
 		}
 	\end{itemize}
 \end{frame}
 
-\begin{frame}{Tables generator}
+\begin{frame}{Tables Generator}
 	\begin{figure}[h] %%% t: top, b: bottom, h: here
 		\begin{center}
 			\includegraphics[width=0.7\linewidth]{img/table_generator.png}
 		\end{center}
-		\caption{Example table using table generator}
+		\caption{Example table using Table Generator}
 		\label{fig:long}
 		\label{fig:onecol}
 	\end{figure}
@@ -247,7 +247,10 @@
 \begin{frame}{\texttt{xtable} package}
 	\begin{itemize}
 		\item {
-			\texttt{R}의 \texttt{dataframe} or \texttt{matrix} 형태를 \textrm{\LaTeX} 코드로 변환시켜주는 package
+			\texttt{R}의 \texttt{dataframe} or \texttt{matrix} type을 \textrm{\LaTeX} 코드로 변환시켜주는 package
+		}
+		\item {
+			"\texttt{xtable(df)}" 형식으로 사용
 		}
 		\item {
 			\textrm{\LaTeX} 코드가 반환
@@ -521,7 +524,11 @@
 			임시 파일들이 따로 폴더에 들어가도록 설정할 수 있음
 		}
 		\item {
-			\texttt{texstudio} + \texttt{Miktex} 기준의 설정 방법
+			\texttt{TeXstudio} + \texttt{Miktex} 기준의 설정 방법
+		}
+		\item {
+			\texttt{PdfLaTeX}의 명령어를 다음과 같이 수정하여 설정 가능 \\
+			\texttt{pdflatex.exe -synctex=0 -interaction=nonstopmode --aux-directory=build \%.tex}
 		}
 	\end{itemize}
 \end{frame}
