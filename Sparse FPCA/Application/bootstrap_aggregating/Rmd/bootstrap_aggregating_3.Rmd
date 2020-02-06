@@ -1,0 +1,302 @@
+---
+title: "Bootstrap aggregated sparse FPCA for classification"
+author: "Hyunsung Kim"
+date: January 20, 2020
+institute: Department of Statistics \newline Chung-Ang University
+fonttheme: "professionalfonts"
+output:
+  beamer_presentation:
+    theme: "metropolis"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\bootstrap_aggregating")
+```
+
+
+## Simulations with 2 datasets
+
+- The growth data
+  - 93 observations(60 training set, 33 test set)
+  - Dense data $\Rightarrow$ randomly sparsify with 2~6 observations
+- The bone mineral density 
+  - 160 observations(100 training set and 60 test set)
+    - On the [robust bagging](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=4568479), 60 training set, 40 validation set and 60 test set
+  - Sparse data
+
+## Simulation 1
+
+```{r, results="hide", warning=F, message=F}
+library(ddalpha)
+library(fdapace)
+dataf <- dataf.growth()
+
+Ly <- lapply(dataf$dataf, function(x){ x$vals })
+time <- lapply(dataf$dataf, function(x){ x$args })[[1]]
+
+X <- t(sapply(Ly, cbind))
+
+# train, test split
+set.seed(100)
+y <- factor(ifelse(unlist(dataf$labels) == "boy", 1, 0), levels=c(0, 1))
+n <- length(y)
+ind <- sample(1:n, 60)   # train set index
+
+X.train <- as.matrix( X[ind, ] )
+X.test <- as.matrix( X[-ind, ] )
+y.train <- y[ind]
+y.test <- y[-ind]
+
+# sparsify train, test set
+s <- 2:6
+train.data <- Sparsify(X.train, time, sparsity = s)
+test.data <- Sparsify(X.test, time, sparsity = s)
+
+train <- data.frame(idnum=unlist(mapply(function(x, y){ rep(x, y) },
+       1:nrow(X.train), 
+       sapply(train.data$Lt, function(x)(length(x))))),
+           age=unlist(train.data$Lt),
+           spnbmd=unlist(train.data$Ly),
+       sex=unlist(mapply(function(x, y){ rep(x, y) },
+       y.train, 
+       sapply(train.data$Lt, function(x)(length(x))))))
+test <- data.frame(idnum=unlist(mapply(function(x, y){ rep(x, y) },
+       1:nrow(X.test), 
+       sapply(test.data$Lt, function(x)(length(x))))),
+           age=unlist(test.data$Lt),
+           spnbmd=unlist(test.data$Ly),
+       sex=unlist(mapply(function(x, y){ rep(x, y) },
+       y.test, 
+       sapply(test.data$Lt, function(x)(length(x))))))
+```
+
+```{r echo=F, fig.cap="The growth data", out.width="300px", out.height="180px"}
+# plot
+par(mfrow=c(1,2))
+plot(train$age[which(train$idnum == unique(train$idnum)[1])], 
+     train$spnbmd[which(train$idnum == unique(train$idnum)[1])], 
+     col=as.numeric(train$y)[which(train$idnum == unique(train$idnum)[1])[1]],
+     type="o", xlim=c(1, 18), ylim=c(70, 194.3),
+     xlab="Age", ylab="Height",
+     main="Train set")
+for (i in 2:length(unique(train$idnum))) {
+  lines(train$age[which(train$idnum == unique(train$idnum)[i])], 
+        train$spnbmd[which(train$idnum == unique(train$idnum)[i])], 
+        col=as.numeric(train$sex)[which(train$idnum == unique(train$idnum)[i])[1]],
+        type="o")
+}
+plot(test$age[which(test$idnum == unique(test$idnum)[1])], 
+     test$spnbmd[which(test$idnum == unique(test$idnum)[1])], 
+     col=as.numeric(train$sex)[which(test$idnum == unique(test$idnum)[1])[1]],
+     type="o", xlim=c(1, 18), ylim=c(70, 194.3),
+     xlab="Age", ylab="Height",
+     main="Test set")
+for (i in 2:length(unique(test$idnum))) {
+  lines(test$age[which(test$idnum == unique(test$idnum)[i])], 
+        test$spnbmd[which(test$idnum == unique(test$idnum)[i])], 
+        col=as.numeric(test$sex)[which(test$idnum == unique(test$idnum)[i])[1]],
+        type="o")
+}
+```
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & 0.758 & 0.727 & 0.727 & 0.727 & 0.606 & 0.727 & 0.697 & 0.727 \\  
+    Majority & \textcolor{red}{0.818} & 0.788 & 0.758 & \textcolor{red}{0.818} & 0.576 & \textcolor{red}{0.818} & 0.758 & 0.758 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Simulation 2
+
+```{r, results="hide", warning=F, message=F}
+library(tidyverse)
+# load data
+data <- read.csv("../spnbmd.csv", header=T)
+
+ind <- data %>%
+  group_by(idnum) %>%
+  summarise(n=n(),
+            max.age=max(age)) %>%
+  filter(n >= 2 & max.age < 18) %>%
+  dplyr::select(idnum)
+data <- data[which(data$idnum %in% ind$idnum), ]
+
+### train, test split
+range(data$age)   # range check => train set에 없는 time point 포함시 에러
+data[which(data$age == 17.9), "idnum"]   # 54 68 99 222
+data[which(data$age == 8.8), "idnum"]    # 274  408
+N <- length(unique(data$idnum))   # 160
+
+# 위의 timepoint가 train set에 반드시 들어가도록 split
+set.seed(100)
+ind <- sample(unique(data$idnum), 100)
+while((sum(c(54, 68, 99, 222) %in% ind) == 0) | (sum(c(274, 408) %in% ind) == 0)) {
+  ind <- sample(unique(data$idnum), 100)
+}
+
+# response class 0, 1 coding
+data$sex <- factor(ifelse(data$sex == "fem", 1, 0), levels=c(0,1))
+
+# transform to FPCA input
+train <- data[which(data$idnum %in% ind), ]
+test <- data[-which(data$idnum %in% ind), ]
+```
+
+```{r echo=F, fig.cap="The bone mineral density data", out.width="300px", out.height="180px"}
+# plot
+par(mfrow=c(1,2))
+plot(train$age[which(train$idnum == unique(train$idnum)[1])], 
+     train$spnbmd[which(train$idnum == unique(train$idnum)[1])], 
+     col=as.numeric(train$sex)[which(train$idnum == unique(train$idnum)[1])[1]],
+     type="o", xlim=c(8, 18), ylim=c(0.5, 1.7),
+     xlab="Age", ylab="Bone mineral density",
+     main="Train set")
+for (i in 2:length(unique(train$idnum))) {
+  lines(train$age[which(train$idnum == unique(train$idnum)[i])], 
+        train$spnbmd[which(train$idnum == unique(train$idnum)[i])], 
+        col=as.numeric(train$sex)[which(train$idnum == unique(train$idnum)[i])[1]],
+        type="o")
+}
+plot(test$age[which(test$idnum == unique(test$idnum)[1])], 
+     test$spnbmd[which(test$idnum == unique(test$idnum)[1])], 
+     col=as.numeric(train$sex)[which(test$idnum == unique(test$idnum)[1])[1]],
+     type="o", xlim=c(8, 18), ylim=c(0.5, 1.7),
+     xlab="Age", ylab="Bone mineral density",
+     main="Test set")
+for (i in 2:length(unique(test$idnum))) {
+  lines(test$age[which(test$idnum == unique(test$idnum)[i])], 
+        test$spnbmd[which(test$idnum == unique(test$idnum)[i])], 
+        col=as.numeric(test$sex)[which(test$idnum == unique(test$idnum)[i])[1]],
+        type="o")
+}
+```
+
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with each tuned hyperparameters}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & \textcolor{red}{0.767} & 0.717 & 0.717 & 0.733 & 1.00 & \textcolor{red}{0.767} & 0.750 & \textcolor{red}{0.767} \\  
+    Majority & 0.750 & 0.683 & 0.567 & 0.717 & 1.00 & 0.750 & 0.717 & 0.717 \\
+    OLS & 0.717 & 0.700 & 0.533 & 0.583 &  0.00 & 0.233 & 0.417 & 0.383 \\
+    Logit & 0.517 & 0.750 & 0.567 & 0.683 & 1.00 & 0.433 &0.733 & 0.667 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with overall tuned hyperparameters}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & \textcolor{red}{0.767} & 0.717 & 0.717 & 0.733 & 1.00 & \textcolor{red}{0.767} & 0.750 & \textcolor{red}{0.767} \\  
+    Majority & 0.733 & 0.700 & 0.700 & 0.683 & 1.00 & 0.717 & 0.733 & 0.733 \\  
+    OLS & 0.650 & 0.717 & 0.617 & 0.700 & 1.00 & 0.650 & 0.567 & 0.533 \\
+    Logit & 0.617 & 0.367 & 0.700 & 0.600 & 1.00 & 0.600 & 0.583 & 0.500 \\
+    Ridge-logit & 0.667 & 0.650 & 0.667 & 0.667 & 1.00 & 0.667 & 0.733 & 0.700 \\
+    OOB error & 0.733 & 0.700 & 0.700 & 0.683 & 1.00 & 0.717 & 0.733 & 0.733\\
+    \hline
+  \end{tabular}
+\end{table}
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with overall tuned hyperparameters and random subspace method}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & \textcolor{red}{0.767} & 0.717 & 0.717 & 0.733 & 1.00 & \textcolor{red}{0.767} & 0.750 & \textcolor{red}{0.767} \\  
+    Majority & 0.717 & 0.650 & 0.650 & 0.650 & 1.00 & 0.700 & 0.750 & 0.717 \\  
+    OOB error & 0.717 & 0.667 & 0.683 & 0.683 & 1.00 & 0.717 & 0.717 & 0.750 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with overall tuned hyperparameters and BIC}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & \textcolor{red}{0.767} & 0.717 & 0.717 & 0.733 & 1.00 & \textcolor{red}{0.767} & 0.750 & \textcolor{red}{0.767} \\  
+    Majority & 0.717 & 0.667 & 0.700 & 0.700 & 1.00 & 0.717 & 0.717 & \textcolor{red}{0.767} \\  
+    OOB error & 0.733 & 0.667 & 0.667 & 0.683 & 1.00 & 0.733 & 0.717 & 0.717 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Simulation results of robust bagging
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with each tuned hyperparameters}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & 0.733 & 0.767 & 0.700 & 0.567 & 1.00 & 0.783 & 0.667 & 0.750 \\
+    Majority & \textcolor{red}{0.800} & 0.767 & 0.650 & 0.767 & 1.00 & 0.783 & 0.733 & 0.750 \\  
+    OOB error & \textcolor{red}{0.800} & 0.767 & 0.650 & 0.767 & 1.00 & 0.783 & 0.733 & 0.750 \\
+    Robust & 0.733 & 0.733 & NA & 0.750 & NA & 0.733 & 0.733 & 0.717 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+## Simulation results of robust bagging
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with overall tuned hyperparameters}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        & SVM       &     &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & (Sigmoid) & KNN & LDA & QDA & Bayes \\ 
+    \hline
+    Single & 0.733 & 0.767 & 0.700 & 0.567 & 1.00 & 0.783 & 0.667 & 0.750 \\
+    Majority & \textcolor{red}{0.817} & 0.767 & 0.733 & 0.767 & 1.00 & 0.783 & 0.733 & 0.767 \\  
+    OOB error & \textcolor{red}{0.817} & 0.750 & 0.733 & 0.800 & 1.00 & 0.817 & 0.750 & 0.750 \\
+    Robust & 0.750 & 0.750 & 0.733 & 0.783 & NA & 0.750 & 0.783 & 0.733 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+

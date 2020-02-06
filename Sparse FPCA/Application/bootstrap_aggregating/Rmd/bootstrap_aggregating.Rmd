@@ -1,0 +1,127 @@
+---
+title: "Bootstrap aggregated sparse FPCA for classification"
+author: "Hyunsung Kim"
+date: January 3, 2020
+institute: Department of Statistics \newline Chung-Ang University
+fonttheme: "professionalfonts"
+output:
+  beamer_presentation:
+    theme: "metropolis"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Simulation
+
+- 3 different simulations
+  - The classifiers applied sparse FPCA for 100 simulated data
+  - The classifiers with bootstrap aggregating for 1 simulated data
+    - Bootstrapping to curves
+    - Bootstrapping to FPC scores
+- The number of FPCs are selected by the proportion of variance explained(PVE) with over 99\%.
+
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers after FPCA}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccc}
+    \hline
+    No. \\of obs & Logistic & SVM(Linear) & SVM(Gaussian) & SVM(Sigmoid) & SVM(Poly) \\ 
+    \hline
+     2 & 0.715 & 0.714 & 0.657 & 0.681 & 0.640 \\ 
+     3 & 0.785 & 0.788 & 0.742 & 0.761 & 0.724 \\ 
+     4 & 0.832 & 0.832 & 0.785 & 0.804 & 0.774 \\ 
+     5 & 0.855 & 0.853 & 0.819 & 0.835 & 0.808 \\ 
+     6 & 0.875 & 0.874 & 0.844 & 0.856 & 0.833 \\ 
+     7 & 0.889 & 0.891 & 0.864 & 0.869 & 0.857 \\ 
+     8 & 0.902 & 0.898 & 0.869 & 0.879 & 0.863 \\ 
+     9 & 0.905 & 0.907 & 0.885 & 0.885 & 0.871 \\ 
+    10 & 0.904 & 0.905 & 0.877 & 0.884 & 0.873 \\ 
+    11 & 0.911 & 0.913 & 0.889 & 0.891 & 0.879 \\ 
+    12 & 0.912 & 0.912 & 0.893 & 0.893 & 0.883 \\ 
+    13 & 0.914 & 0.917 & 0.896 & 0.900 & 0.890 \\ 
+    14 & 0.917 & 0.918 & 0.889 & 0.899 & 0.887 \\ 
+    15 & 0.920 & 0.919 & 0.892 & 0.897 & 0.887 \\ 
+    16 & \textcolor{red}{0.922} & 0.922 & 0.893 & 0.898 & 0.893 \\ 
+    17 & 0.919 & 0.918 & 0.896 & 0.899 & 0.891 \\ 
+    18 & 0.922 & 0.922 & 0.896 & 0.905 & 0.891 \\ 
+    \hline
+    Average & 0.882 & \textcolor{red}{0.883} & 0.852 & 0.861 & 0.844 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with bootstrap aggregated curves}
+  \centering
+  \tiny
+  \begin{tabular}{cccccc}
+    \hline
+    No. \\of obs & Logistic & SVM(Linear) & SVM(Gaussian) & SVM(Sigmoid) \\ 
+    \hline
+     2 & 0.75 & 0.75 & 0.74 & 0.70 \\ 
+     3 & 0.76 & 0.76 & 0.75 & 0.74 \\ 
+     4 & 0.78 & 0.79 & 0.78 & 0.78 \\ 
+     5 & 0.71 & 0.73 & 0.73 & 0.72 \\ 
+     6 & 0.77 & 0.77 & 0.76 & 0.76 \\ 
+     7 & 0.85 & 0.85 & 0.85 & 0.84 \\ 
+     8 & 0.77 & 0.76 & 0.81 & 0.77 \\ 
+     9 & 0.77 & 0.80 & 0.77 & 0.80 \\ 
+    10 & 0.82 & 0.82 & 0.82 & 0.83 \\ 
+    11 & \textcolor{red}{0.86} & 0.83 & 0.83 & 0.86 \\ 
+    12 & 0.83 & \textcolor{red}{0.86} & 0.83 & 0.83 \\ 
+    13 & 0.81 & 0.81 & 0.80 & 0.81 \\ 
+    14 & 0.83 & 0.78 & 0.81 & 0.84 \\ 
+    15 & 0.80 & 0.81 & 0.80 & 0.76 \\ 
+    16 & 0.81 & 0.77 & 0.80 & 0.80 \\ 
+    17 & 0.81 & 0.76 & 0.78 & 0.76 \\ 
+    18 & 0.80 & 0.82 & 0.81 & 0.81 \\ 
+    \hline
+    Average & \textcolor{red}{0.796} & 0.792 & 0.792 & 0.789 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Simulation results
+
+\begin{table}[ht]
+  \caption{The accuracy of classifiers with bootstrap aggregated FPC scores}
+  \centering
+  \tiny
+  \begin{tabular}{cccccccc}
+    \hline
+    No. \\of obs & Logistic & SVM(Linear) & SVM(Gaussian) & SVM(Sigmoid) & SVM(Poly) \\ 
+    \hline
+     2 & 0.710 & 0.700 & 0.680 & 0.660 & 0.760 \\ 
+     3 & 0.740 & 0.750 & 0.710 & 0.710 & 0.730 \\ 
+     4 & 0.770 & 0.740 & 0.650 & 0.740 & 0.760 \\ 
+     5 & 0.700 & 0.700 & 0.690 & 0.730 & 0.700 \\ 
+     6 & 0.780 & 0.780 & 0.770 & 0.770 & 0.800 \\ 
+     7 & 0.820 & 0.850 & 0.800 & 0.830 & 0.790 \\ 
+     8 & 0.770 & 0.800 & 0.780 & 0.770 & 0.780 \\ 
+     9 & 0.800 & 0.780 & 0.780 & 0.770 & 0.770 \\ 
+    10 & 0.810 & 0.820 & 0.810 & 0.800 & 0.790 \\ 
+    11 & 0.860 & \textcolor{red}{0.880} & 0.840 & 0.790 & 0.870 \\ 
+    12 & 0.830 & 0.840 & 0.820 & 0.800 & 0.840 \\ 
+    13 & 0.810 & 0.800 & 0.840 & 0.810 & 0.810 \\ 
+    14 & 0.820 & 0.830 & 0.810 & 0.780 & 0.840 \\ 
+    15 & 0.800 & 0.810 & 0.830 & 0.780 & 0.830 \\ 
+    16 & 0.810 & 0.790 & 0.810 & 0.780 & 0.810 \\ 
+    17 & 0.810 & 0.810 & 0.830 & 0.780 & 0.820 \\ 
+    18 & 0.800 & 0.810 & 0.830 & 0.790 & 0.810 \\  
+    \hline
+    Average & 0.791 & 0.794 & 0.781 & 0.770 & \textcolor{red}{0.795} \\
+    \hline
+  \end{tabular}
+\end{table}
+

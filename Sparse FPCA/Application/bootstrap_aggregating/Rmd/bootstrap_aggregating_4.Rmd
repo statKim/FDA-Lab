@@ -1,0 +1,77 @@
+---
+title: "Bootstrap aggregated sparse FPCA for classification"
+author: "Hyunsung Kim"
+date: January 31, 2020
+institute: Department of Statistics \newline Chung-Ang University
+fonttheme: "professionalfonts"
+output:
+  beamer_presentation:
+    theme: "metropolis"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\bootstrap_aggregating")
+load("result.RData")
+library(tidyverse)
+library(gridExtra)
+```
+
+
+## Simulation
+
+- The bone mineral density data
+  - 280 observations(186 training set and 94 test set)
+  - Sparse data
+  - Fit the classifiers for 30 different seeds
+  
+
+## Simulation results
+
+\begin{table}[ht]
+\caption{The mean accuracy for different 30 seeds}
+\centering
+\tiny
+\begin{tabular}{ccccccc}
+  \hline
+  & Logit & SVM(Gaussian) & SVM(Linear) & SVM(Sigmoid) & SVM(Poly) \\ 
+  \hline
+  Single & 0.684 & 0.667 & 0.678 & 0.663 & 0.626 \\ 
+  Majority & \textcolor{red}{0.690} & \textcolor{red}{0.683} & 0.685 & \textcolor{red}{0.682} & \textcolor{red}{0.660} \\ 
+  OOB & 0.688 & 0.681 & \textcolor{red}{0.686} & 0.680 & 0.658 \\ 
+  \hline
+\end{tabular}
+\end{table}
+
+
+## Simulation results
+
+```{r echo=F, fig.cap="Accuracy of classifiers for different seeds", out.width="300px", out.height="200px"}
+cname <- c("Logit", "SVM(Gaussian)", NA, "SVM(Linear)", "SVM(Sigmoid)", "SVM(Poly)", NA)
+for (i in c(1,2,4,5,6)) {
+  assign(paste("p", i, sep=""),
+         result[[i]] %>%
+  reshape2::melt(id="seed", value.name="Accuracy") %>%
+  ggplot(aes(seed/100, Accuracy, group=variable, colour=variable)) +
+  geom_line() +
+  ylim(0.5, 0.9) +
+  xlab("") +
+  ylab("Accuracy") +
+  ggtitle(cname[i]) +
+  theme_bw() +
+  theme(legend.title = element_blank()))
+}
+grid.arrange(p1, p2, p4, p5, p6, ncol=3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
