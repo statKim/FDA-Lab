@@ -7,7 +7,7 @@ library(tidyverse)    # dplyr, ggplot2, etc
 library(doParallel)   # parallel computing
 library(fdapace)      # functional PCA
 library(e1071)        # SVM, Naive bayes
-library(class)        # kNN
+# library(class)        # kNN
 library(MASS)         # LDA, QDA
 library(data.table)   # list rbind
 library(gridExtra)    # subplot in ggplot2
@@ -17,7 +17,7 @@ library(reshape2)     # melt function
 ncores <- detectCores() - 2
 registerDoParallel(ncores)
 
-packages <- c("fdapace","e1071","class","MASS")   # foreach에서 사용할 package 정의
+packages <- c("fdapace","e1071","MASS","tidyverse","gridExtra")   # foreach에서 사용할 package 정의
 
 # function of calculating mode
 Mode <- function(v) {
@@ -27,9 +27,9 @@ Mode <- function(v) {
 
 
 ### generate the simulated dataset
-n <- 200   # number of observations
+n <- 100   # number of observations
 j <- 1:40  # number of eigenvalues
-t <- seq(0, 1, length.out = 101)   # time points
+# t <- seq(0, 1, length.out = 101)   # time points
 
 # parameters of 3 different simulation studies
 A <- list(lambda = list(lambda.0 = j^(-3),
@@ -45,23 +45,63 @@ C <- list(lambda = list(lambda.0 = 3*j^(-2),
           mu = list(mu.0 = c(rep(1, 4), rep(0, 36)),
                     mu.1 = rep(0, 40)))
 
-# y.pred <- foreach(num=1:100, .combine="rbind", .packages=packages) %dopar% {
-set.seed(100*num)
+y.pred <- foreach(simm=1:30, .combine="rbind", .packages=packages) %dopar% {
+print(simm)
+set.seed(simm)
 lambda <- A$lambda
 mu <- A$mu
 
-# eigenfunctions
-phi <- sapply(j, function(x){ 
-  if (x %% 2 == 0) {
-    sin(pi*t*x/2) / sqrt(2)
-  } else {
-    cos(pi*t*x/2) / sqrt(2)
-  } 
-})
+# # eigenfunctions
+# phi <- sapply(j, function(x){ 
+#   if (x %% 2 == 0) {
+#     sin(pi*t*x/2) / sqrt(2)
+#   } else {
+#     cos(pi*t*x/2) / sqrt(2)
+#   } 
+# })
 
 ## generate curves
 y <- factor(c(rep(0, n/2), rep(1, n/2)), levels=c(0, 1))
 data <- list()
+# random sparsify => generate curve
+for (i in 1:n) {
+  k <- ifelse(i > n/2, 2, 1)   # different mu and theta for each k
+  
+  # random parameter
+  theta <- sapply(j, function(x){
+    p <- runif(1)
+    if (p > 1/2) {
+      rnorm(1, -sqrt(lambda[[k]][x]/2), sqrt(lambda[[k]][x]/2))
+    } else {
+      rnorm(1, sqrt(lambda[[k]][x]/2), sqrt(lambda[[k]][x]/2))
+    }
+  })
+  
+  # random sparsify
+  num.obs <- sample(5:14, 1)
+  t <- sort(runif(num.obs, 0, 1))
+  
+  # eigenfunctions
+  phi <- sapply(j, function(x){ 
+    if (x %% 2 == 0) {
+      sin(pi*t*x/2) / sqrt(2)
+    } else {
+      cos(pi*t*x/2) / sqrt(2)
+    } 
+  })
+  
+  # measurement error
+  eps <- rnorm(num.obs, 0, 0.1)
+  
+  # generate the curve with measurement error
+  X <- as.numeric( matrix((theta + mu[[k]]), nrow=1) %*% t(phi) ) + eps
+  
+  data$id[[i]] <- rep(i, num.obs)
+  data$y[[i]] <- rep(y[i], num.obs)
+  data$Lt[[i]] <- t
+  data$Ly[[i]] <- X
+}
+
 # # random sparsify => generate curve
 # for (i in 1:n) {
 #   k <- ifelse(i > n/2, 2, 1)   # different mu and theta for each k
@@ -92,40 +132,40 @@ data <- list()
 #   data$Ly[[i]] <- X
 # }
 
-# generate curve => random sparsify
-for (i in 1:n) {
-  k <- ifelse(i > n/2, 2, 1)   # different mu and theta for each k
-  
-  # random parameter
-  theta <- sapply(j, function(x){
-    p <- runif(1)
-    if (p > 1/2) {
-      rnorm(1, -sqrt(lambda[[k]][x] / 2), sqrt(lambda[[k]][x] / 2))
-    } else {
-      rnorm(1, sqrt(lambda[[k]][x] / 2), sqrt(lambda[[k]][x] / 2))
-    }
-  })
-
-  # measurement error
-  eps <- rnorm(length(t), 0, 0.1)
-  
-  # generate each curves with measurement error
-  X <- as.numeric( matrix((theta + mu[[k]]), nrow=1) %*% t(phi) ) + eps
-
-  # random sparsify
-  num.obs <- sample(5:14, 1)
-  ind <- sort(sample(1:length(t), num.obs))
-
-  data$id[[i]] <- rep(i, num.obs)
-  data$y[[i]] <- rep(y[[i]], num.obs)
-  data$Lt[[i]] <- t[ind]
-  data$Ly[[i]] <- X[ind]
-}
+# # generate curve => random sparsify
+# for (i in 1:n) {
+#   k <- ifelse(i > n/2, 2, 1)   # different mu and theta for each k
+# 
+#   # random parameter
+#   theta <- sapply(j, function(x){
+#     p <- runif(1)
+#     if (p > 1/2) {
+#       rnorm(1, -sqrt(lambda[[k]][x] / 2), sqrt(lambda[[k]][x] / 2))
+#     } else {
+#       rnorm(1, sqrt(lambda[[k]][x] / 2), sqrt(lambda[[k]][x] / 2))
+#     }
+#   })
+# 
+#   # measurement error
+#   eps <- rnorm(length(t), 0, 0.1)
+# 
+#   # generate each curves with measurement error
+#   X <- as.numeric( matrix((theta + mu[[k]]), nrow=1) %*% t(phi) ) + eps
+# 
+#   # random sparsify
+#   num.obs <- sample(5:14, 1)
+#   ind <- sort(sample(1:length(t), num.obs))
+# 
+#   data$id[[i]] <- rep(i, num.obs)
+#   data$y[[i]] <- rep(y[[i]], num.obs)
+#   data$Lt[[i]] <- t[ind]
+#   data$Ly[[i]] <- X[ind]
+# }
 
 # plot the generated curves
-sapply(data, unlist) %>% 
-  data.frame() %>% 
-  mutate(y = ifelse(unlist(data$y) == 0, "G1", "G2")) %>% 
+sapply(data, unlist) %>%
+  data.frame() %>%
+  mutate(y = ifelse(unlist(data$y) == 0, "G1", "G2")) %>%
   ggplot(aes(x=Lt, y=Ly, group=id, color=y)) +
   geom_line() +
   xlab("Time") +
@@ -139,21 +179,21 @@ sapply(data, unlist) %>%
 # => train set에 없는 time point 포함시 FPCA할 때, error 발생
 # range(test set) > range(train set) => 넘는 부분에 해당하는 id 제거
 id <- 1:n
-ind.train <- sample(id, ceiling(n/2))
+ind.train <- sample(id, ceiling(n/3))
 ind.test <- NULL
 range.train <- range(unlist(data$Lt[ind.train]))
 range.test <- range(unlist(data$Lt[-ind.train]))
 if (range.test[1] < range.train[1]) {   # min(test) < min(train) 인 경우
   ind <- sapply(data$Lt[-ind.train], function(x){ sum(x < range.train[1]) == 0 })
-  ind.test <- id[ind]
+  ind.test <- id[-ind.train][ind]
 }
 if (range.test[2] > range.train[2]) {   # max(test) > max(train) 인 경우
   ind <- sapply(data$Lt[-ind.train], function(x){ sum(x > range.train[2]) == 0 })
   if (is.numeric(ind.test)) {
     ind.test <- intersect(ind.test,
-                          id[ind])
+                          id[-ind.train][ind])
   } else {
-    ind.test <- id[ind]
+    ind.test <- id[-ind.train][ind]
   }
 }
 if (!is.numeric(ind.test)) {   # range(test) < range(train) 인 경우
@@ -181,23 +221,26 @@ fpca.fit <- FPCA(X.train$Ly,
                             FVEthreshold=0.99,
                             verbose=F))
 k <- fpca.fit$selectK   # optimal number of PCs
-fpc.score <- fpca.fit$xiEst   # FPC scores
+# if (k > 2) {
+#   k <- 2
+# }
+fpc.score <- fpca.fit$xiEst[, 1:k]   # FPC scores
 
 # train FPC scores
 train.fpc <- data.frame(y = y.train, 
                         x = fpc.score)
 colnames(train.fpc) <- c("y", paste("FPC", 1:k, sep=""))
 
-# tune the hyperparmeters
-tune.linear <- tune.svm(y ~ ., 
-                        data = train.fpc, 
-                        kernel = "linear",
-                        cost = c(10^(-3:1), 2^(5:10)))
-tune.radial <- tune.svm(y ~ ., 
-                        data = train.fpc, 
-                        kernel = "radial",
-                        cost = c(10^(-3:1), 2^(5:10)), 
-                        gamma = c(10^(-3:1), 2^(5:10)))
+# # tune the hyperparmeters
+# tune.linear <- tune.svm(y ~ .,
+#                         data = train.fpc,
+#                         kernel = "linear",
+#                         cost = c(10^(-3:1), 2^(5:10)))
+# tune.radial <- tune.svm(y ~ .,
+#                         data = train.fpc,
+#                         kernel = "radial",
+#                         cost = c(10^(-3:1), 2^(5:10)),
+#                         gamma = c(10^(-3:1), 2^(5:10)))
 
 # fit classifiers
 fit.logit <- glm(y~., train.fpc, family=binomial)
@@ -218,7 +261,7 @@ fit.nb <- naiveBayes(y~., train.fpc)
 # test FPC scores
 fpc.score.test <- predict(fpca.fit, X.test$Ly, X.test$Lt, K=k, xiMethod="CE")
 test.fpc <- data.frame(y = y.test, 
-                       x = fpc.score.test)
+                       x = fpc.score.test[, 1:k])
 colnames(test.fpc) <- c("y", paste("FPC", 1:k, sep=""))
 
 # predict
@@ -232,11 +275,13 @@ pred[[5]] <- predict(fit.qda, test.fpc)$class
 pred[[6]] <- predict(fit.nb, test.fpc, type="class")
 
 # save the accuracy
-acc.single <- sapply(pred, function(x){ mean(x == y.test) })
-acc.single
-# }
-# y.pred
-# colMeans(y.pred)
+err.single <- sapply(pred, function(x){ mean(x != y.test) })
+err.single
+}
+y.pred
+colMeans(y.pred)
+apply(y.pred, 2, sd)
+round(100* (1-colMeans(y.pred)), 3)
 
 
 # plot first 2 PCs
