@@ -1,0 +1,69 @@
+---
+title: "Bootstrap aggregated sparse FPCA for classification"
+author: "Hyunsung Kim"
+date: Febrary 7, 2020
+institute: Department of Statistics \newline Chung-Ang University
+fonttheme: "professionalfonts"
+output:
+  beamer_presentation:
+    theme: "metropolis"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\bootstrap_aggregating")
+```
+
+
+## Simulation
+
+- [*Probability-enhanced effective dimension reduction for classifying sparse functional data*(Yao *et al.*)](https://link.springer.com/content/pdf/10.1007%2Fs11749-015-0470-2.pdf)
+- 700 curves are generated with 200 training set and 500 test set.
+- Bagged classifers are obtained from 100 bootstrap resamples.
+- We consider the following 2 cases.
+  - Dense
+  - Sparse
+  
+
+## Dense Simulation Results
+
+\begin{table}[ht]
+  \caption{The average classification error with standard error in percentage from 10 Monte Carlo repetitions for dense data}
+  \centering
+  \tiny
+  \begin{tabular}{ccccc}
+    \hline
+           & Logistic   &     &     & Naive \\
+    Method & Regression & LDA & QDA & Bayes \\ 
+    \hline
+    Single        & 6.9 (2.02) & 9.4 (2.60) & 20.5 (2.11) & 13.3 (2.72) \\ 
+    Majority vote & 5.4 (1.51) & 7.8 (1.90) & 17.0 (2.99) & 10.1 (2.48) \\ 
+    OOB weight    & 5.4 (1.58) & 7.7 (1.98) & 16.8 (2.63) & 10.0 (2.55) \\ 
+    \hline
+    Paper(Single) & 17.0 (0.17) & 17.1 (0.18) & 17.2 (0.17) & - \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Sparse Simulation Results
+
+\begin{table}[ht]
+  \caption{The average classification error with standard error in percentage from 10 Monte Carlo repetitions for sparse data}
+  \centering
+  \tiny
+  \begin{tabular}{ccccc}
+    \hline
+           & Logistic   &     &     & Naive \\
+    Method & Regression & LDA & QDA & Bayes \\ 
+    \hline
+    Single        & 17.9 (3.56) & 17.9 (3.84) & 19.7 (4.07) & 19.6 (4.27) \\ 
+    Majority vote & 16.0 (2.63) & 16.4 (2.96) & 17.6 (2.65) & 18.1 (3.82) \\ 
+    OOB weight    & 16.2 (2.73) & 16.6 (3.10) & 17.9 (2.79) & 18.5 (3.87) \\ 
+    \hline
+    Paper(Single) & 17.6 (0.29) & 17.6 (0.23) & 18.2 (0.21) & - \\
+    \hline
+  \end{tabular}
+\end{table}
+
+

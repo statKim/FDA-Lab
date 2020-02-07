@@ -23,7 +23,7 @@ packages <- c("fdapace","e1071","MASS","tidyverse")   # foreach에서 사용할 
 
 ### generate the simulated dataset
 result <- list()
-for (simm in 1:7) {
+for (simm in 1:10) {
   print(simm)
   set.seed(simm)
   n <- 700   # number of observations
@@ -155,7 +155,11 @@ for (simm in 1:7) {
   
   
   # test FPC scores
-  fpc.score.test <- predict(fpca.fit, X.test$Ly, X.test$Lt, K=k, xiMethod="IN")[, 1:k]
+  fpc.score.test <- predict(fpca.fit, 
+                            X.test$Ly, 
+                            X.test$Lt, 
+                            K=k, 
+                            xiMethod="IN")[, 1:k]
   test.fpc <- data.frame(y = y.test, 
                          x = fpc.score.test)
   colnames(test.fpc) <- c("y", paste("FPC", 1:k, sep=""))
@@ -262,7 +266,11 @@ for (simm in 1:7) {
     
     # test FPC scores
     ind <- which(unlist(X.test$Lid) %in% id.test)
-    fpc.score.test <- predict(fpca.fit, X.test$Ly[ind], X.test$Lt[ind], K=k, xiMethod="CE")
+    fpc.score.test <- predict(fpca.fit, 
+                              X.test$Ly[ind], 
+                              X.test$Lt[ind], 
+                              K=k, 
+                              xiMethod="IN")
     test.fpc <- data.frame(y = y.test[ind], 
                            x = fpc.score.test)
     colnames(test.fpc) <- c("y", paste("FPC", 1:k, sep=""))
@@ -364,6 +372,24 @@ for (simm in 1:7) {
 }
 
 save(result, file="RData/sim_5_dense.RData")
+
+
+## 결과 정리
+res <- sapply(1:3, function(i){
+  paste(lapply(result, function(x){ x[i, -(2:3)]*100 }) %>% 
+          rbindlist %>% 
+          colMeans %>% 
+          round(1),
+        "(",
+        apply(lapply(result[!sapply(result, is.null)], 
+                     function(x){ x[i, -(2:3)]*100 }) %>% 
+                rbindlist, 2, sd) %>% 
+          round(2),
+        ")",
+        sep="")
+}) %>% t()
+library(xtable)
+xtable(res)
 
 
 ## iteration마다의 error rate 그래프
