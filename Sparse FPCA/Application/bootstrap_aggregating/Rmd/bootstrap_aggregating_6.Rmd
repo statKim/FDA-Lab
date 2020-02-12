@@ -1,0 +1,64 @@
+---
+title: "Bootstrap aggregated sparse FPCA for classification"
+author: "Hyunsung Kim"
+date: Febrary 14, 2020
+institute: Department of Statistics \newline Chung-Ang University
+fonttheme: "professionalfonts"
+output:
+  beamer_presentation:
+    theme: "metropolis"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\bootstrap_aggregating")
+```
+
+
+## Simulation
+
+- [*Probability-enhanced effective dimension reduction for classifying sparse functional data*(Yao *et al.*)](https://link.springer.com/content/pdf/10.1007%2Fs11749-015-0470-2.pdf)
+- 700 curves are generated with 200 training set and 500 test set.
+- Bagged classifers are obtained from 100 bootstrap resamples.
+- We consider the following 2 cases.
+  - Dense
+  - Sparse
+  
+
+## Sparse Simulation Results
+
+\begin{table}[ht]
+  \caption{The average classification error with standard error in percentage from 100 Monte Carlo repetitions for sparse data (Model \MakeUppercase{\romannumeral 2})}
+  \centering
+  \tiny
+  \begin{tabular}{ccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & LDA & QDA & Bayes \\ 
+    \hline
+    Single        & 16.7 (2.33) & 16.8 (2.20) & 17.5 (2.76) & 16.6 (2.30) & 17.8 (2.56) & 18.4 (2.66) \\ 
+    Majority vote & \textcolor{red}{15.6 (1.95)} & 15.9 (1.87) & 16.2 (2.28) & 15.8 (1.96) & 16.5 (2.14) & 17.3 (2.42) \\ 
+    OOB weight    & 16.0 (2.02) & 16.2 (1.94) & 16.6 (2.28) & 16.1 (1.98) & 16.9 (2.09) & 17.7 (2.43) \\ 
+    \hline
+  \end{tabular}
+\end{table}
+
+
+## Sparse Simulation Results
+
+\begin{table}[ht]
+  \caption{The average classification error with standard error in percentage from 100 Monte Carlo repetitions for sparse data (Model \MakeUppercase{\romannumeral 4})}
+  \centering
+  \tiny
+  \begin{tabular}{ccccccc}
+    \hline
+           & Logistic   & SVM      & SVM        &     &     & Naive \\
+    Method & Regression & (Linear) & (Gaussian) & LDA & QDA & Bayes \\ 
+    \hline
+    Single        & 12.8 (2.41) & 12.8 (2.40) & 13.3 (2.65) & 12.8 (2.40) & 13.8 (2.56) & 14.8 (2.74) \\ 
+    Majority vote & 11.2 (1.84) & \textcolor{red}{11.1 (1.89)} & 11.5 (1.98) & 11.2 (1.85) & 11.9 (2.03) & 13.3 (2.36) \\ 
+    OOB weight    & 11.6 (1.86) & 11.5 (1.90) & 12.0 (1.96) & 11.6 (1.86) & 12.3 (2.06) & 13.6 (2.35) \\ 
+    \hline
+  \end{tabular}
+\end{table}
+

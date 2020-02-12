@@ -5,6 +5,8 @@
 ###   Yao et al.
 ###   Link: https://link.springer.com/content/pdf/10.1007%2Fs11749-015-0470-2.pdf
 #########################################
+setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\bootstrap_aggregating")
+
 library(tidyverse)    # dplyr, ggplot2, etc
 library(doParallel)   # parallel computing
 library(fdapace)      # functional PCA
@@ -26,7 +28,7 @@ Mode <- function(v) {
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 
-res.sim <- list()  # classification result of each bootstrap resamples
+# res.sim <- list()  # classification result of each bootstrap resamples
 result <- list()   # error rate result
 simm <- 0      # loop index
 num.sim <- 0   # number of simulations
@@ -47,7 +49,7 @@ while (num.sim < 100) {
     # random sparsify
     num.obs <- sample(10:20, 1)
     t <- sort(runif(num.obs, 0, 10))
-
+    
     # 201~700 are test set
     if (i > 200) {
       range.train <- range(unlist(data$Lt[1:200]))
@@ -55,7 +57,7 @@ while (num.sim < 100) {
         t <- sort(runif(num.obs, 0, 10))
       }
     }
-
+    
     # eigenfunctions
     phi <- sapply(j, function(x){
       if (x %% 2 == 0) {
@@ -64,20 +66,20 @@ while (num.sim < 100) {
         sqrt(1/5)*cos(pi*t*x/5)
       }
     })
-
+    
     # generate PC scores
     xi <- sapply(j, function(x){ rnorm(1, 0, sqrt( x^(-1.5) )) })
-
+    
     # parameters when generate class label
     beta.1 <- phi %*% b
     beta.2 <- matrix(sqrt(3/10)*(t/5-1), ncol=1)
-
+    
     # measurement error
     eps <- rnorm(num.obs, 0, sqrt(0.1))
-
+    
     # generate the curve
     X <- xi %*% t(phi) + eps
-
+    
     # generate class label
     eps <- rnorm(1, 0, sqrt(0.1))   # model error
     # fx <- sin(pi*(X %*% beta.1)/4)  # model 1
@@ -85,7 +87,7 @@ while (num.sim < 100) {
     # fx <- sin(pi*(X %*% beta.1)/3) + exp((X %*% beta.2)/3) - 1   # model 3
     # fx <- atan(pi*(X %*% beta.1)) + exp((X %*% beta.2)/3) - 1    # model 4
     y <- factor(ifelse(fx + eps < 0, 0, 1), levels=c(0, 1))
-
+    
     data$id[[i]] <- rep(i, num.obs)
     data$y[[i]] <- rep(y, num.obs)
     data$Lt[[i]] <- t
@@ -102,8 +104,8 @@ while (num.sim < 100) {
   #   ylab("") +
   #   theme_bw() +
   #   theme(legend.title = element_blank())
-
-    
+  
+  
   ### train, test split => train: 1~200, test: 201~700
   id <- 1:n
   ind.train <- 1:200
@@ -119,8 +121,8 @@ while (num.sim < 100) {
                  Ly = data$Ly[ind.test])
   y.train <- y[ind.train]
   y.test <- y[ind.test]
-
-    
+  
+  
   ### Single classifier
   # fit functional PCA
   fpca.fit <- tryCatch({ 
@@ -131,11 +133,11 @@ while (num.sim < 100) {
                     # methodSelectK="BIC",
                     FVEthreshold=0.99,
                     verbose=F)) 
-    }, error = function(e) { 
-      print(e)
-      # print("error on FPCA!!")
-      return(FALSE) 
-    })
+  }, error = function(e) { 
+    print(e)
+    # print("error on FPCA!!")
+    return(FALSE) 
+  })
   
   # fpca.fit == FALSE인 경우
   if ( isFALSE(fpca.fit) ) {
@@ -144,7 +146,7 @@ while (num.sim < 100) {
   } else {
     num.sim <- num.sim + 1
   }
-
+  
   k <- fpca.fit$selectK   # optimal number of PCs
   fpc.score <- fpca.fit$xiEst   # FPC scores
   
@@ -198,8 +200,8 @@ while (num.sim < 100) {
   
   # save the error rate
   err.single <- sapply(pred, function(x){ mean(x != y.test) })
-
-
+  
+  
   ### Bootstrap aggregating
   B <- 100
   N <- length(X.train$Ly)
@@ -399,62 +401,37 @@ while (num.sim < 100) {
   colnames(res) <- c("Logit","SVM(Linear)","SVM(Gaussian)","LDA","QDA","NaiveBayes")
   result[[simm]] <- res
   
-  res.sim[[simm]] <- y.pred
+  print(paste("# of sim =", num.sim))
+  # res.sim[[simm]] <- y.pred
+  
+  # 10개마다 RData 저장
+  if (num.sim %% 10 == 0) {
+    save(result, file="RData/sim_5_sparse_model_2.RData")
+  }
 }
 
-save(result, file="RData/sim_5_sparse.RData")
+save(result, file="RData/sim_5_sparse_model_2.RData")
 
 
 ## 결과 정리
 result <- result[!sapply(result, is.null)]
 
 res <- sapply(1:3, function(i){
-  paste(lapply(result, function(x){ x[i, -(2:3)]*100 }) %>% 
+  paste(lapply(result, function(x){ x[i, ]*100 }) %>% 
           rbindlist %>% 
           colMeans %>% 
           round(1),
-        "(",
+        " (",
         apply(lapply(result[!sapply(result, is.null)], 
-                     function(x){ x[i, -(2:3)]*100 }) %>% 
+                     function(x){ x[i, ]*100 }) %>% 
                 rbindlist, 2, sd) %>% 
           round(2),
         ")",
         sep="")
 }) %>% t()
+
 library(xtable)
 xtable(res)
 
 
 
-## iteration마다의 error rate 그래프
-for (i in 2:B) {
-  res <- as.data.frame(rbindlist(lapply(y.pred[1:i], function(x){ x$boot })))
-  
-  # majority voting
-  pred <- res %>% 
-    group_by(id, y) %>% 
-    summarise(logit = Mode(logit),
-              svm.linear = Mode(svm.linear),
-              svm.radial = Mode(svm.radial),
-              lda = Mode(lda),
-              qda = Mode(qda),
-              nb = Mode(nb))
-  err <- apply(pred[, 3:8], 2, function(x){ mean(x != pred$y) })
-  
-  if (i == 2) {
-    result <- err
-  } else {
-    result <- rbind(result, err)
-  }
-}
-rownames(result) <- 2:B
-colnames(result) <- c("Logit","SVM(Linear)","SVM(Gaussian)","LDA","QDA","NaiveBayes")
-
-res2 <- reshape2::melt(result)
-colnames(res2) <- c("iter","method","error")
-ggplot(res2, aes(x=iter, y=error, color=method)) +
-  geom_line(size=1) +
-  ylab("Classification Error Rate") +
-  xlab("Iterations") +
-  theme_bw() +
-  theme(legend.title = element_blank())
