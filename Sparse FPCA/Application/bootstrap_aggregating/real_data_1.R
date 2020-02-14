@@ -1,9 +1,7 @@
 #########################################
-### Simulation
-###   Probability-enhanced effective dimension reduction
-###   for classifying sparse functional data
-###   Yao et al.
-###   Link: https://link.springer.com/content/pdf/10.1007%2Fs11749-015-0470-2.pdf
+### Real data analysis
+###   Spinal bone mineral density data
+#########################################
 setwd("C:\\Users\\user\\Desktop\\KHS\\FDA-Lab\\Sparse FPCA\\Application\\bootstrap_aggregating")
 
 library(tidyverse)
@@ -12,6 +10,8 @@ library(fdapace)
 library(e1071)
 library(MASS)
 library(data.table)
+library(xtable)
+source("bagFPCA.R")
 
 # parallel computing setting
 ncores <- detectCores() - 2
@@ -29,7 +29,7 @@ Mode <- function(v) {
 data <- read.csv("../spnbmd.csv", header=T)
 
 ind <- data %>%
-  filter(ethnic == "Hispanic") %>%
+  # filter(ethnic == "Hispanic") %>%
   group_by(idnum) %>%
   summarise(n=n()) %>%
   filter(n >= 2) %>%
@@ -39,48 +39,65 @@ data <- data[which(data$idnum %in% ind$idnum), ]
 ggplot(data, aes(x=age, y=spnbmd, group=idnum, color=sex)) +
   geom_line() +
   theme_bw() +
+  xlab("Spinal bone density") +
+  ylab("Age") +
   theme(legend.title = element_blank())
 
 # gender classification
 data <- data %>% 
   mutate(y = factor(ifelse(sex == "fem", 1, 0), levels=c(0, 1))) %>% 
   dplyr::select(y, idnum, age, spnbmd)
-length(unique(data$idnum))   # 52
+length(unique(data$idnum))   # 280
 
 
 
 ### construct classification models
+res.sim <- list()
 result <- list()
 set.seed(1000)
 seed <- sample(1:10000, 100)
 for (simm in 1:100) {
   print( paste(simm, ":", seed[simm]) )
   set.seed(seed[simm])
-  ### train, test split => train set에 없는 time point 포함시 에러
-  # range(test set) > range(train set) => 넘는 부분에 해당하는 id 제거
-  id <- unique(data$idnum)
-  id.train <- sample(id, 42)
-  id.test <- NULL
-  range.train <- range(data$age[which(data$idnum %in% id.train)])
-  range.test <- range(data$age[-which(data$idnum %in% id.train)])
-  if (range.test[1] < range.train[1]) {
-    over.ind <- which(data$age[-which(data$idnum %in% id.train)] < range.train[1] )
-    over.ind <- data$idnum[-which(data$idnum %in% id.train)][over.ind]
-    id.test <- id[-which(id %in% c(id.train, over.ind))]
-  }
-  if (range.test[2] > range.train[2]) {
-    over.ind <- which(data$age[-which(data$idnum %in% id.train)] > range.train[2] )
-    over.ind <- data$idnum[-which(data$idnum %in% id.train)][over.ind]
-    if (is.numeric(id.test)) {
-      id.test <- intersect(id.test,
-                           id[-which(unique(data$idnum) %in% c(id.train, over.ind))])
-    } else {
-      id.test <- id[-which(id %in% c(id.train, over.ind))]
-    }
-  }
-  if (!is.numeric(id.test)) {
-    id.test <- id[-which(id %in% id.train)]
-  }
+  
+  # train, test split => range(test set) > range(train set) 인 경우의 id 제거
+  min.max.grid <- data %>% 
+    filter(age %in% range(data$age)) %>% 
+    dplyr::select(idnum) %>% 
+    unique
+  id <- setdiff(unique(data$idnum), min.max.grid$idnum)
+  
+  N <- length(unique(data$idnum))
+  N.train <- ceiling(N * 2/3)
+  id.train <- c(sample(id, N.train-length(min.max.grid$idnum)),
+                min.max.grid$idnum)
+  id.test <- id[-which(id %in% id.train)]
+  
+  # ### train, test split => train set에 없는 time point 포함시 에러
+  # # range(test set) > range(train set) => 넘는 부분에 해당하는 id 제거
+  # id <- unique(data$idnum)
+  # id.train <- sample(id, 42)
+  # id.test <- NULL
+  # range.train <- range(data$age[which(data$idnum %in% id.train)])
+  # range.test <- range(data$age[-which(data$idnum %in% id.train)])
+  # if (range.test[1] < range.train[1]) {
+  #   over.ind <- which(data$age[-which(data$idnum %in% id.train)] < range.train[1] )
+  #   over.ind <- data$idnum[-which(data$idnum %in% id.train)][over.ind]
+  #   id.test <- id[-which(id %in% c(id.train, over.ind))]
+  # }
+  # if (range.test[2] > range.train[2]) {
+  #   over.ind <- which(data$age[-which(data$idnum %in% id.train)] > range.train[2] )
+  #   over.ind <- data$idnum[-which(data$idnum %in% id.train)][over.ind]
+  #   if (is.numeric(id.test)) {
+  #     id.test <- intersect(id.test,
+  #                          id[-which(unique(data$idnum) %in% c(id.train, over.ind))])
+  #   } else {
+  #     id.test <- id[-which(id %in% c(id.train, over.ind))]
+  #   }
+  # }
+  # if (!is.numeric(id.test)) {
+  #   id.test <- id[-which(id %in% id.train)]
+  # }
   
   # transform to FPCA input
   train <- data[which(data$idnum %in% id.train), ]
@@ -158,6 +175,7 @@ for (simm in 1:100) {
   err.single <- sapply(pred, function(x){ mean(x != y.test) })
   
   
+  start.time <- Sys.time()
   ## Bagging
   # Bootstrap aggregating
   B <- 100
@@ -307,7 +325,8 @@ for (simm in 1:100) {
                                    qda.oob = as.numeric(pred.qda) * (1 - oob.error[5]),
                                    nb.oob = as.numeric(pred.nb) * (1 - oob.error[6]))) )
   }
-  
+  end.time <- Sys.time()
+  print(end.time - start.time)
   
   ## save the accuracy
   res <- as.data.frame(rbindlist(lapply(y.pred, function(x){ x$boot })))
@@ -350,7 +369,7 @@ for (simm in 1:100) {
   res.sim[[simm]] <- y.pred
 }
 
-save(result, file="RData/real_data_1.RData")
+save(list=c("result", "res.sim"), file="RData/real_data_1.RData")
 
 ## 결과 정리
 result <- result[!sapply(result, is.null)]
@@ -360,7 +379,7 @@ res <- sapply(1:3, function(i){
           rbindlist %>% 
           colMeans %>% 
           round(1),
-        "(",
+        " (",
         apply(lapply(result[!sapply(result, is.null)], 
                      function(x){ x[i, ]*100 }) %>% 
                 rbindlist, 2, sd) %>% 
@@ -371,8 +390,9 @@ res <- sapply(1:3, function(i){
   t() %>% 
   as.data.frame
 colnames(res) <- c("Logit","SVM(Linear)","SVM(Gaussian)","LDA","QDA","NaiveBayes")
+rownames(res) <- c("Single","Majority vote","OOB weight")
 res
-library(xtable)
+
 xtable(res)
 
 
