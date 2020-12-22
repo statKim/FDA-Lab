@@ -9,6 +9,7 @@ library(ftsa)
 library(MFPCA)
 library(tidyverse)
 library(fields)   # image plot
+library(shape)   # colorlegend 
 
 
 ########################################
@@ -103,40 +104,59 @@ colorlegend(col=rainbow(60), zlim=c(0, 60), dz=10, cex=0.5)
 
 
 ### FPCA  (Need to apply into two type of grid (ex. grassland vs forest))
-## 1. grass
-# i <- 1   # for each day
-X_gf <- X %>% 
-  # filter(day==i) %>% 
-  group_by(day) %>% 
-  select(grid, PM10_sm, time_in_day, day) %>% 
-  spread(key=time_in_day, value=PM10_sm)
-
-# convert to fts object(to use ftsm function) - (p x n) matrix form
-X_g <- fts(x=1:24, 
-           t(X_gf[1:(25*60), -(1:2)]))
-X_f <- fts(x=1:24, 
-           t(X_gf[26:(50*60), -(1:2)]))
-# X_g <- fts(x=X_gf$grid[1:(25*60)], 
-#            X_gf[1:(25*60), -(1:2)])
-# X_f <- fts(x=X_gf$grid[26:(50*60)], 
-#            X_gf[26:(50*60), -(1:2)])
-
-# fit fpca with 3 FPCs
-fpc_g <- ftsm(X_g, order=3, method='classical')
-fpc_f <- ftsm(X_f, order=3, method='classical')
+fpc_model <- list(grass=list(),
+                  forest=list())
+for (d in 1:60) {
+  # d <- 1   # for each day
+  X_gf <- X %>% 
+    filter(day==d) %>%
+    group_by(day) %>% 
+    select(grid, PM10_sm, time_in_day, day) %>%
+    spread(key=time_in_day, value=PM10_sm) %>%
+    mutate(grid=1:50) %>% 
+    column_to_rownames("grid") %>%  
+    # ungroup() %>% 
+    select(-day) %>% 
+    t()
+  colnames(X_gf) <- 1:50
+  
+  # convert to fts object(to use ftsm function) - (p x n) matrix form
+  # X_g : grass, X_f : forest
+  X_g <- fts(x=1:24, 
+             y=X_gf[, 1:25],
+             xname="day", yname="grid")
+  X_f <- fts(x=1:24, 
+             y=X_gf[, 26:50],
+             xname="day", yname="grid")
+  # X_g <- fts(x=1:24, 
+  #            t(X_gf[1:(25*60), -(1:2)]))
+  # X_f <- fts(x=1:24, 
+  #            t(X_gf[26:(50*60), -(1:2)]))
+  
+  # fit FPCA with k degrees
+  k <- 3
+  fpc_g <- ftsm(X_g, order=k, method='classical')   # grass
+  fpc_f <- ftsm(X_f, order=k, method='classical')   # forest
+  
+  fpc_model$grass[[d]] <- fpc_g
+  fpc_model$forest[[d]] <- fpc_f
+}
 
 # plot of mean and FPC functions
-par(mfrow=c(1,4))
+k <- 3
+d <- 1
+fpc_g <- fpc_model$grass[[d]]
+fpc_f <- fpc_model$forest[[d]]
+par(mfrow=c(1, (k+1)))
 plot(fpc_g$basis[, 1], type='l', main='mean function', col="red",
      xlab='Time of day', ylab='', ylim=range(fpc_g$basis[, 1], fpc_f$basis[, 1]))
 lines(fpc_f$basis[, 1], col="blue")
 legend('topleft', c('grass', 'forest'), lty=1, col=c("red","blue"))
-for (k in 2:4){
-  plot(fpc_g$basis[, k], type='l', main=paste(k-1,'-th PC function', sep=""), col="red",
-       xlab='Time of day' , ylab='', ylim=range(fpc_g$basis[, k], fpc_f$basis[, k]))
-  lines(fpc_f$basis[, k], col="blue")
+for (j in 2:(k+1)){
+  plot(fpc_g$basis[, j], type='l', main=paste(j-1,'-th PC function', sep=""), col="red",
+       xlab='Time of day' , ylab='', ylim=range(fpc_g$basis[, j], fpc_f$basis[, j]))
+  lines(fpc_f$basis[, j], col="blue")
 }
-
 
 # grass_data <- matrix(apply(smoothed_X[1:25,], 2, mean), 24, 60)
 # forest_data <- matrix(apply(smoothed_X[26:50,], 2, mean), 24, 60)
@@ -199,28 +219,36 @@ for (k in 2:4){
 
 
 ### Smoothed ANOVA (location + days + loc*days) - using gam!!
-z_1 <- fit_grass$coeff[, 2]
-unq.grid <- unique(X$grid)[1:25]
-loc_effect <- matrix(NA, nrow=length(unq.grid), ncol=2)   # 25 x 2 matrix
-for (k in 1:length(unq.grid)) {
-  loc_effect[k, ] <- cbind(X$lon[which(X$grid==unq.grid[k])], X$lat[which(X$grid==unq.grid[k])])[1, ]   # 각 grid의 location 좌표
+# latitude and longitude for each grids
+gr <- X %>% 
+  select(lon, lat) %>% 
+  distinct() %>% 
+  mutate(grid=1:50)
+
+## 1. grass
+z_1 <- data.frame(z=sapply(fpc_model$grass, function(x){ x$coeff[, 2] }) %>% as.vector(), 
+                  loc=rep(1:25, 60),
+                  day=sort(rep(1:60, 25))) %>% 
+  left_join(gr, by=c("loc"="grid"))
+length(z_1)
+head(z_1)
+
+# b <- gam(z~s(loc)+s(day)+te(loc, day), data=z_1)
+b <- gam(z~s(lon, lat, k=15, bs='ts')+s(day)+te(lon, lat, day), data=z_1)
+summary(b)
+plot(b, all.terms=T, scheme=c(2,1))
+anova(b)
+
+vis.gam(b, view=c("lon","lat"), plot.type="contour", color="terrain")
+text(gr$lon, gr$lat, labels=gr$grid)
+
+z_1_fitted <- matrix(b$fitted.values, nrow=25)
+rb_color <- palette(rainbow(25))
+plot(z_1_fitted[1, ], type='l', col=rb_color[1],
+     ylim=range(z_1_fitted), xlab="Days", ylab="fitted PC score")
+for(j in 2:25){
+  lines(z_1_fitted[j, ], col=rb_color[j])
 }
-loc_effect_lon <- rep(loc_effect[, 1], each=60)   # 25*60 = 1500개
-loc_effect_lat <- rep(loc_effect[, 2], each=60)   # 25*60 = 1500개
-#days_effect= rep( unique(format((X$Rdate), format="%m-%d"))[-61] , 25)
-days_effect <- rep(1:60, 25)
-
-anova_data <- data.frame(z=as.vector(z_1), loc_effect_lon, loc_effect_lat, days_effect)
-b <- gamm(z~s(loc_effect_lon, loc_effect_lat, k=15, bs='ts')+s(days_effect, k=15), data=anova_data)  
-plot(b$gam, page=1, scheme=c(2,1)) 
-anova(b$gam)
-
-par(mfrow=c(2,2))
-plot(b$gam$fitted.values[1:60], type='l')
-for(k in 3:10){
-  # lines(b$gam$fitted.values[((60*(k-1))+1):(60*k )], col=k)
-  plot(b$gam$fitted.values[((60*(k-1))+1):(60*k)], col=k)
-}
 
 
 
@@ -228,6 +256,28 @@ for(k in 3:10){
 
 
 
+# z_1 <- fit_grass$coeff[, 2]
+# unq.grid <- unique(X$grid)[1:25]
+# loc_effect <- matrix(NA, nrow=length(unq.grid), ncol=2)   # 25 x 2 matrix
+# for (k in 1:length(unq.grid)) {
+#   loc_effect[k, ] <- cbind(X$lon[which(X$grid==unq.grid[k])], X$lat[which(X$grid==unq.grid[k])])[1, ]   # 각 grid의 location 좌표
+# }
+# loc_effect_lon <- rep(loc_effect[, 1], each=60)   # 25*60 = 1500개
+# loc_effect_lat <- rep(loc_effect[, 2], each=60)   # 25*60 = 1500개
+# #days_effect= rep( unique(format((X$Rdate), format="%m-%d"))[-61] , 25)
+# days_effect <- rep(1:60, 25)
+# 
+# anova_data <- data.frame(z=as.vector(z_1), loc_effect_lon, loc_effect_lat, days_effect)
+# b <- gamm(z~s(loc_effect_lon, loc_effect_lat, k=15, bs='ts')+s(days_effect, k=15), data=anova_data)  
+# plot(b$gam, page=1, scheme=c(2,1)) 
+# anova(b$gam)
+# 
+# par(mfrow=c(2,2))
+# plot(b$gam$fitted.values[1:60], type='l')
+# for(k in 3:10){
+#   # lines(b$gam$fitted.values[((60*(k-1))+1):(60*k )], col=k)
+#   plot(b$gam$fitted.values[((60*(k-1))+1):(60*k)], col=k)
+# }
 
 ## 1. grass
 unq.grid <- unique(X$grid)[1:25]
