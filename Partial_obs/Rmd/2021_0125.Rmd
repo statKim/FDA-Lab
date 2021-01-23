@@ -34,7 +34,8 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
-                      fig.align = "center", cache = T, fig.width = 8, fig.height = 4)
+                      # cache = T, 
+                      fig.align = "center", fig.width = 8, fig.height = 4)
 # Set working directory
 knitr::opts_knit$set(root.dir = "C:/Users/user/Desktop/KHS/FDA-Lab/Partial_obs")
 ```
