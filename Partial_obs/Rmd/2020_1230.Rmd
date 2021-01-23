@@ -1,0 +1,101 @@
+---
+title: "FPCA for partially observed functional data"
+author: "Hyunsung Kim"
+date: '2020-12-30'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/user/Desktop/KHS/FDA-Lab/Partial_obs")
+```
+
+
+## Data generation with outliers
+
+```{r, message=F}
+source("pred.missfd.R")
+source("simul.missfd.R")
+
+## generate random functional data and missing periods
+k <- 200   # number of grids
+gr <- ((1:k)-.5)/k # equidistant grid of k points in [0,1]
+n <- 200   # number of curves
+m <- 20   # number of oulier curves
+
+# generate fully observed functions
+set.seed(1234)
+# m different curves
+x.full <- rbind(simul.fd(n=n-m, grid=gr),
+                simul.fd(n=m, grid=gr, lambda.cos=1.2^(-(2*(1:300))), lambda.sin=1.2^(-(2*(1:300)-1))))
+
+# generate observation periods
+# curve 1 will be missing on (.4,.7), other curves on random subsets
+x.obs <- rbind((gr<=.4)|(gr>=.7), 
+               simul.obs(n=n-1, grid=gr)) # TRUE if observed
+# remove missing periods 
+x <- x.full
+x[!x.obs] <- NA
+```
+
+```{r}
+# plot the functional data set
+matplot(gr, t(x), type="l", lty=1, xlab="", ylab="")
+```
+
+
+## Comparison of 3 FPCA methods
+- **Kraus** : Kraus, D. (2015). Components and completion of partially observed functional data. Journal of the Royal Statistical Society: Series B: Statistical Methodology, 777-801.
+- **PACE** : Yao, F., Müller, H. G., & Wang, J. L. (2005). Functional data analysis for sparse longitudinal data. Journal of the American statistical association, 100(470), 577-590.
+- **Robust** : Kraus에서 median으로 바꾼 것 (교수님께서 바꾸신 것)
+
+```{r, eval=F}
+# transform to "sparseFPCA" and "fdapace"
+x.2 <- list(x = apply(x, 1, function(y){ y[!is.na(y)] }),
+            pp = apply(x.obs, 1, function(y){ gr[y] }))
+
+# PACE
+library(fdapace)
+myop <- list(error=FALSE, methodXi='CE', dataType='Sparse', FVEthreshold=0.99,
+             kernel='gauss', verbose=FALSE, nRegGrid=200)
+pace <- FPCA(Ly=x.2$x, Lt=x.2$pp, optns=myop)   # 250 sec
+```
+
+```{r, eval=F}
+# prediction of 1st trajectory
+x1.pred.kraus <- pred.missfd(x[1, ], x)
+x1.pred.pace <- pace$mu + (pace$xiEst %*% t(pace$phi))[1, ]
+x1.pred.pace[ x.obs[1, ] ] <- NA
+x1.pred.rob <- pred.rob.missfd(x[1, ], x)
+```
+
+```{r, include=F}
+load("RData/20201230.RData")
+```
+
+```{r}
+# plot the observed and predicted curve and the band
+matplot(gr, cbind(x[1, ], x1.pred.kraus, x1.pred.pace, x1.pred.rob),
+        type="l", lty=c(1,1,1,1,1), col=c(2,3,4,5,6), xlab="", ylab="")
+lines(gr[is.na(x[1, ])], x.full[1, is.na(x[1, ])], col=1)
+legend("topleft", legend=c("Observed","Kraus","PACE","Robust","True deleted"),
+       lty=c(1,1,1,1,1), col=c(2,3,4,5,1), bty="n")
+```
+
+
+## Other papers about robust FPCA
+
+- ##### Boente, G., & Salibian-Barrera, M. (2015). S-estimators for functional principal component analysis. Journal of the American Statistical Association, 110(511), 1100-1111.
+  - Sparse or partially observed data에 바로 적용 불가
+  - [Source code](https://github.com/msalibian/S-FPCA)
+  
+- ##### Liebl, D., & Rameseder, S. (2019). Partially observed functional data: The case of systematically missing parts. Computational Statistics & Data Analysis, 131, 104-115.
+  - 일반적인 partially observed와 다르게 마지막 부분만 censored된 데이터에 적용하는 방법론
+  - [Source code](https://github.com/stefanrameseder/PartiallyFD)
+  
+- ##### Boente, G., & Salibian-Barrera, M. (2020). Robust functional principal components for sparse longitudinal data. arXiv preprint arXiv:2012.01540.
+  - S-estimator 논문과 같은 저자의 arxiv에 업로드되어 있는 [논문](https://arxiv.org/pdf/2012.01540.pdf)
+  - sparse data에 적용하는 robust FPCA 방법론
+  - 코드가 공개되어 있어 비교해보려 했지만 computation 시간이 너무 오래 걸림 (10 threads로 12시간 실행했음에도 계산 안됨)
+  - [Source code](https://github.com/msalibian/sparseFPCA)
