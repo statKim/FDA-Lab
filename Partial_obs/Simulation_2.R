@@ -168,8 +168,8 @@ for (sim in 1:num.sim) {
   
   # add outlier curves
   # mu.outlier <- function(s) { -2*(s^2)*cos(2*pi*s) }   # outlier 1
-  # mu.outlier <- function(s) { -3*sin(4*pi*s) }   # oulier 2
-  mu.outlier <- function(s) { 2*((s-0.2)^2)*cos(2*pi*(s-0.2)) }   # outlier 3
+  mu.outlier <- function(s) { -3*sin(4*pi*s) }   # oulier 2
+  # mu.outlier <- function(s) { 2*((s-0.2)^2)*cos(2*pi*(s-0.2)) }   # outlier 3
   x.outlier <- synfd::irreg.fd(mu = mu.outlier, X = wiener.process(),
                                n = n.outlier, m = 5, sig = sig, snr = snr, delta = delta)
   # x.outlier$y <- lapply(x.outlier$y, function(y) { -y })   # outlier 0 (mu.outlier = mu)
@@ -192,7 +192,7 @@ for (sim in 1:num.sim) {
   # lines(gr, mu.outlier(gr), col = 3, lwd = 2)
   # optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = 'gauss', verbose = FALSE)
   # mu.yao.obj <- GetMeanCurve(Ly = x$y, Lt = x$t, optns = optns)   # get bandwidth of mean estimation
-  # with(mu.yao.obj, lines(workGrid, mu, lwd = 2))   # draw mean curve
+  # with(mu.yao.obj, lines(workGrid, mu, lwd = 2, col = 4))   # draw mean curve
   
   
   data.list.outlier[[sim]] <- list(x = x,
@@ -395,7 +395,7 @@ for (j in 2:n) {
     lines(x$t[[j]], x$y[[j]], col = "grey")
   }
 }
-with(cov.est[[i]]$mu.obj$yao, lines(workGrid, mu, lwd = 2, col = "blue"))   # estimated mean curve
+with(cov.est.outlier[[i]]$mu.obj$yao, lines(workGrid, mu, lwd = 2, col = "blue"))   # estimated mean curve
 
 ### Covariance surface
 work.grid <- cov.est.outlier[[i]]$work.grid
