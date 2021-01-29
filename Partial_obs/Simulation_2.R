@@ -1,7 +1,7 @@
 ############################################
 ### Simulation 2
 ### Functional snippet case
-### Delaigle(2020) JASA simulation
+### Lin & Wang (2020) JASA simulation
 ############################################
 
 # 시뮬레이션 할 때, seed별로 데이터 생성해놓은 후에 병렬로 처리
@@ -46,13 +46,9 @@ for (sim in 1:num.sim) {
   print(sim)
   
   set.seed(sim)
-  # set up mean and cov functions and synthesize data functional dataset
-  mu <- function(s) { 2*(s^2)*cos(2*pi*s) }
-  sig <- NULL   # measurement error; To use this option, set "snr = NULL"
-  snr <- 2
-  delta <- 0.25   # domain
-  x <- synfd::irreg.fd(mu = mu, X = synfd::gaussian.process(synfd::matern), 
-                       n = n, m = 5, sig = sig, snr = snr, delta = delta)
+  
+  # generate curves with no outliers
+  x <- fun.snipp(n, out.prop = 0)
   gr <- sort(unique(unlist(x$t)))   # observed grid
   
   data.list[[sim]] <- list(x = x,
@@ -158,27 +154,14 @@ for (sim in 1:num.sim) {
   print(sim)
   
   set.seed(sim)
-  # set up mean and cov functions and synthesize data functional dataset
-  mu <- function(s) { 2*(s^2)*cos(2*pi*s) }
-  sig <- NULL   # measurement error; To use this option, set "snr = NULL"
-  snr <- 2
-  delta <- 0.25   # domain
-  x <- synfd::irreg.fd(mu = mu, X = synfd::gaussian.process(synfd::matern), 
-                       n = n-n.outlier, m = 5, sig = sig, snr = snr, delta = delta)
   
-  # add outlier curves
-  # mu.outlier <- function(s) { -2*(s^2)*cos(2*pi*s) }   # outlier 1
-  mu.outlier <- function(s) { -3*sin(4*pi*s) }   # oulier 2
-  # mu.outlier <- function(s) { 2*((s-0.2)^2)*cos(2*pi*(s-0.2)) }   # outlier 3
-  x.outlier <- synfd::irreg.fd(mu = mu.outlier, X = wiener.process(),
-                               n = n.outlier, m = 5, sig = sig, snr = snr, delta = delta)
-  # x.outlier$y <- lapply(x.outlier$y, function(y) { -y })   # outlier 0 (mu.outlier = mu)
-  
-  x <- list(t = c(x$t, x.outlier$t),
-            y = c(x$y, x.outlier$y))
+  # generate curves with outliers - control the out.type = 1~6
+  x <- fun.snipp(n, out.prop = outlier.ratio, out.type = 2)
   gr <- sort(unique(unlist(x$t)))   # observed grid
   
   # # trejactories of generated curves and true mean curves
+  # mu <- x$optns$mu
+  # mu.outlier <- x$optns$mu.outlier
   # plot(x$t[[1]], x$y[[1]], type = "l", col = "grey",
   #      xlim = range(unlist(x$t)), ylim = range(unlist(x$y)), xlab = "Time", ylab = "")
   # for (j in 2:n) {
@@ -193,7 +176,6 @@ for (sim in 1:num.sim) {
   # optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = 'gauss', verbose = FALSE)
   # mu.yao.obj <- GetMeanCurve(Ly = x$y, Lt = x$t, optns = optns)   # get bandwidth of mean estimation
   # with(mu.yao.obj, lines(workGrid, mu, lwd = 2, col = 4))   # draw mean curve
-  
   
   data.list.outlier[[sim]] <- list(x = x,
                                    gr = gr)
@@ -257,7 +239,12 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
   # estimate mean by local polynomial method
   mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", 
                          kernel = "gauss", bw = mu.yao.obj$optns$userBwMu)
-  cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
+  cov.lin.obj <- tryCatch({
+    covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
+  }, error = function(e) { NA })
+  if (is.na(cov.lin.obj)) {
+    return(NULL)
+  }
   # system.time({ 
   #   cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method="SP")
   # })
@@ -282,6 +269,11 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
 # save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210125_2.RData")
 # save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210125_3.RData")
 
+# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/20210127_1.RData")
+# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/20210127_2.RData")
+# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/20210127_3.RData")
+sum(!sapply(cov.est.outlier, is.null))
+cov.est.outlier <- cov.est.outlier[!sapply(cov.est.outlier, is.null)]
 
 
 
