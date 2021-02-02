@@ -239,35 +239,52 @@ sum(!sapply(cov.est.outlier, is.null))
 cov.est.outlier <- cov.est.outlier[!sapply(cov.est.outlier, is.null)]
 
 
+load("RData/20210128.RData")
 
 #############################
-### Calculate RMISE
+### Calculate ISE
 #############################
 cname <- c("Yao(2005)","Lin(2020)")
+ise_mean <- matrix(0, 4, 4)
+ise_sd <- matrix(0, 4, 4)
 
-### variance
-ise.var <- sapply(cov.est, function(x) {
-  c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-    get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
-})
-sqrt(rowMeans(ise.var))
-mse.var <- sapply(cov.est, function(x) {
-  c(mean((diag(x$cov$true) - diag(x$cov$yao))^2),
-    mean((diag(x$cov$true) - diag(x$cov$lin))^2))
-})
-sqrt(rowMeans(mse.var))
+##### Intrapolation parts (D_0)
+### ISE
+ise.cov <- mapply(function(x, y) {
+  cov.list <- x$cov
+  ind <- get_ind_inter(y)
+  
+  cov.true <- cov_inter(cov.list$true, ind)
+  cov.yao <- cov_inter(cov.list$yao, ind)
+  cov.lin <- cov_inter(cov.list$lin, ind)
+  
+  c(get_ise(cov.true, cov.yao, x$work.grid),
+    get_ise(cov.true, cov.lin, x$work.grid))
+},
+cov.est, data.list)
+ise_mean[1, 1:2] <- rowMeans(ise.cov)   # ISE
+ise_sd[1, 1:2] <- apply(ise.cov, 1, sd)
 
-### covariance
-ise.cov <- sapply(cov.est, function(x) {
-  c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-    get_ise(x$cov$true, x$cov$lin, x$work.grid))
-})
-sqrt(rowMeans(ise.cov))
-mse.cov <- sapply(cov.est, function(x) {
-  c(mean((x$cov$true - x$cov$yao)^2),
-    mean((x$cov$true - x$cov$lin)^2))
-})
-sqrt(rowMeans(mse.cov))
+
+##### Extrapolation parts (S_0 \ D_0)
+### ISE
+ise.cov <- mapply(function(x, y) {
+  cov.list <- x$cov
+  ind <- get_ind_inter(y)
+  
+  cov.true <- cov_extra(cov.list$true, ind)
+  cov.yao <- cov_extra(cov.list$yao, ind)
+  cov.lin <- cov_extra(cov.list$lin, ind)
+  
+  c(get_ise(cov.true, cov.yao, x$work.grid),
+    get_ise(cov.true, cov.lin, x$work.grid))
+},
+cov.est, data.list)
+ise_mean[1, 3:4] <- rowMeans(ise.cov)   # ISE
+ise_sd[1, 3:4] <- apply(ise.cov, 1, sd)
+
+ise_mean*10^3
+ise_sd*10^3
 
 
 #############################
@@ -305,30 +322,46 @@ persp3D(work.grid, work.grid, cov.list$lin,
 #############################
 ### Calculate RMISE with outliers
 #############################
-### variance
-ise.var <- sapply(cov.est.outlier, function(x) {
-  c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-    get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
-})
-sqrt(rowMeans(ise.var))
-mse.var <- sapply(cov.est.outlier, function(x) {
-  c(mean((diag(x$cov$true) - diag(x$cov$yao))^2),
-    mean((diag(x$cov$true) - diag(x$cov$lin))^2))
-})
-sqrt(rowMeans(mse.var))
+sum(!sapply(cov.est.outlier, is.null))
+cov.est.outlier <- cov.est.outlier[!sapply(cov.est.outlier, is.null)]
 
-### covariance
-ise.cov <- sapply(cov.est.outlier, function(x) {
-  c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-    get_ise(x$cov$true, x$cov$lin, x$work.grid))
-})
-sqrt(rowMeans(ise.cov))
-mse.cov <- sapply(cov.est.outlier, function(x) {
-  c(mean((x$cov$true - x$cov$yao)^2),
-    mean((x$cov$true - x$cov$lin)^2))
-})
-sqrt(rowMeans(mse.cov))
+##### Intrapolation parts (D_0)
+### ISE
+ise.cov <- mapply(function(x, y) {
+  cov.list <- x$cov
+  ind <- get_ind_inter(y)
+  
+  cov.true <- cov_inter(cov.list$true, ind)
+  cov.yao <- cov_inter(cov.list$yao, ind)
+  cov.lin <- cov_inter(cov.list$lin, ind)
+  
+  c(get_ise(cov.true, cov.yao, x$work.grid),
+    get_ise(cov.true, cov.lin, x$work.grid))
+},
+cov.est.outlier, data.list.outlier)
+ise_mean[2, 1:2] <- rowMeans(ise.cov)   # ISE
+ise_sd[2, 1:2] <- apply(ise.cov, 1, sd)
 
+
+##### Extrapolation parts (S_0 \ D_0)
+### ISE
+ise.cov <- mapply(function(x, y) {
+  cov.list <- x$cov
+  ind <- get_ind_inter(y)
+  
+  cov.true <- cov_extra(cov.list$true, ind)
+  cov.yao <- cov_extra(cov.list$yao, ind)
+  cov.lin <- cov_extra(cov.list$lin, ind)
+  
+  c(get_ise(cov.true, cov.yao, x$work.grid),
+    get_ise(cov.true, cov.lin, x$work.grid))
+},
+cov.est.outlier, data.list.outlier)
+ise_mean[2, 3:4] <- rowMeans(ise.cov)   # ISE
+ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
+
+ise_mean*10^3
+ise_sd*10^3
 
 
 #############################

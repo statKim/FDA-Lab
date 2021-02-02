@@ -3,9 +3,8 @@
 ##########################################
 source("sim_Lin_Wang(2020).R")
 source("sim_Delaigle(2020).R")
-require(LaplacesDemon)
 require(fdapace)
-require(pracma)
+# require(pracma)
 
 ### Get function name in the global environment
 fun2char <- function() {
@@ -26,7 +25,7 @@ get_ise <- function(x, x_hat, grid) {
     row.ise <- apply(z, 1, function(row){ 
       trapzRcpp(grid, row)
     })
-    ise <- trapzRcpp(sort(row.ise), row.ise)
+    ise <- trapzRcpp(grid, row.ise)
   } else {   # 1-dim vector
     ise <- trapzRcpp(grid, z)
   }
@@ -36,7 +35,7 @@ get_ise <- function(x, x_hat, grid) {
   #   row.ise <- apply(z, 1, function(row){ 
   #     trapz(grid, row)
   #   })
-  #   ise <- trapz(sort(row.ise), row.ise)
+  #   ise <- trapz(grid, row.ise)
   # } else {   # 1-dim vector
   #   ise <- trapz(grid, z)
   # }

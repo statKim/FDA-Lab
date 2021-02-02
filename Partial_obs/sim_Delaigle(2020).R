@@ -2,6 +2,7 @@
 ### Simulation data generation functions
 ### Delaigle et al. (2020) simulation
 ############################################
+require(LaplacesDemon)
 
 ### Get covariance function for simulation
 # model = 1~2 avaliable (In the paper, 1~4 models are shown)
@@ -119,4 +120,38 @@ get_cov_fragm <- function(grid, model = 2) {
   }
   
   return(cov_sim)
+}
+
+
+
+
+### get design grids
+get_ind_inter <- function(data.list) {
+  gr <- data.list$gr
+  tt <- lapply(data.list$x$t, function(t) {
+    val <- cbind(rep(t, length(t)),
+                 rep(t, each = length(t)))
+    ind <- cbind(rep(which(gr %in% val[, 1]), length(t)),
+                 rep(which(gr %in% val[, 2]), each = length(t)))
+    return(ind)
+  })
+  tt <- do.call("rbind", tt)   # rbind the argument(matrix type) in list
+  tt <- unique(tt)
+  
+  return(tt)
+}
+
+### extrapolation parts of covariance
+cov_extra <- function(cov, ind) {
+  cov[ind] <- 0
+  
+  return(cov)
+}
+
+### intrapolation parts of covariance
+cov_inter <- function(cov, ind) {
+  cov_ext <- cov_extra(cov, ind)
+  cov <- cov - cov_ext
+  
+  return(cov)
 }
