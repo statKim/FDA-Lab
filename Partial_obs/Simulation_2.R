@@ -27,6 +27,7 @@ library(fdapace)   # 1, 2
 library(mcfda)   # 7
 library(synfd)   # 7
 library(doParallel)   # parallel computing
+library(doRNG)   # set.seed for foreach
 source("functions.R")
 source("Kraus(2015)/pred.missfd.R")   # 3
 source("Kraus(2015)/simul.missfd.R")  # 3
@@ -67,7 +68,7 @@ packages <- c("fdapace","mcfda","synfd")
 
 model.cov <- 1   # covariance function setting of the paper (1, 2, 3)
 
-set.seed(1000)
+registerDoRNG(1000)
 cov.est <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %dopar% {
   # Get simulation data
   x <- data.list[[sim]]$x
@@ -192,7 +193,7 @@ packages <- c("fdapace","mcfda","synfd")
 
 model.cov <- 1   # covariance function setting of the paper (1, 2, 3)
 
-set.seed(1000)
+registerDoRNG(1000)
 cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %dopar% {
   # Get simulation data
   x <- data.list.outlier[[sim]]$x
@@ -264,14 +265,24 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
   return(out)
 }
 
+### Before apply "registerDoRNG()"
 # save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210125.RData")
 # save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210125_1.RData")
 # save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210125_2.RData")
 # save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210125_3.RData")
-
 # save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/20210127_1.RData")
 # save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/20210127_2.RData")
 # save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/20210127_3.RData")
+
+### Apply "registerDoRNG()"
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210203_1.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210203_2.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210203_3.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210203_4.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210203_5.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210203_6.RData")
+
+
 sum(!sapply(cov.est.outlier, is.null))
 cov.est.outlier <- cov.est.outlier[!sapply(cov.est.outlier, is.null)]
 

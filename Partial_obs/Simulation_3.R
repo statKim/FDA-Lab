@@ -11,13 +11,15 @@ library(fdapace)   # 1, 2
 library(mcfda)   # 7
 library(synfd)   # 7
 library(doParallel)   # parallel computing
+library(doRNG)   # set.seed for foreach
 source("functions.R")
 # source("Kraus(2015)/pred.missfd.R")   # 3
 # source("Kraus(2015)/simul.missfd.R")  # 3
 
 # Parallel computing setting
 ncores <- detectCores() - 3
-registerDoParallel(ncores)
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
 
 
 #############################
@@ -47,13 +49,14 @@ for (sim in 1:num.sim) {
 #############################
 
 # list of manual functions and packages
-ftns <- fun2char()
+# ftns <- fun2char()
 packages <- c("fdapace","mcfda","synfd")
 
 model.cov <- 2   # covariance function setting of the paper (1, 2)
 
-set.seed(1000)
-cov.est <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %dopar% {
+registerDoRNG(1000)
+cov.est <- foreach(sim = 1:num.sim, .packages = packages) %dopar% {
+                   # , .export = ftns) %dopar% {
   # Get simulation data
   x <- data.list[[sim]]$x
   gr <- data.list[[sim]]$gr
@@ -129,6 +132,7 @@ cov.est <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %dopar
 ##################################
 ### Data generation with outliers
 ##################################
+out.type <- 4   # 4~6 are available
 num.sim <- 100   # number of simulations
 outlier.ratio <- 0.2   # ratio of outliers
 n <- 100   # number of curves
@@ -141,7 +145,7 @@ for (sim in 1:num.sim) {
   set.seed(sim)
   
   # generate curve with no outliers
-  x <- fun.fragm(n = n, model = model, out.prop = outlier.ratio, out.type = 4)
+  x <- fun.fragm(n = n, model = model, out.prop = outlier.ratio, out.type = out.type)
   gr <- sort(unique(unlist(x$t)))   # observed grid
   
   data.list.outlier[[sim]] <- list(x = x,
@@ -156,13 +160,14 @@ for (sim in 1:num.sim) {
 #############################
 
 # list of manual functions and packages
-ftns <- fun2char()
+# ftns <- fun2char()
 packages <- c("fdapace","mcfda","synfd")
 
 model.cov <- 2   # covariance function setting of the paper (1, 2)
 
-set.seed(1000)
-cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %dopar% {
+registerDoRNG(1000)
+cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages) %dopar% {
+                           # , .export = ftns) %dopar% {
   # Get simulation data
   x <- data.list.outlier[[sim]]$x
   gr <- data.list.outlier[[sim]]$gr
@@ -234,12 +239,22 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
 }
 
 
-# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/20210128.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/sim3-1_20210204.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/sim3-2_20210204.RData")
+# save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), file = "RData/sim3-3_20210204.RData")
+
+stopCluster(cl)
+
+
+
+load("RData/sim3-1_20210204.RData")
 sum(!sapply(cov.est.outlier, is.null))
-cov.est.outlier <- cov.est.outlier[!sapply(cov.est.outlier, is.null)]
 
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, is.null))
+data.list.outlier <- data.list.outlier[ind]
+cov.est.outlier <- cov.est.outlier[ind]
 
-load("RData/20210128.RData")
 
 #############################
 ### Calculate ISE
@@ -322,8 +337,11 @@ persp3D(work.grid, work.grid, cov.list$lin,
 #############################
 ### Calculate RMISE with outliers
 #############################
-sum(!sapply(cov.est.outlier, is.null))
-cov.est.outlier <- cov.est.outlier[!sapply(cov.est.outlier, is.null)]
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, is.null))
+data.list.outlier <- data.list.outlier[ind]
+cov.est.outlier <- cov.est.outlier[ind]
 
 ##### Intrapolation parts (D_0)
 ### ISE
