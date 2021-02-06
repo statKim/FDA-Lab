@@ -265,36 +265,14 @@ ise_sd <- matrix(0, 4, 4)
 
 ##### Intrapolation parts (D_0)
 ### ISE
-ise.cov <- mapply(function(x, y) {
-  cov.list <- x$cov
-  ind <- get_ind_inter(y)
-  
-  cov.true <- cov_inter(cov.list$true, ind)
-  cov.yao <- cov_inter(cov.list$yao, ind)
-  cov.lin <- cov_inter(cov.list$lin, ind)
-  
-  c(get_ise(cov.true, cov.yao, x$work.grid),
-    get_ise(cov.true, cov.lin, x$work.grid))
-},
-cov.est, data.list)
+ise.cov <- summary_ise(data.list, cov.est, method = "intra")
 ise_mean[1, 1:2] <- rowMeans(ise.cov)   # ISE
 ise_sd[1, 1:2] <- apply(ise.cov, 1, sd)
 
 
 ##### Extrapolation parts (S_0 \ D_0)
 ### ISE
-ise.cov <- mapply(function(x, y) {
-  cov.list <- x$cov
-  ind <- get_ind_inter(y)
-  
-  cov.true <- cov_extra(cov.list$true, ind)
-  cov.yao <- cov_extra(cov.list$yao, ind)
-  cov.lin <- cov_extra(cov.list$lin, ind)
-  
-  c(get_ise(cov.true, cov.yao, x$work.grid),
-    get_ise(cov.true, cov.lin, x$work.grid))
-},
-cov.est, data.list)
+ise.cov <- summary_ise(data.list, cov.est, method = "extra")
 ise_mean[1, 3:4] <- rowMeans(ise.cov)   # ISE
 ise_sd[1, 3:4] <- apply(ise.cov, 1, sd)
 
@@ -345,36 +323,14 @@ cov.est.outlier <- cov.est.outlier[ind]
 
 ##### Intrapolation parts (D_0)
 ### ISE
-ise.cov <- mapply(function(x, y) {
-  cov.list <- x$cov
-  ind <- get_ind_inter(y)
-  
-  cov.true <- cov_inter(cov.list$true, ind)
-  cov.yao <- cov_inter(cov.list$yao, ind)
-  cov.lin <- cov_inter(cov.list$lin, ind)
-  
-  c(get_ise(cov.true, cov.yao, x$work.grid),
-    get_ise(cov.true, cov.lin, x$work.grid))
-},
-cov.est.outlier, data.list.outlier)
+ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
 ise_mean[2, 1:2] <- rowMeans(ise.cov)   # ISE
 ise_sd[2, 1:2] <- apply(ise.cov, 1, sd)
 
 
 ##### Extrapolation parts (S_0 \ D_0)
 ### ISE
-ise.cov <- mapply(function(x, y) {
-  cov.list <- x$cov
-  ind <- get_ind_inter(y)
-  
-  cov.true <- cov_extra(cov.list$true, ind)
-  cov.yao <- cov_extra(cov.list$yao, ind)
-  cov.lin <- cov_extra(cov.list$lin, ind)
-  
-  c(get_ise(cov.true, cov.yao, x$work.grid),
-    get_ise(cov.true, cov.lin, x$work.grid))
-},
-cov.est.outlier, data.list.outlier)
+ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
 ise_mean[2, 3:4] <- rowMeans(ise.cov)   # ISE
 ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
 

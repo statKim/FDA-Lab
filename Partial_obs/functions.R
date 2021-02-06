@@ -55,4 +55,68 @@ get_deriv <- function(f_x, x) {
 
 
 
+### Get design points
+get_design_index <- function(Lt) {
+  obs_grid <- sort(unique(unlist(Lt)))
+  N <- length(obs_grid)   # length of unique grid points
+  design_mat <- matrix(0, N, N)
+  
+  for (t in Lt){
+    ind <- which(obs_grid %in% t)
+    design_mat[ind, ind] <- 1   # multiple indexing for matrix
+  }
+  
+  # make the design points to (x, y) form
+  x <- as.vector(design_mat)
+  y <- as.vector(t(design_mat))
+  
+  t1 <- rep(1:N, times = N)
+  t2 <- rep(1:N, each = N) 
+  
+  res <- cbind(t1[x != 0], 
+               t2[y != 0])
+  
+  return(res)
+}
 
+
+### Summary the ISE for simulations
+summary_ise <- function(data.list, cov.est, method = "var") {
+  
+  if (method %in% c("var","cov")) {   ## validation for Lin & Wang(2020)
+    if (method == "var") {   # variance
+      ise.cov <- sapply(cov.est, function(x) {
+        c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
+          get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
+      })
+    } else if (method == "cov") {   # covariance
+      ise.cov <- sapply(cov.est, function(x) {
+        c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
+          get_ise(x$cov$true, x$cov$lin, x$work.grid))
+      })
+    } 
+  } else if (method %in% c("intra","extra")) {   ## validation for Delaigle(2020)
+    ise.cov <- mapply(function(x, y) {
+      cov.list <- x$cov
+      ind <- get_design_index(y$x$t)
+      
+      if (method == "intra") {   # intrapolated part
+        cov.true <- cov_inter(cov.list$true, ind)
+        cov.yao <- cov_inter(cov.list$yao, ind)
+        cov.lin <- cov_inter(cov.list$lin, ind)
+      } else if (method == "extra") {   # extrapolated part
+        cov.true <- cov_extra(cov.list$true, ind)
+        cov.yao <- cov_extra(cov.list$yao, ind)
+        cov.lin <- cov_extra(cov.list$lin, ind)
+      }
+      
+      c(get_ise(cov.true, cov.yao, x$work.grid),
+        get_ise(cov.true, cov.lin, x$work.grid))
+    },
+    cov.est, data.list)
+  }
+  
+  return(ise.cov)
+}
+
+ 

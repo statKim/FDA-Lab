@@ -4,8 +4,9 @@ author: "Hyunsung Kim"
 date: '2021-02-08'
 output: 
   prettydoc::html_pretty:
-    theme: leonids
+    # theme: leonids
     # theme: hpstr
+    theme: kayman
     highlight: github
     fig_caption: true
     # number_sections: true
@@ -220,8 +221,8 @@ for (k in 1:6) {
 
 ```{r tab1}
 cname <- c("Yao (2005)","Lin (2020)")
-res.mat <- matrix(NA, 7, 4)
-colnames(res.mat) <- c(cname, cname)
+res.mat <- matrix(NA, 7, 5)
+colnames(res.mat) <- c("$N$", cname, cname)
 row.names(res.mat) <- c("Outlier X",
                         paste0("Outlier ", 1:6))
 
@@ -235,6 +236,7 @@ for (k in 1:6) {
   
   # remove list contating "null"  
   ind <- which(!sapply(cov.est.outlier, is.null))
+  num.sim <- length(ind)   # number of simulations
   data.list.outlier <- data.list.outlier[ind]
   cov.est.outlier <- cov.est.outlier[ind]
   
@@ -242,42 +244,47 @@ for (k in 1:6) {
   ### Calculate RMISE with outliers
   #############################
   ### variance
-  ise.var <- sapply(cov.est.outlier, function(x) {
-    c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-      get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
-  })
-  
+  ise.var <- summary_ise(data.list.outlier, cov.est.outlier, method = "var")
   ### covariance
-  ise.cov <- sapply(cov.est.outlier, function(x) {
-    c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-      get_ise(x$cov$true, x$cov$lin, x$work.grid))
-  })
+  ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "cov")
   
-  res.mat[k+1, ] <- c(sqrt(rowMeans(ise.var)),
-                      sqrt(rowMeans(ise.cov)))
+  # res.mat[k+1, ] <- c(num.sim,
+  #                     sqrt(rowMeans(ise.var)),
+  #                     sqrt(rowMeans(ise.cov)))
+  res.mat[k+1, ] <- c(num.sim,
+                      paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                             "(", 
+                             round(apply(ise.var, 1, sd), 2), 
+                             ")"),
+                      paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                             "(", 
+                             round(apply(ise.cov, 1, sd), 2), 
+                             ")"))
   
   if (k == 1) {
     ### variance
-    ise.var <- sapply(cov.est, function(x) {
-      c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-        get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
-    })
-    
+    ise.var <- summary_ise(data.list, cov.est, method = "var")
     ### covariance
-    ise.cov <- sapply(cov.est, function(x) {
-      c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-        get_ise(x$cov$true, x$cov$lin, x$work.grid))
-    })
+    ise.cov <- summary_ise(data.list, cov.est, method = "cov")
     
-    res.mat[k, ] <- c(sqrt(rowMeans(ise.var)),
-                      sqrt(rowMeans(ise.cov)))
+    # res.mat[k, ] <- c(num.sim,
+    #                   sqrt(rowMeans(ise.var)),
+    #                   sqrt(rowMeans(ise.cov)))
+    res.mat[k, ] <- c(num.sim,
+                      paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                             "(", 
+                             round(apply(ise.var, 1, sd), 2), 
+                             ")"),
+                      paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                             "(", 
+                             round(apply(ise.cov, 1, sd), 2), 
+                             ")"))
   }
 }
 
-
-knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE of variance and covariance estimation for 100 simulations.") %>% 
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE of covariance estimation between diagonal and off-diagonal term.") %>% 
     kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
-    add_header_above(c(" " = 1, "Variance" = 2, "Covariance" = 2))
+    add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 2, "$\\hat{\\mathbf{C}}$" = 2))
 ```
 
 
@@ -435,55 +442,41 @@ for (k in 1:3) {
   cov.est.outlier <- cov.est.outlier[ind]
   
   ### variance
-  ise.var <- sapply(cov.est.outlier, function(x) {
-    c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-      get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
-  })
-  
+  ise.var <- summary_ise(data.list.outlier, cov.est.outlier, method = "var")
   ### covariance
-  ise.cov <- sapply(cov.est.outlier, function(x) {
-    c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-      get_ise(x$cov$true, x$cov$lin, x$work.grid))
-  })
+  ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "cov")
   
+  # res.mat[k+1, ] <- c(num.sim,
+  #                     sqrt(rowMeans(ise.var)),
+  #                     sqrt(rowMeans(ise.cov)))
   res.mat[k+1, ] <- c(num.sim,
-                      sqrt(rowMeans(ise.var)),
-                      sqrt(rowMeans(ise.cov)))
+                      paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                             "(", 
+                             round(apply(ise.var, 1, sd), 2), 
+                             ")"),
+                      paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                             "(", 
+                             round(apply(ise.cov, 1, sd), 2), 
+                             ")"))
   
   
   ### Intrapolation parts (D_0)
-  ise.intra <- mapply(function(x, y) {
-    cov.list <- x$cov
-    ind <- get_ind_inter(y)
-    
-    cov.true <- cov_inter(cov.list$true, ind)
-    cov.yao <- cov_inter(cov.list$yao, ind)
-    cov.lin <- cov_inter(cov.list$lin, ind)
-    
-    c(get_ise(cov.true, cov.yao, x$work.grid),
-      get_ise(cov.true, cov.lin, x$work.grid))
-  },
-  cov.est.outlier, data.list.outlier)
-  # res.mat2[k+1, 1:2] <- rowMeans(ise.intra)   # ISE
-  # ise_sd[2, 1:2] <- apply(ise.cov, 1, sd)
-  
-  
+  ise.intra <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
   ### Extrapolation parts (S_0 \ D_0)
-  ise.extra <- mapply(function(x, y) {
-    cov.list <- x$cov
-    ind <- get_ind_inter(y)
-    
-    cov.true <- cov_extra(cov.list$true, ind)
-    cov.yao <- cov_extra(cov.list$yao, ind)
-    cov.lin <- cov_extra(cov.list$lin, ind)
-    
-    c(get_ise(cov.true, cov.yao, x$work.grid),
-      get_ise(cov.true, cov.lin, x$work.grid))
-  },
-  cov.est.outlier, data.list.outlier)
+  ise.extra <- summary_ise(data.list.outlier, cov.est.outlier, method = "extra")
+
+  # res.mat2[k+1, ] <- c(num.sim,
+  #                      rowMeans(ise.intra),
+  #                      rowMeans(ise.extra))
   res.mat2[k+1, ] <- c(num.sim,
-                       rowMeans(ise.intra),
-                       rowMeans(ise.extra))
+                      paste0(round(rowMeans(ise.intra), 2), 
+                             "(", 
+                             round(apply(ise.intra, 1, sd), 2), 
+                             ")"),
+                      paste0(round(rowMeans(ise.extra), 2), 
+                             "(", 
+                             round(apply(ise.extra, 1, sd), 2), 
+                             ")"))
   # res.mat2[k+1, 3:4] <- rowMeans(ise.extra)   # ISE
   # ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
 
@@ -496,66 +489,51 @@ for (k in 1:3) {
     cov.est <- cov.est[ind]
   
     ### variance
-    ise.var <- sapply(cov.est, function(x) {
-      c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-        get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid))
-    })
-    
+    ise.var <- summary_ise(data.list, cov.est, method = "var")
     ### covariance
-    ise.cov <- sapply(cov.est, function(x) {
-      c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-        get_ise(x$cov$true, x$cov$lin, x$work.grid))
-    })
+    ise.cov <- summary_ise(data.list, cov.est, method = "cov")
     
+    # res.mat[k, ] <- c(num.sim,
+    #                   sqrt(rowMeans(ise.var)),
+    #                   sqrt(rowMeans(ise.cov)))
     res.mat[k, ] <- c(num.sim,
-                      sqrt(rowMeans(ise.var)),
-                      sqrt(rowMeans(ise.cov)))
+                      paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                             "(", 
+                             round(apply(ise.var, 1, sd), 2), 
+                             ")"),
+                      paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                             "(", 
+                             round(apply(ise.cov, 1, sd), 2), 
+                             ")"))
     
     
     ### Intrapolation parts (D_0)
-    ise.intra <- mapply(function(x, y) {
-      cov.list <- x$cov
-      ind <- get_ind_inter(y)
-      
-      cov.true <- cov_inter(cov.list$true, ind)
-      cov.yao <- cov_inter(cov.list$yao, ind)
-      cov.lin <- cov_inter(cov.list$lin, ind)
-      
-      c(get_ise(cov.true, cov.yao, x$work.grid),
-        get_ise(cov.true, cov.lin, x$work.grid))
-    },
-    cov.est, data.list)
-    # res.mat2[k, 1:2] <- rowMeans(ise.cov)   # ISE
-    # ise_sd[2, 1:2] <- apply(ise.cov, 1, sd)
-    
-    
+    ise.intra <- summary_ise(data.list, cov.est, method = "intra")
     ### Extrapolation parts (S_0 \ D_0)
-    ise.extra <- mapply(function(x, y) {
-      cov.list <- x$cov
-      ind <- get_ind_inter(y)
-      
-      cov.true <- cov_extra(cov.list$true, ind)
-      cov.yao <- cov_extra(cov.list$yao, ind)
-      cov.lin <- cov_extra(cov.list$lin, ind)
-      
-      c(get_ise(cov.true, cov.yao, x$work.grid),
-        get_ise(cov.true, cov.lin, x$work.grid))
-    },
-    cov.est, data.list)
+    ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+    # res.mat2[k, ] <- c(num.sim,
+    #                    rowMeans(ise.intra),
+    #                    rowMeans(ise.extra))
     res.mat2[k, ] <- c(num.sim,
-                       rowMeans(ise.intra),
-                       rowMeans(ise.extra))
+                      paste0(round(rowMeans(ise.intra), 2), 
+                             "(", 
+                             round(apply(ise.intra, 1, sd), 2), 
+                             ")"),
+                      paste0(round(rowMeans(ise.extra), 2), 
+                             "(", 
+                             round(apply(ise.extra, 1, sd), 2), 
+                             ")"))
     # res.mat2[k, 3:4] <- rowMeans(ise.cov)   # ISE
     # ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
   }
 }
 
-knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average RMISE of covariance estimation between diagonal and off-diagonal term.") %>% 
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average RMISE of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% 
     kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
     add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 2, "$\\hat{\\mathbf{C}}$" = 2))
 
 
-knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 3. Average RMISE of covariance estimation between intrapolations and extrapolations.") %>% 
+knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 3. Average MISE of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts.") %>% 
     kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
     add_header_above(c(" " = 1, " " = 1, "$\\mathcal{D}_0$" = 2, "$\\mathcal{S}_0 \\backslash \\mathcal{D}_0$" = 2))
 ```

@@ -125,21 +125,21 @@ get_cov_fragm <- function(grid, model = 2) {
 
 
 
-### get design grids
-get_ind_inter <- function(data.list) {
-  gr <- data.list$gr
-  tt <- lapply(data.list$x$t, function(t) {
-    val <- cbind(rep(t, length(t)),
-                 rep(t, each = length(t)))
-    ind <- cbind(rep(which(gr %in% val[, 1]), length(t)),
-                 rep(which(gr %in% val[, 2]), each = length(t)))
-    return(ind)
-  })
-  tt <- do.call("rbind", tt)   # rbind the argument(matrix type) in list
-  tt <- unique(tt)
-  
-  return(tt)
-}
+# ### get design grids
+# get_ind_inter <- function(data.list) {
+#   gr <- data.list$gr
+#   tt <- lapply(data.list$x$t, function(t) {
+#     val <- cbind(rep(t, length(t)),
+#                  rep(t, each = length(t)))
+#     ind <- cbind(rep(which(gr %in% val[, 1]), length(t)),
+#                  rep(which(gr %in% val[, 2]), each = length(t)))
+#     return(ind)
+#   })
+#   tt <- do.call("rbind", tt)   # rbind the argument(matrix type) in list
+#   tt <- unique(tt)
+# 
+#   return(tt)
+# }
 
 ### extrapolation parts of covariance
 cov_extra <- function(cov, ind) {
@@ -155,3 +155,5 @@ cov_inter <- function(cov, ind) {
   
   return(cov)
 }
+
+
