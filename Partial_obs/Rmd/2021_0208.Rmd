@@ -6,7 +6,7 @@ output:
   prettydoc::html_pretty:
     # theme: leonids
     # theme: hpstr
-    theme: kayman
+    theme: cayman
     highlight: github
     fig_caption: true
     # number_sections: true
@@ -33,22 +33,15 @@ output:
   }
 </style>
 
+
 ```{r setup, include=FALSE}
 library(knitr)
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
                       # cache = T,
                       fig.align = "center", fig.width = 12, fig.height = 6)
 # Set working directory
-knitr::opts_knit$set(root.dir = "C:/Users/user/Desktop/KHS/FDA-Lab/Partial_obs")
+knitr::opts_knit$set(root.dir = "../")
 ```
-
-# Simulation settings
-> Lin, Z., & Wang, J. L. (2020). Mean and covariance estimation for functional snippets. Journal of the American Statistical Association, 1-13.
-
-- 위 논문의 5장에서 $\text{cov I}, n=200, \delta=0.25, \text{SNR}=2$인 경우를 활용하였으며, $N=100$번 반복시행
-- 기존 모형과 outlier를 추가하였을 때의 차이를 확인 (outlier 비율은 0.2라 가정)
-- Variance $\sigma_X^2$과 covariance $C$의 estimation performance를 비교
-
 
 
 ```{r}
@@ -68,13 +61,26 @@ source("Kraus(2015)/simul.missfd.R")  # 3
 
 # Simulation 1
 
-## Add outliers
-- Outlier는 wiener process로부터 생성 후 mean function을 더해줌 (기존은 gaussian process)
-- 3가지 mean function에 따라 결과 확인 (기존은 $\mu(t) = 2t^2\cos(2\pi t)$)
-  - $\mu_1(t) = -2t^2 \cos(2\pi t)$ ($y$축 기준으로 대칭인 형태)
-  - $\mu_2(t) = -3\sin(4\pi t)$ (fluctuation이 다른 형태)
-  - $\mu_3(t) = 2(t-0.2)^2\cos(2\pi(t-0.2))$ ($x$축으로 평행이동한 형태)
+## Simulation settings
+> Lin, Z., & Wang, J. L. (2020). Mean and covariance estimation for functional snippets. Journal of the American Statistical Association, 1-13.
 
+- 위 논문의 5장에서 $\text{cov I}, n=200, \delta=0.25, \text{SNR}=2$인 경우를 활용하였으며, $N=100$번 반복시행
+- 기존 모형과 outlier를 추가하였을 때의 차이를 확인 (outlier 비율은 0.2라 가정)
+- Variance $\sigma_X^2$과 covariance $C$의 estimation performance를 비교
+
+
+## Outliers settings
+- **Outlier 1~3**
+  - Outlier는 wiener process로부터 생성 후 mean function을 더해줌 (기존은 gaussian process)
+  - 3가지 mean function에 따라 결과 확인 (기존은 $\mu(t) = 2t^2\cos(2\pi t)$)
+    - $\mu_1(t) = -2t^2 \cos(2\pi t)$ ($y$축 기준으로 대칭인 형태)
+    - $\mu_2(t) = -3\sin(4\pi t)$ (fluctuation이 다른 형태)
+    - $\mu_3(t) = 2(t-0.2)^2\cos(2\pi(t-0.2))$ ($x$축으로 평행이동한 형태)
+- **Outlier 4~6**
+```{r out_sim1, out.width = "100%"}
+file_name <- paste0(getwd(), "/ref/outlier_ex.png")
+knitr::include_graphics(file_name)
+```
 
 ## Original model
 
@@ -110,7 +116,7 @@ legend("topleft", c("True mean","Estimated mean"), col = c(2,4), lty = c(1,1))
 
 ## Outliers
 
-```{r fig2, fig.cap = "Figure 2. Sample trajectories with mean curve (Right).", fig.height = 8}
+```{r fig2, fig.cap = "Figure 2. Sample trajectories with outliers and estimated mean curves.", fig.height = 8}
 par(mfrow = c(2, 3))
 for (k in 1:6) {
   if (k <= 3) {
@@ -282,15 +288,36 @@ for (k in 1:6) {
   }
 }
 
-knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE of covariance estimation between diagonal and off-diagonal term.") %>% 
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% 
     kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
     add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 2, "$\\hat{\\mathbf{C}}$" = 2))
+```
+
+```{r tab_Lin, out.width = "100%"}
+file_name <- paste0(getwd(), "/ref/paper_tab_Lin.png")
+knitr::include_graphics(file_name)
 ```
 
 
 <br>
 
 # Simulation 2
+
+## Simulation settings
+> Delaigle, A., Hall, P., Huang, W., & Kneip, A. (2020). Estimating the Covariance of Fragmented and Other Related Types of Functional Data. Journal of the American Statistical Association, 1-19.
+
+- 위 논문의 5장에서 Model 2, $n=100$인 경우 활용하였으며, $N=100$번 반복시행
+- 기존 모형과 outlier를 추가하였을 때의 차이를 확인 (outlier 비율은 0.2라 가정)
+- Variance $\sigma_X^2$과 covariance $C$의 estimation performance를 비교
+- Covariance의 intrapolation($\mathcal{D}_0$)과 extrapolation($\mathcal{S}_0 \backslash \mathcal{D}_0$) parts를 비교
+
+
+## Outliers settings
+- **Outlier 1~3**
+```{r out_sim2, out.width = "100%"}
+file_name <- paste0(getwd(), "/ref/outlier_ex.png")
+knitr::include_graphics(file_name)
+```
 
 ## Original model
 
@@ -326,7 +353,7 @@ legend("topleft", c("True mean","Estimated mean"), col = c(2,4), lty = c(1,1))
 
 ## Outliers
 
-```{r fig5, fig.cap = "Figure 5. Sample trajectories with mean curve (Right).", fig.height = 4}
+```{r fig5, fig.cap = "Figure 5. Sample trajectories with outliers and estimated mean curves.", fig.height = 4}
 par(mfrow = c(1, 3))
 for (k in 1:3) {
   fname <- paste("RData/sim3-", k, "_20210204.RData", sep = "")
@@ -528,22 +555,19 @@ for (k in 1:3) {
   }
 }
 
-knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average RMISE of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% 
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% 
     kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
     add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 2, "$\\hat{\\mathbf{C}}$" = 2))
 
 
-knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 3. Average MISE of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts.") %>% 
+knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 3. Average MISE (standard error) of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts.") %>% 
     kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
     add_header_above(c(" " = 1, " " = 1, "$\\mathcal{D}_0$" = 2, "$\\mathcal{S}_0 \\backslash \\mathcal{D}_0$" = 2))
 ```
 
+```{r tab_Delaigle, out.width = "100%"}
+file_name <- paste0(getwd(), "/ref/paper_tab_Delaigle.png")
+knitr::include_graphics(file_name)
+```
 
 
-
-<br>
-
-# Conclusion
-- Variance, covariance estimation에서 모두 `Lin & Wang (2020)`이 `Yao et al. (2005)`보다 낮은 RMISE, RMSE를 보여주었음.
-- `Yao et al. (2005)`의 경우, outlier가 추가되면서 off-diagonal 부분에서 RMISE의 증가폭이 매우 컸음.
-- **Outlier 2**의 경우, 두 방법에서 variance의 RMISE, RMSE가 줄어드는 경향이 있었지만, covariance에서 두 값이 큰 폭으로 증가함.
