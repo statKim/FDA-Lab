@@ -119,4 +119,33 @@ summary_ise <- function(data.list, cov.est, method = "var") {
   return(ise.cov)
 }
 
- 
+
+
+### Get eigen analysis results
+get_eigen_result <- function(cov, grid) {
+  eig <- eigen(cov, symmetric = T)
+  positive_ind <- which(eig$values > 0)
+  lambda <- eig$values[positive_ind]
+  phi <- eig$vectors[, positive_ind]
+  PVE <- cumsum(lambda) / sum(lambda)
+  
+  # normalization - fdapace package
+  lambda <- lambda * (grid[2] - grid[1])
+  phi <- apply(phi, 2, function(x) {
+    x <- x / sqrt(trapzRcpp(grid, x^2)) 
+    if ( 0 <= sum(x * 1:length(grid)) )
+      return(x)
+    else
+      return(-x)
+  })
+  
+  return(list(lambda = lambda,
+              phi = phi,
+              PVE = PVE))
+}
+
+
+### Get PC scores via conditional expectation
+get_CE_score <- function() {
+  
+}

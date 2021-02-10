@@ -24,40 +24,53 @@ get_K <- function(s, t, model = 1) {
 ### Generate functional fragments with outliers
 # model = 1~2 avaliable (In the paper, 1~4 models are shown)
 # out.type : same as "fun.snipp" in "sim_Lin_Wang(2020).R" but just 4~6 are available
-fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4) {
-  n.outlier <- ceiling(n*out.prop)   # number of outliers
-  
-  a_l <- 0.1
-  b_l <- 0.3
+# len.frag : length of domain for each curves
+# frag : generate functional fragments (If frag = FALSE, dense curves are generated.)
+fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
+                      len.frag = c(0.1, 0.3), frag = TRUE) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
   x <- list(t = list(),
             y = list())
   
-  # generate curves
-  for (n_i in 1:n) {
-    l_i <- runif(1, a_l, b_l)
-    M_i <- runif(1, a_l/2, 1-a_l/2)
+  # generate dense curves (if frag = FALSE)
+  if (frag == FALSE) {
+    m <- length(gr)   # legnth of observed grids
+    cov_sim <- get_cov_fragm(gr, model = model)
     
-    A_i <- max(0, M_i-l_i/2)
-    B_i <- min(1, M_i+l_i/2)
+    y <- rmvnorm(n, rep(0, m), cov_sim)
+    x$y <- lapply(1:n, function(i) { y[i, ] })
+    x$t <- lapply(1:n, function(i) { gr })
     
-    t <- gr[which(gr >= A_i & gr <= B_i)]   # observed grids
-    m <- length(t)   # legnth of observed grids
-    cov_sim <- matrix(NA, m, m)
-    for (i in 1:m) {
-      for (j in 1:m) {
-        # If upper triangular than compute, else substitute transposed value
-        if (i <= j) {
-          cov_sim[i, j] <- get_K(t[i], t[j], model = model)
-        } else {
-          cov_sim[i, j] <- cov_sim[j, i]
+  # generate functional fragments (if frag = TRUE; Default option)
+  } else if (frag == TRUE) {
+    a_l <- len.frag[1]
+    b_l <- len.frag[2]
+    
+    for (n_i in 1:n) {
+      l_i <- runif(1, a_l, b_l)
+      M_i <- runif(1, a_l/2, 1-a_l/2)
+      
+      A_i <- max(0, M_i-l_i/2)
+      B_i <- min(1, M_i+l_i/2)
+      
+      t <- gr[which(gr >= A_i & gr <= B_i)]   # observed grids
+      m <- length(t)   # legnth of observed grids
+      cov_sim <- matrix(NA, m, m)
+      for (i in 1:m) {
+        for (j in 1:m) {
+          # If upper triangular than compute, else substitute transposed value
+          if (i <= j) {
+            cov_sim[i, j] <- get_K(t[i], t[j], model = model)
+          } else {
+            cov_sim[i, j] <- cov_sim[j, i]
+          }
         }
       }
+      
+      x$y[[n_i]] <- rmvnorm(1, rep(0, m), cov_sim)
+      x$t[[n_i]] <- t
     }
-    
-    x$y[[n_i]] <- rmvnorm(1, rep(0, m), cov_sim)
-    x$t[[n_i]] <- t
   }
   
   # no outliers
@@ -66,6 +79,8 @@ fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4) {
   }
   
   # generate outlier curves
+  n.outlier <- ceiling(n*out.prop)   # number of outliers
+  
   if (out.type %in% 4:6) {
     d <- 0.3
     sigma.exp <- 1
