@@ -50,7 +50,6 @@ pca.est <- foreach(sim = 1:num.sim, .packages = packages) %dopar% {
   eig.yao <- get_eigen_result(cov = cov.yao, grid = work.grid)
   eig.lin <- get_eigen_result(cov = cov.lin, grid = work.grid)
   
-  
   # output list
   out <- list(work.grid = work.grid,
               true = eig.true,
@@ -101,8 +100,8 @@ colMeans(ise)
 library(tidyverse)
 library(latex2exp)
 library(gridExtra)
-sim <- 100
-for (i in 1:k) {
+sim <- 1
+for (i in 1:K) {
   # estimated covariances from Simulation 3
   work.grid <- cov.est[[sim]]$work.grid
   cov.true <- cov.est[[sim]]$cov$true
@@ -110,9 +109,9 @@ for (i in 1:k) {
   cov.lin <- cov.est[[sim]]$cov$lin
   
   # eigen analysis
-  eig.true <- get_eigen_result(cov = cov.true, grid = work.grid)
-  eig.yao <- get_eigen_result(cov = cov.yao, grid = work.grid)
-  eig.lin <- get_eigen_result(cov = cov.lin, grid = work.grid)
+  eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+  eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+  eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
   
   k <- length(which(eig.true$PVE < 0.99))
   
@@ -173,11 +172,10 @@ pca.est.outlier <- foreach(sim = 1:num.sim, .packages = packages) %dopar% {
   ### 수정 필요!!!!! => Lin cov가 모두 0으로 나옴
   cov.lin <- predict(cov.est.outlier[[sim]]$cov.obj$lin, work.grid)
   
-  
   # eigen analysis
-  eig.true <- get_eigen_result(cov = cov.true, grid = work.grid)
-  eig.yao <- get_eigen_result(cov = cov.yao, grid = work.grid)
-  eig.lin <- get_eigen_result(cov = cov.lin, grid = work.grid)
+  eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+  eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+  eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
   
   
   # output list
@@ -189,6 +187,10 @@ pca.est.outlier <- foreach(sim = 1:num.sim, .packages = packages) %dopar% {
   return(out)
 }
 stopCluster(cl)
+
+# save(list = c("pca.est","pca.est.outlier"), file = "RData/sim3-1_20210212.RData")
+# save(list = c("pca.est","pca.est.outlier"), file = "RData/sim3-2_20210212.RData")
+# save(list = c("pca.est","pca.est.outlier"), file = "RData/sim3-3_20210212.RData")
 
 
 
@@ -221,3 +223,45 @@ for (i in 1:num.sim) {
   ise[i, ] <- colSums(ise_eig)
 }
 colMeans(ise)
+
+
+#####################
+### Visualization
+#####################
+library(tidyverse)
+library(latex2exp)
+library(gridExtra)
+sim <- 1
+for (i in 1:K) {
+  # estimated covariances from Simulation 3
+  work.grid <- cov.est.outlier[[sim]]$work.grid
+  cov.true <- cov.est.outlier[[sim]]$cov$true
+  cov.yao <- cov.est.outlier[[sim]]$cov$yao
+  cov.lin <- cov.est.outlier[[sim]]$cov$lin
+  
+  # eigen analysis
+  eig.true <- get_eigen_result(cov = cov.true, grid = work.grid)
+  eig.yao <- get_eigen_result(cov = cov.yao, grid = work.grid)
+  eig.lin <- get_eigen_result(cov = cov.lin, grid = work.grid)
+  
+  k <- length(which(eig.true$PVE < 0.99))
+  
+  fig.data <- data.frame(work.grid = rep(work.grid, 3),
+                         phi = c(eig.true$phi[, i],
+                                 eig.yao$phi[, i],
+                                 eig.lin$phi[, i]),
+                         method = rep(c("True","Yao(2005)","Lin(2020)"), each = length(work.grid)))
+  assign(
+    paste0("p", i),
+    ggplot(data = fig.data, 
+           mapping = aes(work.grid, phi, color = method)) +
+      geom_line(size = 1) +
+      labs(x = TeX("$t$"), y = TeX(paste0("$\\phi_", i, "(t)$"))) +
+      scale_color_discrete(breaks = c("True","Yao(2005)","Lin(2020)")) +
+      theme_bw() +
+      theme(legend.title = element_blank(),
+            legend.position = "bottom")
+  )
+}
+grid.arrange(grobs = mget(paste0("p", 1:k)),   # mget(): get multiple objects
+             nrow = 2)

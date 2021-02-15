@@ -122,14 +122,14 @@ summary_ise <- function(data.list, cov.est, method = "var") {
 
 
 ### Get eigen analysis results
-get_eigen_result <- function(cov, grid) {
+get_eigen <- function(cov, grid) {
   eig <- eigen(cov, symmetric = T)
   positive_ind <- which(eig$values > 0)
   lambda <- eig$values[positive_ind]
   phi <- eig$vectors[, positive_ind]
   PVE <- cumsum(lambda) / sum(lambda)
   
-  # normalization - fdapace package
+  # normalization since discretization technique - from "fdapace" package
   lambda <- lambda * (grid[2] - grid[1])
   phi <- apply(phi, 2, function(x) {
     x <- x / sqrt(trapzRcpp(grid, x^2)) 
@@ -144,6 +144,35 @@ get_eigen_result <- function(cov, grid) {
               PVE = PVE))
 }
 
+### Get PCA results for each simulation datasets
+sim_eigen_result <- function(cov.est, num.sim, seed = 1000) {
+  # list of packages
+  packages <- c("fdapace","mcfda","synfd")
+  
+  registerDoRNG(seed)
+  pca.est <- foreach(sim = 1:num.sim, .packages = packages, .export = c("get_eigen")) %dopar% {
+    # estimated covariances from Simulation 3
+    work.grid <- cov.est[[sim]]$work.grid
+    cov.true <- cov.est[[sim]]$cov$true
+    cov.yao <- cov.est[[sim]]$cov$yao
+    cov.lin <- cov.est[[sim]]$cov$lin
+    
+    # eigen analysis
+    eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+    eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+    eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
+    
+    # output list
+    out <- list(work.grid = work.grid,
+                true = eig.true,
+                yao = eig.yao,
+                lin = eig.lin)
+    
+    return(out)
+  }
+  
+  return(pca.est)
+}
 
 ### Get PC scores via conditional expectation
 get_CE_score <- function() {

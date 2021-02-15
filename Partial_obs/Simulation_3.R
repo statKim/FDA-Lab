@@ -224,6 +224,15 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages) %dopar% {
   # })
   cov.lin <- predict(cov.lin.obj, work.grid)
   
+  # if some covariances is a not finite value
+  if (!is.finite(sum(cov.yao)) | !is.finite(sum(cov.lin))) {
+    return(NULL)
+  }
+  # if all covariances are 0
+  if ((sum(cov.yao) == 0) | (sum(cov.lin) == 0)) {
+    return(NULL) 
+  }
+  
   
   # output list
   out <- list(work.grid = work.grid,
