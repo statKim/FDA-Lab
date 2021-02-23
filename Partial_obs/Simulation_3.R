@@ -339,7 +339,7 @@ ise_sd[2, 1:2] <- apply(ise.cov, 1, sd)
 
 ##### Extrapolation parts (S_0 \ D_0)
 ### ISE
-ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
+ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "extra")
 ise_mean[2, 3:4] <- rowMeans(ise.cov)   # ISE
 ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
 

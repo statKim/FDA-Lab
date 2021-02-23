@@ -1,0 +1,240 @@
+---
+title: "Partially observed functional data"
+author: "Hyunsung Kim"
+date: '2021-02-24'
+output: 
+  prettydoc::html_pretty:
+    # theme: leonids
+    # theme: hpstr
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+header-includes:
+  - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
+                      # cache = T,
+                      fig.align = "center", fig.width = 12, fig.height = 6)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+library(GA)   # persp plot
+library(mvtnorm)
+library(fdapace)   # 1, 2
+library(mcfda)   # 7
+library(synfd)   # 7
+library(doParallel)   # parallel computing
+library(doRNG)   # set.seed for foreach
+library(MASS)   # huber, rlm
+source("functions.R")
+library(kableExtra)
+library(tidyverse)
+library(gridExtra)
+library(latex2exp)
+```
+
+
+<br>
+# Lin & Wang (2020) + Huber Loss
+## Local polynomial kernel smoothing
+- The estimation of $\mu(t)$ and $\sigma_X^2(t)$ be $\hat{b}_0$ from the following minimization criterions:
+$$
+\begin{align}
+  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \{ Y_{ij} - b_0 - b_1(T_{ij}-t) \}^2, \\
+  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right]^2,
+\end{align}
+$$
+where $K$ be a kernel function, $h_{\mu}, h_{\sigma}$ bandwidths for $\mu$ and $\sigma_X^2$, $w$ weight.
+- 위 식은 weighted least squares (WLS)로 solution을 찾을 수 있음.
+
+
+## Local polynomial kernel smoothing with Huber loss
+- Non-parametric method for estimating $\mu(t)$ and $\sigma_X^2(t)$
+- The estimation of $\mu(t)$ and $\sigma_X^2(t)$ be $\hat{b}_0$ from the following minimization criterions:
+$$
+\begin{align}
+  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n \rho \left[ w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \{ Y_{ij} - b_0 - b_1(T_{ij}-t) \} \right], \\
+  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n \rho \left[ w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right] \right],
+\end{align}
+$$
+where
+$$
+\rho(x) = 
+\begin{cases}
+  \frac{1}{2}x^2, & |a| \le k \\
+  k(|x| - \frac{1}{2}k), & |a| > k.
+\end{cases}
+$$
+- 위 식은 iterated re-weighted least squares (IWLS)으로 solution을 찾을 수 있음. (`rlm()` in `MASS`)
+- IWLS 적용 전, response와 predictors를 weighted variable로 변환해주어야함. (WLS scheme)
+
+
+
+## Cross validation for optimal bandwidth $h$
+- 논문과 같은 criteria로 K-fold CV 적용
+$$
+\text{CV}(h) = \sum \sum \sum
+$$
+
+
+## Problems
+- Lin & Wang (2020)은 kernel smoother로부터 얻은 measurement error를 적용하지 않음...(이것도 robust하게 바꾸던지 해야할 것으로 보임)
+- 특히, Lin & Wang (2020) 방법으로 error variance를 estimate하면 매우 큰 값이 나오게 됨.
+
+
+
+# Results
+
+```{r fig3, fig.cap = "Figure 1. True covariance surface and estimated covariance surfaces.", fig.height = 14, fig.width = 8}
+i <- 1
+par(mfrow = c(3, 4),
+    mar = c(2, 2, 2, 2))
+for (k in 1:3) {
+  fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  load(fname)
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  data.list.outlier <- data.list.outlier[ind]
+  cov.est.outlier <- cov.est.outlier[ind]
+  
+  if (k == 1) {
+    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin (2020) + Huber loss")
+  } else {
+    main <- c("","","","")
+  }
+  
+  ### Covariance surface
+  work.grid <- cov.est.outlier[[i]]$work.grid
+  cov.list <- cov.est.outlier[[i]]$cov
+  # par(mfrow = c(1, 3),
+  #     mar = c(0, 2, 7, 2))
+  persp3D(work.grid, work.grid, cov.list$true, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[1], 
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  mtext(paste("Outlier", k), side = 2)
+  persp3D(work.grid, work.grid, cov.list$yao, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[2], 
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  persp3D(work.grid, work.grid, cov.list$lin, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[3],
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  persp3D(work.grid, work.grid, cov.list$huber, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[4],
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+}
+```
+
+
+
+```{r tab1}
+#############################
+### Calculate RMISE with outliers
+#############################
+cname <- c("Yao (2005)","Lin (2020)","Lin + Huber loss")
+res.mat <- matrix(NA, 3, 7)
+colnames(res.mat) <- c("$N$", cname, cname)
+row.names(res.mat) <- paste0("Outlier ", 1:3)
+res.mat2 <- res.mat
+
+for (k in 1:3) {
+  fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  load(fname)
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  num.sim <- length(ind)   # number of simulations
+  data.list.outlier <- data.list.outlier[ind]
+  cov.est.outlier <- cov.est.outlier[ind]
+  
+  ### variance
+  ise.var <- summary_ise(data.list.outlier, cov.est.outlier, method = "var")
+  ### covariance
+  ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "cov")
+  
+  # res.mat[k+1, ] <- c(num.sim,
+  #                     sqrt(rowMeans(ise.var)),
+  #                     sqrt(rowMeans(ise.cov)))
+  res.mat[k, ] <- c(num.sim,
+                      paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                             "(", 
+                             round(apply(ise.var, 1, sd), 2), 
+                             ")"),
+                      paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                             "(", 
+                             round(apply(ise.cov, 1, sd), 2), 
+                             ")"))
+  
+  
+  ### Intrapolation parts (D_0)
+  ise.intra <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
+  ### Extrapolation parts (S_0 \ D_0)
+  ise.extra <- summary_ise(data.list.outlier, cov.est.outlier, method = "extra")
+
+  # res.mat2[k+1, ] <- c(num.sim,
+  #                      rowMeans(ise.intra),
+  #                      rowMeans(ise.extra))
+  res.mat2[k, ] <- c(num.sim,
+                      paste0(round(rowMeans(ise.intra), 2), 
+                             "(", 
+                             round(apply(ise.intra, 1, sd), 2), 
+                             ")"),
+                      paste0(round(rowMeans(ise.extra), 2), 
+                             "(", 
+                             round(apply(ise.extra, 1, sd), 2), 
+                             ")"))
+  # res.mat2[k+1, 3:4] <- rowMeans(ise.extra)   # ISE
+  # ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
+}
+
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% 
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
+    add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 3, "$\\hat{\\mathbf{C}}$" = 3))
+
+
+knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 2. Average MISE (standard error) of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts.") %>% 
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
+    add_header_above(c(" " = 1, " " = 1, "$\\mathcal{D}_0$" = 3, "$\\mathcal{S}_0 \\backslash \\mathcal{D}_0$" = 3))
+```
+
+
+
+
+
+
+
+
+
+
