@@ -21,7 +21,9 @@ source("functions.R")
 ### Covariance estimation
 #############################
 
-load("RData/sim3-1_20210204.RData")
+# load("RData/sim3-1_20210204.RData")
+# load("RData/sim3-2_20210204.RData")
+load("RData/sim3-3_20210204.RData")
 
 num.sim <- 100   # number of simulations
 
@@ -33,8 +35,7 @@ model.cov <- 2   # covariance function setting of the paper (1, 2)
 
 registerDoRNG(1000)
 cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %do% {
-# for (sim in 1:num.sim) {
-  print(paste0(sim, "th imulation:"))
+  print(paste0(sim, "th simulation:"))
   start_time <- Sys.time()
   
   # Get simulation data
@@ -78,7 +79,6 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
 
     
   ## Huber loss
-  # bandwidth are selected from 5-fold CV (almost 3 minutes)
   # For computation times, we specified bw_mu.
   mu.huber.obj <- tryCatch({
     meanfunc(x.2$Lt, x.2$Ly, method = "HUBER", kernel = "gauss", bw = mu.yao.obj$optns$userBwMu)
@@ -90,6 +90,7 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
   if (is.na(mu.huber.obj)) {
     return(NULL)
   }
+  # bandwidth are selected from 5-fold CV (almost 3 minutes)
   cov.huber.obj <-  tryCatch({
     covfunc(x.2$Lt, x.2$Ly, mu = mu.huber.obj, kernel = "gauss", method = "HUBER")
   }, error = function(e) { 
@@ -133,15 +134,17 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
 }
 
 
-save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-1_20210224.RData")
+# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-1_20210224.RData")
 # save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-2_20210224.RData")
-# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-3_20210224.RData")
+save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-3_20210224.RData")
 
 ### Error list
+# [1] "Lin cov error"
+# <simpleError in optim(v, Q, lower = theta.lb, upper = theta.ub, method = "L-BFGS-B"): non-finite value supplied by optim>
 # [1] "Huber cov error"
 # <simpleError in {    err <- 0    for (k in 1:K) {        Lt_train <- Lt[-folds[[k]]]        Ly_train <- Ly[-folds[[k]]]        Lt_test <- Lt[folds[[k]]]        Ly_test <- Ly[folds[[k]]]        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train,             newt = Lt_test, bw = bw_cand[i], kernel = kernel,             loss = loss, ...)        y <- unlist(Ly_test)        err <- err + (y %*% y_hat)    }    return(err)}: task 1 failed - "'x' is singular: singular fits are not implemented in 'rlm'">
 
-### Error on `cov.SP.R`
+## Error on `cov.SP.R`
 # <simpleError in diag(sig.t): invalid 'nrow' value (too large or NA)>
 
 
@@ -173,7 +176,7 @@ ise_sd[1, 4:6] <- apply(ise.cov, 1, sd)
 
 
 ### Covariance surface
-i <- 2
+i <- 1
 work.grid <- cov.est.outlier[[i]]$work.grid
 cov.list <- cov.est.outlier[[i]]$cov
 par(mfrow = c(2, 2))

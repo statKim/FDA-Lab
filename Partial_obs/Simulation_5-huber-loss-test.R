@@ -61,16 +61,10 @@ cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
 cov.lin <- predict(cov.lin.obj, work.grid)
 
 
-
-# for (i in list.files("C:/Users/user/Desktop/KHS/mcfda/R")) {
-#   fname <- paste0("C:/Users/user/Desktop/KHS/mcfda/R/", i)
-#   source(fname)
-# }
-
 ## Lin % Wang (2020) with Huber loss
 # devtools::install_github("statKim/mcfda")
 start_time <- Sys.time()
-mu.huber.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "HUBER", kernel = "gauss", bw = NULL)
+mu.huber.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "HUBER", kernel = "gauss", bw = mu.yao.obj$optns$userBwMu)
 cov.huber.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.huber.obj, kernel = "gauss", method = "HUBER")
 cov.huber <- predict(cov.huber.obj, work.grid)
 end_time <- Sys.time()

@@ -4,16 +4,14 @@ author: "Hyunsung Kim"
 date: '2021-02-24'
 output: 
   prettydoc::html_pretty:
-    # theme: leonids
-    # theme: hpstr
     theme: cayman
     highlight: github
     fig_caption: true
     # number_sections: true
     toc: true
     # toc_depth: 2
-header-includes:
-  - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
 ---
 
 <style>
@@ -62,7 +60,7 @@ library(latex2exp)
 ```
 
 
-<br>
+
 # Lin & Wang (2020) + Huber Loss
 ## Local polynomial kernel smoothing
 - The estimation of $\mu(t)$ and $\sigma_X^2(t)$ be $\hat{b}_0$ from the following minimization criterions:
@@ -95,25 +93,31 @@ $$
 $$
 - 위 식은 iterated re-weighted least squares (IWLS)으로 solution을 찾을 수 있음. (`rlm()` in `MASS`)
 - IWLS 적용 전, response와 predictors를 weighted variable로 변환해주어야함. (WLS scheme)
+- In this study, we use the fixed $k = 1.345$ for Huber function.
 
 
 
 ## Cross validation for optimal bandwidth $h$
-- 논문과 같은 criteria로 K-fold CV 적용
+- The bandwidths for kernel smoothing, $h_{\mu}, h_{\sigma}$, be selected by $\mathcal{K}$-fold cross validation, which minimizes the following CV errors:
 $$
-\text{CV}(h) = \sum \sum \sum
+\begin{align}
+  \text{CV}(h_{\mu}) &= \sum_{k=1}^{\mathcal{K}} \sum_{i \in \mathcal{P}_k} \sum_{j=1}^{m_i} \left\{ Y_{ij} - \hat{\mu}_{h_{\mu},-k}(T_{ij}) \right\}^2 \\
+  \text{CV}(h_{\sigma}) &= \sum_{k=1}^{\mathcal{K}} \sum_{i \in \mathcal{P}_k} \sum_{j=1}^{m_i} \left[ \{ Y_{ij} - \hat{\mu}(T_{ij}) \}^2 - \hat{\sigma}_X^2(T_{ij}) \right]^2 
+\end{align}
 $$
 
 
 ## Problems
-- Lin & Wang (2020)은 kernel smoother로부터 얻은 measurement error를 적용하지 않음...(이것도 robust하게 바꾸던지 해야할 것으로 보임)
-- 특히, Lin & Wang (2020) 방법으로 error variance를 estimate하면 매우 큰 값이 나오게 됨.
+- Huber loss로 대체하여 추정된 variance estimator($\hat{\sigma}_X^2$)는 error variance($\sigma_0^2$)를 빼지 않은 값임. (원래는 이 값을 빼주는 것이 맞음.)
+- Outlier가 포함된 데이터로부터 Lin & Wang (2020) 방법으로 추정된 $\hat{\sigma}_0^2$는 매우 큰 값을 가짐. (이 값을 빼게 되면 variance estimator가 모두 음수가 되어 실직적인 값은 0으로 추정된 것임.)
+- 또한 추정된 va
+- 따라서 $\sigma_0^2$ 또한 robust하게 바꾸던지 아니면 이론적으로 없애도 되는지(?)를 생각해봐야할 것으로 보임
 
 
 
-# Results
+# Results for covariance estimation
 
-```{r fig3, fig.cap = "Figure 1. True covariance surface and estimated covariance surfaces.", fig.height = 14, fig.width = 8}
+```{r fig1, fig.cap = "Figure 1. True covariance surface and estimated covariance surfaces.", fig.height = 14, fig.width = 8}
 i <- 1
 par(mfrow = c(3, 4),
     mar = c(2, 2, 2, 2))
@@ -127,7 +131,7 @@ for (k in 1:3) {
   cov.est.outlier <- cov.est.outlier[ind]
   
   if (k == 1) {
-    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin (2020) + Huber loss")
+    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin & Wang (2020) + Huber loss")
   } else {
     main <- c("","","","")
   }
@@ -163,7 +167,7 @@ for (k in 1:3) {
 #############################
 ### Calculate RMISE with outliers
 #############################
-cname <- c("Yao (2005)","Lin (2020)","Lin + Huber loss")
+cname <- c("Yao (2005)","Lin (2020)","Lin (2020) + Huber loss")
 res.mat <- matrix(NA, 3, 7)
 colnames(res.mat) <- c("$N$", cname, cname)
 row.names(res.mat) <- paste0("Outlier ", 1:3)
@@ -232,9 +236,138 @@ knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 2. Average MISE
 
 
 
+# Results for PCA
+
+## Estimated first 3 eigenfunctions
+```{r fig2, fig.cap = "Figure 2. Estimated first 3 eigenfunctions for 1st simulation data.", fig.height = 16}
+p <- list()
+
+### With outliers
+for (k in 1:3) {
+  fname <- paste0("RData/simt-", k, "_20210224.RData")
+  load(fname)
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  cov.est.outlier <- cov.est.outlier[ind]
+
+  sim <- 1
+  # fitst 3 eigenfunctions
+  for (i in 1:3) {
+    if (i == 1) {
+      p_title <- paste("Outlier", k)
+    } else {
+      p_title <- ""
+    }
+    
+    # estimated covariances from Simulation 3
+    work.grid <- cov.est.outlier[[sim]]$work.grid
+    cov.true <- cov.est.outlier[[sim]]$cov$true
+    cov.yao <- cov.est.outlier[[sim]]$cov$yao
+    cov.lin <- cov.est.outlier[[sim]]$cov$lin
+    cov.huber <- cov.est.outlier[[sim]]$cov$huber  
+    
+    # eigen analysis
+    eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+    eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+    eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
+    eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
+    
+    # k <- length(which(eig.true$PVE < 0.99))
+    
+    fig.data <- data.frame(work.grid = rep(work.grid, 4),
+                           phi = c(eig.true$phi[, i],
+                                   eig.yao$phi[, i],
+                                   eig.lin$phi[, i],
+                                   eig.huber$phi[, i]),
+                           method = rep(c("True","Yao (2005)","Lin (2020)","Lin (2020) + Huber loss"), 
+                                        each = length(work.grid)))
+    p[[3*(k-1)+i]] <- ggplot(data = fig.data, 
+                             mapping = aes(work.grid, phi, color = method)) +
+      geom_line(size = 1) +
+      labs(x = TeX("$t$"), y = TeX(paste0("$\\phi_", i, "(t)$")), title = p_title) +
+      scale_color_discrete(breaks = c("True","Yao (2005)","Lin (2020)","Lin (2020) + Huber loss")) +
+      theme_bw() +
+      theme(legend.title = element_blank(),
+            legend.position = "bottom")
+  }
+}
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 3)
+```
 
 
+## MISE for first 3 eigenfunctions
+```{r tab1}
+# Parallel computing setting
+ncores <- detectCores() - 3
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
 
+res <- list()
+
+### Eigen analysis
+for (k in 1:3) {
+  fname <- paste0("RData/sim5-", k, "_20210224.RData")
+  load(fname)
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  cov.est.outlier <- cov.est.outlier[ind]
+  num.sim <- length(ind)
+  
+  res[[k]] <- sim_eigen_result(cov.est.outlier, num.sim, seed = 1000)
+}
+stopCluster(cl)  
+
+### Calculate ISE for 1~3 eigenfunctions
+cname <- c("Yao (2005)","Lin (2020)","Lin (2020) + Huber loss")
+res.mat <- matrix(NA, 3, 4)
+colnames(res.mat) <- c("$N$", cname)
+row.names(res.mat) <- paste0("Outlier ", 1:3)
+
+for (j in 1:3) {
+  pca.est <- res[[j]]
+  num.sim <- length(pca.est)
+  ise <- matrix(NA, num.sim, 2)
+  
+  for (i in 1:num.sim) {
+    work.grid <- pca.est[[i]]$work.grid
+    
+    eig.true <- pca.est[[i]]$true
+    eig.yao <- pca.est[[i]]$yao
+    eig.lin <- pca.est[[i]]$lin
+    eig.huber <- pca.est[[i]]$huber
+    
+    # K <- length(which(eig.true$PVE < 0.99))
+    K <- 3
+    
+    # calculate ISE for k eigenfunctions
+    ise_eig <- matrix(NA, K, 3)
+    for (k in 1:K) {
+      ise_eig[k, ] <- c(
+        get_ise(eig.true$phi[, k], eig.yao$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.lin$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.huber$phi[, k], work.grid)
+      )
+    }
+    
+    ise[i, ] <- colSums(ise_eig)
+  }
+  
+  res.mat[j, ] <- c(
+    num.sim,
+    paste0(round(sqrt(colMeans(ise)), 2), 
+           "(", 
+           round(apply(ise, 2, sd), 2), 
+           ")")
+  )
+}
+
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average MISE (standard error) of first 3 eigenfunctions.") %>% 
+  kable_styling("striped", full_width = FALSE, font_size = 14)
+```
 
 
 

@@ -161,17 +161,20 @@ sim_eigen_result <- function(cov.est, num.sim, seed = 1000) {
     cov.true <- cov.est[[sim]]$cov$true
     cov.yao <- cov.est[[sim]]$cov$yao
     cov.lin <- cov.est[[sim]]$cov$lin
+    cov.huber <- cov.est[[sim]]$cov$huber
     
     # eigen analysis
     eig.true <- get_eigen(cov = cov.true, grid = work.grid)
     eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
     eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
+    eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
     
     # output list
     out <- list(work.grid = work.grid,
                 true = eig.true,
                 yao = eig.yao,
-                lin = eig.lin)
+                lin = eig.lin,
+                huber = eig.huber)
     
     return(out)
   }
