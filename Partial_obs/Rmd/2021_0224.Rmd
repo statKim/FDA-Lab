@@ -108,7 +108,7 @@ $$
 
 
 ## Problems
-- Huber loss로 대체하여 추정된 variance estimator($\hat{\sigma}_X^2$)는 error variance($\hat{\sigma}_0^2$)를 빼지 않은 값임. (원래는 이 값을 빼주는 것이 맞음.)
+- Huber loss로 대체하여 추정된 variance estimator($\hat{\sigma}_X^2$)는 error variance($\hat{\sigma}_0^2$)를 빼지 않은 값임. (원래 이 값을 빼주어야 정확한 estimator임.)
 - Outlier가 포함된 데이터로부터 Lin & Wang (2020) 방법으로 추정된 $\hat{\sigma}_0^2$는 매우 큰 값을 가짐. (이 값을 빼게 되면 variance estimator가 모두 음수가 되어 실직적인 값은 0으로 추정된 것임.)
 - 따라서 $\sigma_0^2$ 또한 robust하게 estimate하는 방법을 생각해봐야할 것으로 보임
 
@@ -116,11 +116,11 @@ $$
 <br>
 
 # Results for covariance estimation
-- bandwidth의 경우, cross-validation 코드에서의 오류 발견으로 임의로 선택한 것이라 생각하면 될 것 같습니다.
+- CV를 통해 optimal한 bandwidth를 찾아야하지만, 이번 결과에서는 cv error 계산식에서 오류가 발견되어 임의로 선택한 것이라 생각하면 될 것 같습니다.
+- Variance estimation에서 `huber()` in `MASS`를 사용한 방법은 local kernel smoothing이 아닌 각 time point에서의 값으로 구한 location estimation이다보니 결과 요약에서 제외함. (Figure 1과 대응되는 그림은 [Appendix](#appendix) 참고)
 
 ## Variance estimation
-- Huber estimation을 위해 2가지(`rlm()`, `huber()` in `MASS`)를 고려. (단, 이후 과정에서는 모두 `rlm()`을 사용함)
-- Yao (2005)의 경우, variance estimator가 음수가 나오기도 함. (따로 처리 안해줌)
+- Yao (2005)의 경우, variance estimator가 음수가 나오기도 함. (함수 내에서 따로 처리해주지 않음)
 - Lin (2020)의 경우, `mcfda`의 함수에서 estimator가 음수가 나오면 0으로 처리함.
 
 ```{r fig1, fig.cap = "Figure 1. Trajectories of true and estimated variances.", fig.height = 8, fig.width = 15}
@@ -138,41 +138,40 @@ for (k in 1:3) {
   cov.est.outlier <- cov.est.outlier[ind]
   
   # Get simulation data
-  x <- data.list.outlier[[sim]]$x
-  gr <- data.list.outlier[[sim]]$gr
+  # x <- data.list.outlier[[sim]]$x
+  # gr <- data.list.outlier[[sim]]$gr
   
   work.grid <- cov.est.outlier[[sim]]$work.grid
   cov.list <- cov.est.outlier[[sim]]$cov
   
-  # pointwise huber estimation
-  Lt <- unlist(x$t)
-  Ly <- unlist(x$y)
-  mu.huber.pt <- sapply(gr, function(t) {
-    ind <- which(Lt == t)
-    return( huber(Ly[ind], k = 1.345)$mu )
-  })
-  var.huber.pt <- sapply(gr, function(t) {
-    ind <- which(Lt == t)
-    ind_mu <- which(gr == t)
-    var <- tryCatch({
-      huber((Ly[ind] - mu.huber.pt[ind_mu])^2, k = 1.345)$mu 
-    }, error = function(e) {
-      return(0)
-    })
-    var <- ifelse(var < 0, 0, var)   # set 0 for negative variances
-    return(var)
-  })
+  # # pointwise huber estimation
+  # Lt <- unlist(x$t)
+  # Ly <- unlist(x$y)
+  # mu.huber.pt <- sapply(gr, function(t) {
+  #   ind <- which(Lt == t)
+  #   return( huber(Ly[ind], k = 1.345)$mu )
+  # })
+  # var.huber.pt <- sapply(gr, function(t) {
+  #   ind <- which(Lt == t)
+  #   ind_mu <- which(gr == t)
+  #   var <- tryCatch({
+  #     huber((Ly[ind] - mu.huber.pt[ind_mu])^2, k = 1.345)$mu 
+  #   }, error = function(e) {
+  #     return(0)
+  #   })
+  #   var <- ifelse(var < 0, 0, var)   # set 0 for negative variances
+  #   return(var)
+  # })
   
   df <- data.frame(
-    x = rep(gr, 5),
+    x = rep(work.grid, 4),
     y = c(diag(cov.list$true),
           diag(cov.list$yao),
           diag(cov.list$lin),
-          diag(cov.list$huber),
-          var.huber.pt),
-    method = factor(rep(c("True","Yao(2005)","Lin(2020)","Lin+rlm()","Lin+huber()"),
-                        each = length(gr)),
-                    levels = c("True","Yao(2005)","Lin(2020)","Lin+rlm()","Lin+huber()"))
+          diag(cov.list$huber)),
+    method = factor(rep(c("True","Yao(2005)","Lin(2020)","Lin + Huber loss"),
+                        each = length(work.grid)),
+                    levels = c("True","Yao(2005)","Lin(2020)","Lin + Huber loss"))
   )
   p[[2*(k-1)+1]] <- ggplot(df, aes(x, y, group = method, color = method)) +
     geom_line(size = 1) +
@@ -182,7 +181,7 @@ for (k in 1:3) {
     theme(legend.title = element_blank(),
           legend.position = "bottom")
   p[[2*(k-1)+2]] <- df %>% 
-    filter(method %in% c("True","Lin+rlm()","Lin+huber()")) %>% 
+    filter(method %in% c("True","Lin + Huber loss")) %>% 
     ggplot(aes(x, y, group = method, color = method)) +
     geom_line(size = 1) +
     labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "") +
@@ -200,7 +199,7 @@ grid.arrange(grobs = p,   # mget(): get multiple objects
 ## Covariance estimation
 
 ```{r fig2, fig.cap = "Figure 2. True covariance surface and estimated covariance surfaces.", fig.height = 6, fig.width = 8}
-i <- 1
+# sim <- 20
 par(mfrow = c(3, 4),
     mar = c(2, 2, 2, 2))
 for (k in 1:3) {
@@ -219,8 +218,8 @@ for (k in 1:3) {
   }
   
   ### Covariance surface
-  work.grid <- cov.est.outlier[[i]]$work.grid
-  cov.list <- cov.est.outlier[[i]]$cov
+  work.grid <- cov.est.outlier[[sim]]$work.grid
+  cov.list <- cov.est.outlier[[sim]]$cov
   # par(mfrow = c(1, 3),
   #     mar = c(0, 2, 7, 2))
   persp3D(work.grid, work.grid, cov.list$true, 
@@ -325,6 +324,7 @@ knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 2. Average MISE
 ```{r fig3, fig.cap = "Figure 3. Estimated first 3 eigenfunctions for 1st simulation data.", fig.height = 12, fig.width = 15}
 p <- list()
 
+# sim <- 20
 ### With outliers
 for (k in 1:3) {
   fname <- paste0("RData/sim5-", k, "_20210224.RData")
@@ -334,7 +334,6 @@ for (k in 1:3) {
   ind <- which(!sapply(cov.est.outlier, is.null))
   cov.est.outlier <- cov.est.outlier[ind]
 
-  sim <- 1
   # estimated covariances from Simulation 3
   work.grid <- cov.est.outlier[[sim]]$work.grid
   cov.true <- cov.est.outlier[[sim]]$cov$true
@@ -461,4 +460,81 @@ knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average MISE 
 ```
 
 
+<br>
+
+# Appendix
+
+```{r fig4, fig.cap = "Figure 4. Trajectories of true and estimated variances.", fig.height = 8, fig.width = 15}
+p <- list()
+
+# sim <- 20
+for (k in 1:3) {
+  fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  load(fname)
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  num.sim <- length(ind)   # number of simulations
+  data.list.outlier <- data.list.outlier[ind]
+  cov.est.outlier <- cov.est.outlier[ind]
+  
+  # Get simulation data
+  x <- data.list.outlier[[sim]]$x
+  gr <- data.list.outlier[[sim]]$gr
+  
+  work.grid <- cov.est.outlier[[sim]]$work.grid
+  cov.list <- cov.est.outlier[[sim]]$cov
+  
+  # pointwise huber estimation
+  Lt <- unlist(x$t)
+  Ly <- unlist(x$y)
+  mu.huber.pt <- sapply(gr, function(t) {
+    ind <- which(Lt == t)
+    return( huber(Ly[ind], k = 1.345)$mu )
+  })
+  var.huber.pt <- sapply(gr, function(t) {
+    ind <- which(Lt == t)
+    ind_mu <- which(gr == t)
+    var <- tryCatch({
+      huber((Ly[ind] - mu.huber.pt[ind_mu])^2, k = 1.345)$mu
+    }, error = function(e) {
+      return(0)
+    })
+    var <- ifelse(var < 0, 0, var)   # set 0 for negative variances
+    return(var)
+  })
+  
+  df <- data.frame(
+    x = rep(work.grid, 5),
+    y = c(diag(cov.list$true),
+          diag(cov.list$yao),
+          diag(cov.list$lin),
+          diag(cov.list$huber),
+          var.huber.pt),
+    method = factor(rep(c("True","Yao(2005)","Lin(2020)","Lin+rlm()","Lin+huber()"),
+                        each = length(work.grid)),
+                    levels = c("True","Yao(2005)","Lin(2020)","Lin+rlm()","Lin+huber()"))
+  )
+  p[[2*(k-1)+1]] <- ggplot(df, aes(x, y, group = method, color = method)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = paste("Outlier", k)) +
+    geom_hline(yintercept = 0, size = 0.8) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+  p[[2*(k-1)+2]] <- df %>% 
+    filter(method %in% c("True","Lin+rlm()","Lin+huber()")) %>% 
+    ggplot(aes(x, y, group = method, color = method)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "") +
+    geom_hline(yintercept = 0, size = 0.8) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+}
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 2,
+             as.table = F)   # columnwise plotting
+```
 
