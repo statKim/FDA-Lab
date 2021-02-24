@@ -93,7 +93,7 @@ $$
 $$
 - 위 식은 iterated re-weighted least squares (IWLS)으로 solution을 찾을 수 있음. (`rlm()` in `MASS`)
 - IWLS 적용 전, response와 predictors를 weighted variable로 변환해주어야함. (WLS scheme)
-- In this study, we use the fixed $k = 1.345$ for Huber function.
+- Huber function에서 $k = 1.345$로 고정.
 
 
 
@@ -108,16 +108,98 @@ $$
 
 
 ## Problems
-- Huber loss로 대체하여 추정된 variance estimator($\hat{\sigma}_X^2$)는 error variance($\sigma_0^2$)를 빼지 않은 값임. (원래는 이 값을 빼주는 것이 맞음.)
+- Huber loss로 대체하여 추정된 variance estimator($\hat{\sigma}_X^2$)는 error variance($\hat{\sigma}_0^2$)를 빼지 않은 값임. (원래는 이 값을 빼주는 것이 맞음.)
 - Outlier가 포함된 데이터로부터 Lin & Wang (2020) 방법으로 추정된 $\hat{\sigma}_0^2$는 매우 큰 값을 가짐. (이 값을 빼게 되면 variance estimator가 모두 음수가 되어 실직적인 값은 0으로 추정된 것임.)
-- 또한 추정된 va
-- 따라서 $\sigma_0^2$ 또한 robust하게 바꾸던지 아니면 이론적으로 없애도 되는지(?)를 생각해봐야할 것으로 보임
+- 따라서 $\sigma_0^2$ 또한 robust하게 estimate하는 방법을 생각해봐야할 것으로 보임
 
 
+<br>
 
 # Results for covariance estimation
+- bandwidth의 경우, cross-validation 코드에서의 오류 발견으로 임의로 선택한 것이라 생각하면 될 것 같습니다.
 
-```{r fig1, fig.cap = "Figure 1. True covariance surface and estimated covariance surfaces.", fig.height = 14, fig.width = 8}
+## Variance estimation
+- Huber estimation을 위해 2가지(`rlm()`, `huber()` in `MASS`)를 고려. (단, 이후 과정에서는 모두 `rlm()`을 사용함)
+- Yao (2005)의 경우, variance estimator가 음수가 나오기도 함. (따로 처리 안해줌)
+- Lin (2020)의 경우, `mcfda`의 함수에서 estimator가 음수가 나오면 0으로 처리함.
+
+```{r fig1, fig.cap = "Figure 1. Trajectories of true and estimated variances.", fig.height = 8, fig.width = 15}
+p <- list()
+
+sim <- 20
+for (k in 1:3) {
+  fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  load(fname)
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  num.sim <- length(ind)   # number of simulations
+  data.list.outlier <- data.list.outlier[ind]
+  cov.est.outlier <- cov.est.outlier[ind]
+  
+  # Get simulation data
+  x <- data.list.outlier[[sim]]$x
+  gr <- data.list.outlier[[sim]]$gr
+  
+  work.grid <- cov.est.outlier[[sim]]$work.grid
+  cov.list <- cov.est.outlier[[sim]]$cov
+  
+  # pointwise huber estimation
+  Lt <- unlist(x$t)
+  Ly <- unlist(x$y)
+  mu.huber.pt <- sapply(gr, function(t) {
+    ind <- which(Lt == t)
+    return( huber(Ly[ind], k = 1.345)$mu )
+  })
+  var.huber.pt <- sapply(gr, function(t) {
+    ind <- which(Lt == t)
+    ind_mu <- which(gr == t)
+    var <- tryCatch({
+      huber((Ly[ind] - mu.huber.pt[ind_mu])^2, k = 1.345)$mu 
+    }, error = function(e) {
+      return(0)
+    })
+    var <- ifelse(var < 0, 0, var)   # set 0 for negative variances
+    return(var)
+  })
+  
+  df <- data.frame(
+    x = rep(gr, 5),
+    y = c(diag(cov.list$true),
+          diag(cov.list$yao),
+          diag(cov.list$lin),
+          diag(cov.list$huber),
+          var.huber.pt),
+    method = factor(rep(c("True","Yao(2005)","Lin(2020)","Lin+rlm()","Lin+huber()"),
+                        each = length(gr)),
+                    levels = c("True","Yao(2005)","Lin(2020)","Lin+rlm()","Lin+huber()"))
+  )
+  p[[2*(k-1)+1]] <- ggplot(df, aes(x, y, group = method, color = method)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = paste("Outlier", k)) +
+    geom_hline(yintercept = 0, size = 0.8) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+  p[[2*(k-1)+2]] <- df %>% 
+    filter(method %in% c("True","Lin+rlm()","Lin+huber()")) %>% 
+    ggplot(aes(x, y, group = method, color = method)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "") +
+    geom_hline(yintercept = 0, size = 0.8) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+}
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 2,
+             as.table = F)   # columnwise plotting
+```
+
+## Covariance estimation
+
+```{r fig2, fig.cap = "Figure 2. True covariance surface and estimated covariance surfaces.", fig.height = 6, fig.width = 8}
 i <- 1
 par(mfrow = c(3, 4),
     mar = c(2, 2, 2, 2))
@@ -131,7 +213,7 @@ for (k in 1:3) {
   cov.est.outlier <- cov.est.outlier[ind]
   
   if (k == 1) {
-    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin & Wang (2020) + Huber loss")
+    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin + Huber loss")
   } else {
     main <- c("","","","")
   }
@@ -167,7 +249,7 @@ for (k in 1:3) {
 #############################
 ### Calculate RMISE with outliers
 #############################
-cname <- c("Yao (2005)","Lin (2020)","Lin (2020) + Huber loss")
+cname <- c("Yao (2005)","Lin (2020)","Lin + Huber loss")
 res.mat <- matrix(NA, 3, 7)
 colnames(res.mat) <- c("$N$", cname, cname)
 row.names(res.mat) <- paste0("Outlier ", 1:3)
@@ -235,16 +317,17 @@ knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 2. Average MISE
 
 
 
+<br>
 
 # Results for PCA
 
 ## Estimated first 3 eigenfunctions
-```{r fig2, fig.cap = "Figure 2. Estimated first 3 eigenfunctions for 1st simulation data.", fig.height = 16}
+```{r fig3, fig.cap = "Figure 3. Estimated first 3 eigenfunctions for 1st simulation data.", fig.height = 12, fig.width = 15}
 p <- list()
 
 ### With outliers
 for (k in 1:3) {
-  fname <- paste0("RData/simt-", k, "_20210224.RData")
+  fname <- paste0("RData/sim5-", k, "_20210224.RData")
   load(fname)
   
   # remove list contating "null"  
@@ -252,41 +335,49 @@ for (k in 1:3) {
   cov.est.outlier <- cov.est.outlier[ind]
 
   sim <- 1
+  # estimated covariances from Simulation 3
+  work.grid <- cov.est.outlier[[sim]]$work.grid
+  cov.true <- cov.est.outlier[[sim]]$cov$true
+  cov.yao <- cov.est.outlier[[sim]]$cov$yao
+  cov.lin <- cov.est.outlier[[sim]]$cov$lin
+  cov.huber <- cov.est.outlier[[sim]]$cov$huber  
+  
+  # eigen analysis
+  eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+  eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+  eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
+  eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
+  
+  ## change eigen direction(sign) for first K eigenvectors
+  # K <- min(ncol(eig.true$phi),
+  #          ncol(eig.yao$phi),
+  #          ncol(eig.lin$phi),
+  #          ncol(eig.huber$phi))
+  K <- 3
+  eig.yao$phi[, 1:K] <- check_eigen_sign(eig.yao$phi[, 1:K], eig.true$phi[, 1:K])
+  eig.lin$phi[, 1:K] <- check_eigen_sign(eig.lin$phi[, 1:K], eig.true$phi[, 1:K])
+  eig.huber$phi[, 1:K] <- check_eigen_sign(eig.huber$phi[, 1:K], eig.true$phi[, 1:K])
+    
   # fitst 3 eigenfunctions
-  for (i in 1:3) {
+  for (i in 1:K) {
     if (i == 1) {
       p_title <- paste("Outlier", k)
     } else {
       p_title <- ""
     }
     
-    # estimated covariances from Simulation 3
-    work.grid <- cov.est.outlier[[sim]]$work.grid
-    cov.true <- cov.est.outlier[[sim]]$cov$true
-    cov.yao <- cov.est.outlier[[sim]]$cov$yao
-    cov.lin <- cov.est.outlier[[sim]]$cov$lin
-    cov.huber <- cov.est.outlier[[sim]]$cov$huber  
-    
-    # eigen analysis
-    eig.true <- get_eigen(cov = cov.true, grid = work.grid)
-    eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
-    eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
-    eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
-    
-    # k <- length(which(eig.true$PVE < 0.99))
-    
     fig.data <- data.frame(work.grid = rep(work.grid, 4),
                            phi = c(eig.true$phi[, i],
                                    eig.yao$phi[, i],
                                    eig.lin$phi[, i],
                                    eig.huber$phi[, i]),
-                           method = rep(c("True","Yao (2005)","Lin (2020)","Lin (2020) + Huber loss"), 
+                           method = rep(c("True","Yao (2005)","Lin (2020)","Lin + Huber"), 
                                         each = length(work.grid)))
     p[[3*(k-1)+i]] <- ggplot(data = fig.data, 
                              mapping = aes(work.grid, phi, color = method)) +
       geom_line(size = 1) +
       labs(x = TeX("$t$"), y = TeX(paste0("$\\phi_", i, "(t)$")), title = p_title) +
-      scale_color_discrete(breaks = c("True","Yao (2005)","Lin (2020)","Lin (2020) + Huber loss")) +
+      scale_color_discrete(breaks = c("True","Yao (2005)","Lin (2020)","Lin + Huber")) +
       theme_bw() +
       theme(legend.title = element_blank(),
             legend.position = "bottom")
@@ -299,7 +390,7 @@ grid.arrange(grobs = p,   # mget(): get multiple objects
 
 
 ## MISE for first 3 eigenfunctions
-```{r tab1}
+```{r tab2}
 # Parallel computing setting
 ncores <- detectCores() - 3
 cl <- makeCluster(ncores)
@@ -322,7 +413,7 @@ for (k in 1:3) {
 stopCluster(cl)  
 
 ### Calculate ISE for 1~3 eigenfunctions
-cname <- c("Yao (2005)","Lin (2020)","Lin (2020) + Huber loss")
+cname <- c("Yao (2005)","Lin (2020)","Lin + Huber loss")
 res.mat <- matrix(NA, 3, 4)
 colnames(res.mat) <- c("$N$", cname)
 row.names(res.mat) <- paste0("Outlier ", 1:3)
@@ -330,7 +421,7 @@ row.names(res.mat) <- paste0("Outlier ", 1:3)
 for (j in 1:3) {
   pca.est <- res[[j]]
   num.sim <- length(pca.est)
-  ise <- matrix(NA, num.sim, 2)
+  ise <- matrix(NA, num.sim, 3)
   
   for (i in 1:num.sim) {
     work.grid <- pca.est[[i]]$work.grid
@@ -342,7 +433,7 @@ for (j in 1:3) {
     
     # K <- length(which(eig.true$PVE < 0.99))
     K <- 3
-    
+
     # calculate ISE for k eigenfunctions
     ise_eig <- matrix(NA, K, 3)
     for (k in 1:K) {

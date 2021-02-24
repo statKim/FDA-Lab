@@ -155,7 +155,8 @@ sim_eigen_result <- function(cov.est, num.sim, seed = 1000) {
   packages <- c("fdapace","mcfda","synfd")
   
   registerDoRNG(seed)
-  pca.est <- foreach(sim = 1:num.sim, .packages = packages, .export = c("get_eigen")) %dopar% {
+  pca.est <- foreach(sim = 1:num.sim, .packages = packages, 
+                     .export = c("get_eigen","check_eigen_sign")) %dopar% {
     # estimated covariances from Simulation 3
     work.grid <- cov.est[[sim]]$work.grid
     cov.true <- cov.est[[sim]]$cov$true
@@ -169,6 +170,15 @@ sim_eigen_result <- function(cov.est, num.sim, seed = 1000) {
     eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
     eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
     
+    # change eigen direction(sign) for first K eigenvectors
+    K <- min(ncol(eig.true$phi),
+             ncol(eig.yao$phi),
+             ncol(eig.lin$phi),
+             ncol(eig.huber$phi))
+    eig.yao$phi[, 1:K] <- check_eigen_sign(eig.yao$phi[, 1:K], eig.true$phi[, 1:K])
+    eig.lin$phi[, 1:K] <- check_eigen_sign(eig.lin$phi[, 1:K], eig.true$phi[, 1:K])
+    eig.huber$phi[, 1:K] <- check_eigen_sign(eig.huber$phi[, 1:K], eig.true$phi[, 1:K])
+    
     # output list
     out <- list(work.grid = work.grid,
                 true = eig.true,
@@ -181,6 +191,46 @@ sim_eigen_result <- function(cov.est, num.sim, seed = 1000) {
   
   return(pca.est)
 }
+
+
+### Change the sign of eigenvectors to target eigenvectors
+# Inputs: 2 eigenvector matrices (n x q) 
+check_eigen_sign <- function(eig_vec, target) {
+  if (is.matrix(eig_vec) & is.matrix(target)) {
+    ## if inputs are eigenvector matrices
+    eig_vec_dim <- dim(eig_vec)
+    target_dim <- dim(target)
+    if (!isTRUE(all.equal(eig_vec_dim, target_dim))) {
+      stop("The dimensions of 2 eigenvector matrices are not equal.")
+    }
+    
+    for (i in 1:eig_vec_dim[2]) {
+      sse_pos <- sum((eig_vec[, i] - target[, i])^2)
+      sse_neg <- sum(((-eig_vec[, i]) - target[, i])^2)
+      
+      if (sse_pos > sse_neg) {
+        eig_vec[, i] <- -eig_vec[, i]
+      }
+    }
+  } else if (is.numeric(eig_vec) & is.numeric(target)) {
+    ## if inputs are eigenvectors
+    if (length(eig_vec) != length(target)) {
+      stop("The dimensions of 2 eigenvector matrices are not equal.")
+    }
+    
+    sse_pos <- sum((eig_vec - target)^2)
+    sse_neg <- sum(((-eig_vec) - target)^2)
+    
+    if (sse_pos > sse_neg) {
+      eig_vec <- -eig_vec
+    }
+  } else {
+    stop("Inputs are not n x q matrices or q-dim vectors. Check the input objects.")
+  }
+  
+  return(eig_vec)
+}
+
 
 ### Get PC scores via conditional expectation
 get_CE_score <- function() {
@@ -314,7 +364,7 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, 
                                    bw = bw_cand[i], kernel = kernel, loss = loss, ...)
         y <- unlist(Ly_test)
-        err <- err + (y %*% y_hat)   # squared errors 
+        err <- err + sum((y - y_hat)^2)   # squared errors 
       }
       
       return(err)
@@ -333,7 +383,7 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, 
                                    bw = bw_cand[i], kernel = kernel, loss = loss, ...)
         y <- unlist(Ly_test)
-        cv_error[i] <- cv_error[i] + (y %*% y_hat)   # squared errors
+        cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
       }
     }
   }

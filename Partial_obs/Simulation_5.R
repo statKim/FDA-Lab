@@ -157,7 +157,7 @@ cov.est.outlier <- cov.est.outlier[ind]
 #############################
 ### Calculate ISE
 #############################
-cname <- c("Yao(2005)","Lin(2020)","Lin+Huber")
+cname <- c("Yao(2005)","Lin(2020)","Lin + Huber")
 ise_mean <- matrix(0, 4, 6)
 ise_sd <- matrix(0, 4, 6)
 

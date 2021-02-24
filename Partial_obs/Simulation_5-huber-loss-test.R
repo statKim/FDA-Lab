@@ -121,7 +121,7 @@ mu.huber.pt <- sapply(gr, function(t) {
 # local kernel smoothing
 bw <- mu.yao.obj$optns$userBwMu   # bandwidth
 kernel <- "gauss"
-bw_mu_huber <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, newt = NULL, 
+bw_mu_huber <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, newt = Lt, 
                                     kernel = kernel, loss = "Huber", K = 5, parallel = TRUE)
 mu.huber <- local_kern_smooth(Lt = Lt, Ly = Ly, newt = gr,
                               bw = bw_mu_huber$selected_bw, kernel = kernel, loss = "Huber", k2 = 1.345)
@@ -155,10 +155,11 @@ var.huber <- local_kern_smooth(Lt = Lt, Ly = ss, newt = gr,
 
 var.huber.pt <- sapply(gr, function(t) {
   ind <- which(Lt == t)
-  sigma2 <- huber(Ly[ind], k = 1.345)$mu
-  sigma2 <- ifelse(sigma2 < 0, 0, sigma2)   # set 0 for negative variances
+  ind_mu <- which(gr == t)
+  var <- huber((Ly[ind] - mu.huber.pt[ind_mu])^2, k = 1.345)$mu
+  var <- ifelse(var < 0, 0, var)   # set 0 for negative variances
   
-  return(sigma2)
+  return(var)
 })
 
 matplot(work.grid, 
