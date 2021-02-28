@@ -121,10 +121,14 @@ mu.huber.pt <- sapply(gr, function(t) {
 # local kernel smoothing
 bw <- mu.yao.obj$optns$userBwMu   # bandwidth
 kernel <- "gauss"
-bw_mu_huber <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, newt = Lt, 
-                                    kernel = kernel, loss = "Huber", K = 5, parallel = TRUE)
-mu.huber <- local_kern_smooth(Lt = Lt, Ly = Ly, newt = gr,
-                              bw = bw_mu_huber$selected_bw, kernel = kernel, loss = "Huber", k2 = 1.345)
+# bw_mu_huber <- cv.local_kern_smooth(Lt = x.2$Lt, Ly = x.2$Ly, newt = NULL, 
+#                                     kernel = kernel, loss = "Huber", K = 5, parallel = TRUE)
+# mu.huber <- local_kern_smooth(Lt = Lt, Ly = Ly, newt = gr,
+#                               bw = bw_mu_huber$selected_bw, kernel = kernel, loss = "Huber", k2 = 1.345)
+source("functions_cov.R")
+mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "Huber", kernel = "gauss", bw = NULL)
+mu.huber.obj$bw
+mu.huber <- predict(mu.huber.obj, gr)
 matplot(work.grid, 
         cbind(mu.loc,
               mu.huber.pt,
@@ -138,20 +142,40 @@ legend("topleft",
 
 
 ### Variance
-ind <- sapply(Lt, function(t) { match(t, gr) })
-length(ind)
-length(Ly)
+# ind <- sapply(Lt, function(t) { match(t, gr) })
+# length(ind)
+# length(Ly)
 sig2e <- sigma2(x.2$Lt, x.2$Ly)   # the estimate for sigma^2
 
-ss <- (Ly - mu.huber[ind])^2
-bw_cov_huber <- cv.local_kern_smooth(Lt = Lt, Ly = ss, newt = NULL, 
-                                     kernel = kernel, loss = "Huber", K = 5, parallel = TRUE)
-var.huber <- local_kern_smooth(Lt = Lt, Ly = ss, newt = gr, 
-                               bw = bw_cov_huber$selected_bw, kernel = kernel, loss = "Huber", k2 = 1.345)
-# ss <- (Ly - mu.loc[ind])^2
-# var.huber <- local_kern_smooth(Lt = Lt, Ly = ss,
-#                                newt = gr, bw = bw, kernel = kernel, loss = "L2")
-# var.huber <- ifelse(var.huber - sig2e < 0, 0, var.huber - sig2e)   # 이렇게 하면 다 0 나옴...ㅠㅠ
+# ss <- (Ly - mu.huber[ind])^2
+ss <- lapply(1:length(x.2$Lt), function(i) {
+  ind <- match(x.2$Lt[[i]], gr)
+  return( (x.2$Ly[[i]] - mu.loc[ind])^2 )
+  # return( (x.2$Ly[[i]] - mu.huber[ind])^2 )
+  # newt <- x.2$Lt[[i]]
+  # newy <- x.2$Ly[[i]]
+  # mu_est <- local_kern_smooth(Lt = x.2$Lt, Ly = x.2$Ly, newt = newt,
+  #                             bw = bw_mu_huber$selected_bw, kernel = kernel, loss = "Huber", k2 = 1.345)
+  # return( (newy - mu_est)^2 )
+})
+# bw_cov_huber <- cv.local_kern_smooth(Lt = x.2$Lt, Ly = ss, newt = NULL, 
+#                                      kernel = kernel, loss = "Huber", K = 5, parallel = TRUE)
+# var.huber <- local_kern_smooth(Lt = x.2$Lt, Ly = ss, newt = gr, 
+#                                bw = bw_cov_huber$selected_bw, kernel = kernel, loss = "Huber", k2 = 1.345)
+source("functions_cov.R")
+var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
+                             method = "Huber", kernel = "gauss", bw = NULL)
+var.huber.obj$obj$bw
+var.huber <- predict(var.huber.obj, gr)
+
+cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,
+                             method = "Huber", kernel = "gauss")
+cov.huber.obj$sig2x$obj$bw
+cov.huber <- predict(cov.huber.obj, gr)
+persp3D(gr, gr, cov.huber, 
+        theta = -40, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)", main = "True")
+
 
 var.huber.pt <- sapply(gr, function(t) {
   ind <- which(Lt == t)
@@ -161,6 +185,30 @@ var.huber.pt <- sapply(gr, function(t) {
   
   return(var)
 })
+
+# var.huber <- local_kern_smooth(Lt = x.2$Lt, Ly = ss, newt = gr,
+#                                bw = 0.09921171, kernel = kernel, loss = "Huber", k2 = 1.345)
+library(robfilter)
+var.wrm.obj <- wrm.smooth(unlist(x.2$Lt), unlist(ss), xgrid = gr,
+                          h = var.huber.obj$obj$bw, weight = 3)
+var.wrm <- var.wrm.obj$level
+matplot(work.grid, 
+        cbind(diag(cov.true),
+              diag(cov.yao),
+              diag(cov.lin),
+              var.huber,
+              var.wrm),
+        type = "l", lwd = 2,
+        xlab = "", ylab = "",
+        ylim = c(0, 6))
+abline(h = 0)
+legend("topright",
+       c("True","yao","lin","huber","wrm"),
+       col = 1:5,
+       lty = 1:5)
+
+
+
 
 matplot(work.grid, 
         cbind(diag(cov.true),

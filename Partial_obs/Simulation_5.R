@@ -9,21 +9,45 @@
 library(GA)   # persp plot
 library(mvtnorm)
 library(fdapace)   # 1, 2
-library(mcfda)   # 7
+# library(mcfda)   # 7
 library(synfd)   # 7
 library(doParallel)   # parallel computing
 library(doRNG)   # set.seed for foreach
 library(MASS)   # huber, rlm
 source("functions.R")
+load_sources()   # source codes of mcfda
+source("utills.R")
+source("functions_cov.R")
 
 
 #############################
 ### Covariance estimation
 #############################
+for (i in 1:3) {
+  fname <- paste0("RData/sim3-", i, "_20210204.RData")
+  load(fname)
+  
+  # No outliers
+  if (i == 1) {
+    cov.est <- cov_est_sim(data.list = data.list, num.sim = 100, 
+                           seed = 1000, kernel = "gauss")
+    # save(list = c("data.list","cov.est"), file = "RData/sim5-1_20210224.RData")
+  }
+  
+  # With outliers
+  cov.est.outlier <- cov_est_sim(data.list = data.list.outlier, num.sim = 100, 
+                                 seed = 1000, kernel = "gauss")
+  save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), 
+       file = paste0("RData/sim5-", i, "_20210224.RData"))
+}
 
-# load("RData/sim3-1_20210204.RData")
+
+
+
+
+load("RData/sim3-1_20210204.RData")
 # load("RData/sim3-2_20210204.RData")
-load("RData/sim3-3_20210204.RData")
+# load("RData/sim3-3_20210204.RData")
 
 num.sim <- 100   # number of simulations
 
@@ -134,9 +158,9 @@ cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns
 }
 
 
-# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-1_20210224.RData")
+save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-1_20210224.RData")
 # save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-2_20210224.RData")
-save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-3_20210224.RData")
+# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-3_20210224.RData")
 
 ### Error list
 # [1] "Lin cov error"
@@ -192,3 +216,45 @@ persp3D(work.grid, work.grid, cov.list$lin,
 persp3D(work.grid, work.grid, cov.list$huber, 
         theta = -40, phi = 30, expand = 1,
         xlab = "s", ylab = "t", zlab = "C(s,t)", main = "Lin + Huber")
+
+
+
+i <- 3
+work.grid <- cov.est.outlier[[i]]$work.grid
+cov.list <- cov.est.outlier[[i]]$cov
+matplot(work.grid, 
+        cbind(diag(cov.list$true),
+              diag(cov.list$yao),
+              diag(cov.list$lin),
+              diag(cov.list$huber)),
+        type = "l", lwd = 2,
+        xlab = "", ylab = "")
+abline(h = 0)
+legend("topright",
+       c("True","Yao","Lin","Huber"),
+       col = 1:4,
+       lty = 1:4)
+
+par(mfrow = c(4, 4))
+for (j in 1:100) {
+  if (!is.null(cov.est[[j]])) {
+    print(j)
+    print(
+      cov.est[[j]]$cov.obj$huber$sig2x$obj$bw
+      # cov.est[[j]]$cov.obj$lin$sig2x$obj$bw
+    )
+    
+    work.grid <- cov.est[[j]]$work.grid
+    cov.list <- cov.est[[j]]$cov
+    matplot(work.grid, 
+            cbind(diag(cov.list$true),
+                  diag(cov.list$yao),
+                  diag(cov.list$lin),
+                  diag(cov.list$huber)),
+            type = "l", lwd = 2,
+            xlab = "", ylab = "", 
+            main = paste(j, "-", round(cov.est[[j]]$cov.obj$huber$sig2x$obj$bw, 3)))
+  }
+}
+cov.est[[j]]$cov.obj$lin$mu$bw
+cov.est[[j]]$cov.obj$lin$sig2x$obj$bw

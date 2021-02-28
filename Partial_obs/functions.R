@@ -162,7 +162,17 @@ get_CE_score <- function() {
 # loss : a loss function for kernel smoothing("L2" is squared loss, "Huber" is huber loss.)
 #   For loss = "Huber", it uses `rlm()` in `MASS` and fits the robust regression with Huber loss. 
 #   So additional parameters of `rlm()` can be applied. (k2, maxit, ...)
-local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, kernel = "epanechnikov", loss = "L2", ...) {
+local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, deg = 1, 
+                              kernel = "epanechnikov", loss = "L2", k2 = 1.345, ...) {
+  # If `bw` is not defined, 5-fold CV is performed.
+  if (is.null(bw)) {
+    if (!(is.list(Lt) & is.list(Ly))) {
+      stop("Lt or Ly are not list type. If bw is NULL, 5-fold CV are performed but it is needed list type.")
+    }
+    bw <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, newt = NULL,
+                               kernel = kernel, loss = loss, K = 5, parallel = TRUE, k2 = k2)
+  }
+  
   if (is.list(Lt) | is.list(Ly)) {
     Lt <- unlist(Lt)
     Ly <- unlist(Ly)
@@ -174,12 +184,6 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, kernel = "epanechn
   if (is.list(newt)) {
     newt <- unlist(newt)
   }
-  
-  # # If `bw` is not defined, 5-fold CV is performed.
-  # if (is.null(bw)) {
-  #   bw <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, newt = NULL, 
-  #                              kernel = kernel, loss = loss, K = 5, parallel = TRUE)
-  # }
   
   w <- 1/length(Lt)
   mu_hat <- sapply(newt, function(t) {
@@ -193,8 +197,11 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, kernel = "epanechn
     
     idx <- which(kern > 0)   # non-negative values
     W <- diag(kern[idx]) / bw
-    X <- matrix(1, length(idx), 2)
-    X[, 2] <- Lt[idx] - t
+    X <- matrix(1, length(idx), deg+1)
+    for (d in 1:deg) {
+      X[, d+1] <- (Lt[idx] - t)^d
+    }
+    # X[, 2] <- Lt[idx] - t
     Y <- Ly[idx]
     
     if (loss == "L2") {   # squared loss
@@ -205,7 +212,7 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, kernel = "epanechn
     } else if (loss == "Huber") {   # huber loss
       fit <- rlm(x = sqrt(W) %*% X,
                  y = sqrt(W) %*% Y,
-                 maxit = 100,
+                 # maxit = 100,
                  scale.est = "Huber",
                  ...)
       # df <- data.frame(y = sqrt(W) %*% Ly[idx],
@@ -233,10 +240,11 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, kernel = "epanechn
 # bw_cand : user defined bandwidth candidates for CV
 # parallel : If parallel is TRUE, it implements `foreach()` in `doParallel` for CV.
 # Other parameters are same with `local_kern_smooth()`.
-cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", loss = "L2", K = 5, 
-                                 bw_cand = NULL, parallel = FALSE, ...) {
-  if (is.list(Lt) | is.list(Ly)) {
-    stop("Lt and Ly can be only a list type.")
+cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", loss = "Huber", 
+                                 cv_loss = "L2", K = 5, 
+                                 bw_cand = NULL, parallel = FALSE, k2 = 1.345, ...) {
+  if (!(is.list(Lt) & is.list(Ly))) {
+    stop("Lt and Ly should be only a list type.")
   }
   
   if (is.null(bw_cand)) {
@@ -278,12 +286,17 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, 
                                    bw = bw_cand[i], kernel = kernel, loss = loss, ...)
         y <- unlist(Ly_test)
-        err <- err + sum((y - y_hat)^2)   # squared errors 
+        if (cv_loss == "L2") {
+          err <- err + sum((y - y_hat)^2)   # squared errors
+        } else if (cv_loss == "Huber") {
+          a <- abs(y - y_hat)
+          err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
+          err <- err + sum(err_huber)
+        }
       }
       
       return(err)
     }
-    
     stopCluster(cl)
   } else {
     cv_error <- rep(0, length(bw_cand))
@@ -297,7 +310,14 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, 
                                    bw = bw_cand[i], kernel = kernel, loss = loss, ...)
         y <- unlist(Ly_test)
-        cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
+        # cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
+        if (cv_loss == "L2") {
+          cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
+        } else if (cv_loss == "Huber") {
+          a <- abs(y - y_hat)
+          err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
+          cv_error[i] <- cv_error[i] + sum(err_huber)
+        }
       }
     }
   }
