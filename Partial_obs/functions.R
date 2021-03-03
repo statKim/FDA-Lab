@@ -172,7 +172,7 @@ IRLS <- function(Y, X, method = "Huber", maxit = 30, weight = NULL,
   
   resid <- Y - X %*% beta[1, ]
   # s <- mad(resid) / 0.6745
-  s <- median(abs(resid)) / 0.6745
+  s <- median(abs(resid)) / 0.6745   # re-scaled MAD
   
   for (iter in 1:maxit) {
     W <- matrix(0, n, n)
@@ -270,10 +270,17 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = "Huber", bw = NULL, 
       Y <- Ly[idx]
       
       # Huber regression
-      fit <- IRLS(Y = Y, 
+      fit <- IRLS(Y = Y,
                   X = X,
                   weight = diag(W))
       beta <- fit$beta
+      # fit <- rlm(x = X,
+      #            y = Y,
+      #            # maxit = 100,
+      #            scale.est = "Huber",
+      #            weights = diag(W),
+      #            ...)
+      # beta <- fit$coefficients
       # fit <- rlm(x = sqrt(W) %*% X,
       #            y = sqrt(W) %*% Y,
       #            # maxit = 100,

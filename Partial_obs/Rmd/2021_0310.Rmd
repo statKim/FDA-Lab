@@ -64,16 +64,16 @@ source("utills.R")
 # Iteratively re-weighted least squares (IRLS; IRWLS)
 
 ## IRLS for robust regression
-- $\hat{\beta} = \arg\min_{\beta} \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$
-- Let $L = \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
+- $\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$
+- Let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
 - Normal equation : 
   $$
-  \frac{\partial L}{\partial \beta} = \sum_i x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
+  \frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
   $$
 - Set $w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).$
 - Then a normal equation be as 
   $$
-  \sum_i x_iw_i(y_i - x_i^T\beta) = 0 \\
+  \sum_{i=1}^n x_iw_i(y_i - x_i^T\beta) = 0 \\
   \Leftrightarrow X^TWY-XWX^T\beta=0 
   $$
 - Therefore, the solution can be obtained by weighted least squares as 
@@ -92,12 +92,19 @@ source("utills.R")
 <br>
 
 
-## IRLS for local kernel smoother
-- $\hat{\beta} = \arg\min_{\beta} \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$
-- Let $L = \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
+## IRLS for local kernel smoother with Huber loss
+$$
+\begin{align}
+  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\
+  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \rho \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right],
+\end{align}
+$$
+
+- $\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$
+- Let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
 - Normal equation : 
   $$
-  \frac{\partial L}{\partial \beta} = \sum_i x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
+  \frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0
   $$
 - Set $w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).$
 

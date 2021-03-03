@@ -15,13 +15,14 @@ library(doParallel)   # parallel computing
 library(doRNG)   # set.seed for foreach
 library(MASS)   # huber, rlm
 source("functions.R")
+source("functions_cov.R")
 # source("Kraus(2015)/pred.missfd.R")   # 3
 # source("Kraus(2015)/simul.missfd.R")  # 3
 
 
-load("RData/sim3-1_20210204.RData")
+load("RData/sim3-2_20210204.RData")
 model.cov <- 2   # covariance function setting of the paper (1, 2)
-sim <- 1
+sim <- 20
 
 # Get simulation data
 x <- data.list.outlier[[sim]]$x
