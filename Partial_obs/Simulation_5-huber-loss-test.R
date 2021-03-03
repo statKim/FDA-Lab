@@ -256,3 +256,86 @@ df %>%
   theme(legend.title = element_blank(),
         legend.position = "bottom")
 
+
+
+
+
+############################################
+### WRM
+############################################
+
+source("functions.R")
+source("functions_cov.R")
+kernel <- "gauss"
+registerDoRNG(1000)
+mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "Huber", kernel = "gauss", bw = NULL)
+mu.huber.obj$bw
+mu.huber <- predict(mu.huber.obj, gr)
+
+registerDoRNG(1000)
+mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = "gauss", bw = NULL)
+mu.wrm.obj$bw
+mu.wrm <- predict(mu.wrm.obj, gr)
+
+matplot(work.grid, 
+        cbind(mu.huber,
+              mu.wrm),
+        type = "l",
+        xlab = "", ylab = "")
+legend("topleft",
+       c("Huber","WRM"),
+       col = 1:2,
+       lty = 1:2)
+
+
+### variance
+registerDoRNG(1000)
+system.time({
+  var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,
+                               method = "Huber", kernel = "gauss", bw = NULL)
+})
+# user  system elapsed 
+# 25.61    6.23   86.95 
+var.huber.obj$obj$bw
+var.huber <- predict(var.huber.obj, gr)
+
+registerDoRNG(1000)
+system.time({
+  var.wrm.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.wrm.obj,
+                             method = "WRM", kernel = "epanechnikov", bw = NULL)
+})
+# user  system elapsed 
+# 143.28    0.41  254.88
+var.wrm.obj$obj$bw
+var.wrm <- predict(var.wrm.obj, gr)
+
+matplot(work.grid, 
+        cbind(var.huber,
+              var.wrm),
+        type = "l",
+        xlab = "", ylab = "")
+legend("topleft",
+       c("Huber","WRM"),
+       col = 1:2,
+       lty = 1:2)
+
+
+
+
+cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,
+                             method = "Huber", kernel = "gauss")
+cov.huber.obj$sig2x$obj$bw
+cov.huber <- predict(cov.huber.obj, gr)
+persp3D(gr, gr, cov.huber, 
+        theta = -40, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)", main = "True")
+
+cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, mu = mu.wrm.obj,
+                           method = "WRM", kernel = "gauss")
+cov.wrm.obj$sig2x$obj$bw
+cov.wrm <- predict(cov.wrm.obj, gr)
+persp3D(gr, gr, cov.wrm, 
+        theta = -40, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)", main = "True")
+
+

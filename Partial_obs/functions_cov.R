@@ -50,12 +50,14 @@ meanfunc.rob <- function(Lt,
   # kernel <- tolower(get.optional.param('kernel',others,'epanechnikov'))
   # bw <- get.optional.param('bw',others,NULL)
   if (is.null(bw) | isTRUE(cv)) {
+    print(paste0(cv_optns$K, "-fold CV is performed."))
     bw_cv_obj <- cv.local_kern_smooth(Lt = Lt, 
                                       Ly = Ly, 
+                                      method = method,
                                       kernel = kernel, 
                                       deg = deg,
                                       k2 = k2,
-                                      loss = method,
+                                      # loss = method,
                                       cv_loss = cv_optns$Loss, 
                                       K = cv_optns$K, 
                                       parallel = cv_optns$Parallel,
@@ -114,9 +116,10 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
     tmp[ord] <- local_kern_smooth(Lt = meanfunc.obj$t, 
                                   Ly = meanfunc.obj$y, 
                                   newt = newt0[ord],
+                                  method = meanfunc.obj$method,
                                   bw = meanfunc.obj$bw, 
                                   kernel = meanfunc.obj$kernel, 
-                                  loss = "Huber", 
+                                  # loss = "Huber", 
                                   k2 = meanfunc.obj$k2)
     
     yhat <- rep(0, length(newt))
@@ -170,11 +173,12 @@ varfunc.rob <- function(Lt,
                         Ly,
                         newt = NULL,
                         sig2 = NULL,
-                        method = c('Huber'),
+                        method = c("Huber","WRM"),
                         mu = NULL,
-                        weig=NULL,...) {
+                        # weig=NULL,
+                        ...) {
   
-  if (!(method %in% c("Huber"))) {
+  if (!(method %in% c("Huber","WRM"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
@@ -192,10 +196,16 @@ varfunc.rob <- function(Lt,
     mu <- meanfunc.rob(Lt, Ly, method = method)
   }
   
+  gr <- sort(unique(unlist(Lt)))
+  mu_hat <- predict(mu, gr)
   vLy <- lapply(1:n, function(i) {
-    mui <- predict(mu, Lt[[i]])
-    yi <- (Ly[[i]] - mui)^2
-    return(yi)
+    ind <- match(Lt[[i]], gr)
+    if (length(ind) == length(Lt[[i]])) {
+      return( (Ly[[i]] - mu_hat[ind])^2 )
+    } else {
+      mui <- predict(mu, Lt[[i]])
+      return( (Ly[[i]] - mui)^2 )
+    }
   })
   
   R <- list(obj = meanfunc.rob(Lt, vLy, method = method, ...),
@@ -218,8 +228,8 @@ predict.varfunc.rob <- function(R, newt) {
     newt <- unlist(newt)
   }
   res <- predict(R$obj, newt)
-  # res <- (res - R$sig2)
-  # res[res < 0] <- 0
+  res <- (res - R$sig2)
+  res[res < 0] <- 0
   
   return(res)
 }
@@ -234,27 +244,24 @@ covfunc.rob <- function(Lt,
                         newt = NULL, 
                         mu = NULL, 
                         weig = NULL, 
-                        method = c('Huber'), ...) {
+                        method = c("Huber","WRM"), ...) {
   
-  if (!(method %in% c("Huber"))) {
+  if (!(method %in% c("Huber","WRM"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
-  R <- NULL
-  
-  if (method == 'Huber') {
-    return(cov.huber(Lt, Ly, mu = mu, newt = newt, ...))
-  } else {
-    stop("method is not supported.")
-  }
-  
-  class(R) <- 'covfunc.rob'
-  return(R)
+  return(cov.huber(Lt, Ly, mu = mu, newt = newt, method = method, ...))
+  # if (method == 'Huber') {
+  #   return(cov.huber(Lt, Ly, mu = mu, newt = newt, ...))
+  # } else {
+  #   stop("method is not supported.")
+  # }
 }
 
 cov.huber <- function(Lt, 
                       Ly, 
                       newt = NULL,
+                      method = "Huber",
                       domain = NULL,
                       weig = NULL,
                       corf = NULL, # correlation function(theta,x,y)
@@ -280,9 +287,11 @@ cov.huber <- function(Lt,
   }
   
   if (is.null(mu)) {
-    mu <- meanfunc.rob(Lt, Ly, kernel = kernel, method = 'Huber')   # Huber option
+    mu <- meanfunc.rob(Lt, Ly, kernel = kernel, method = method)   # Huber option
   }
   mu.hat <- predict(mu, unlist(Lt)) 
+  
+  print("Finish mean estimation!")
   
   if (is.null(sig2e)) {
     sig2e <- sigma2.rob(Lt, Ly)
@@ -291,9 +300,11 @@ cov.huber <- function(Lt,
   if(is.null(sig2x)) {
     # sig2x <- varfunc(Lt,Ly,mu=mu,sig2=sig2e)
     sig2x <- varfunc.rob(Lt, Ly, mu = mu, sig2 = sig2e, kernel = kernel, 
-                         method = "Huber", ...)   # Huber option
+                         method = method, ...)   # Huber option
   }
   var.hat <- predict(sig2x, Lt)
+  
+  print("Finish variance estimation!")
   
   if (is.null(domain)) {
     t.vec <- unlist(Lt)
@@ -321,12 +332,13 @@ cov.huber <- function(Lt,
                mu = mu,
                sig2x = sig2x,
                rho = function(x, y) { corf(x, y, th.est) },
-               method = 'Huber')
+               method = method)
   class(rslt) <- 'covfunc.rob'
   
   if (!is.null(newt)) {
-    rslt$fitted <- predict(rslt,newt)
+    rslt$fitted <- predict(rslt, newt)
   }
+  print("Finish covariance estimation!")
   
   return(rslt)
 }

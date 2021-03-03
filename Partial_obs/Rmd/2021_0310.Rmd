@@ -1,0 +1,105 @@
+---
+title: "Partially observed functional data"
+author: "Hyunsung Kim"
+date: '2021-03-10'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
+                      # cache = T,
+                      fig.align = "center", fig.width = 12, fig.height = 6)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+library(GA)   # persp plot
+library(mvtnorm)
+library(fdapace)   # 1, 2
+library(mcfda)   # 7
+library(synfd)   # 7
+library(doParallel)   # parallel computing
+library(doRNG)   # set.seed for foreach
+library(MASS)   # huber, rlm
+source("functions.R")
+library(kableExtra)
+library(tidyverse)
+library(gridExtra)
+library(latex2exp)
+source("utills.R")
+```
+
+
+# Iteratively re-weighted least squares (IRLS; IRWLS)
+
+## IRLS for robust regression
+- $\hat{\beta} = \arg\min_{\beta} \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$
+- Let $L = \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
+- Normal equation : 
+  $$
+  \frac{\partial L}{\partial \beta} = \sum_i x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
+  $$
+- Set $w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).$
+- Then a normal equation be as 
+  $$
+  \sum_i x_iw_i(y_i - x_i^T\beta) = 0 \\
+  \Leftrightarrow X^TWY-XWX^T\beta=0 
+  $$
+- Therefore, the solution can be obtained by weighted least squares as 
+  $$ \hat{\beta} = (X^TWX)^{-1}X^TWY $$
+- From above equations, set initial value $\hat{\beta}^{(0)}$, then we can compute $W^{(0)}$.
+- Therefore, $\hat{\beta}^{(1)}$ for 1st iterations can be obtained as
+  $$
+  \hat{\beta}^{(1)} = (X^TW^{(0)}X)^{-1}X^TW^{(0)}Y.
+  $$
+- Similarly, $\hat{\beta}^{(t+1)}$ for $t$th iterations can be represented as
+  $$
+  \hat{\beta}^{(t+1)} = (X^TW^{(t)}X)^{-1}X^TW^{(t)}Y.
+  $$
+- Repeat this procedure until $\hat{\beta}^{(t)}$ is converged.
+
+<br>
+
+
+## IRLS for local kernel smoother
+- $\hat{\beta} = \arg\min_{\beta} \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$
+- Let $L = \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
+- Normal equation : 
+  $$
+  \frac{\partial L}{\partial \beta} = \sum_i x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
+  $$
+- Set $w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).$
+
+
+then belows are same.

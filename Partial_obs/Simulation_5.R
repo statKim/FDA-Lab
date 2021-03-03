@@ -20,8 +20,32 @@ source("utills.R")
 source("functions_cov.R")
 
 
+
+######################################
+### Cov estimation - Huber (modified)
+######################################
+for (i in 1:3) {
+  fname <- paste0("RData/sim3-", i, "_20210204.RData")
+  load(fname)
+  
+  # No outliers
+  if (i == 1) {
+    cov.est <- cov_est_sim(data.list = data.list, num.sim = 100, 
+                           seed = 1000, kernel = "gauss")
+    # save(list = c("data.list","cov.est"), file = "RData/sim5-1_20210224.RData")
+  }
+  
+  # With outliers
+  cov.est.outlier <- cov_est_sim(data.list = data.list.outlier, num.sim = 100, 
+                                 seed = 1000, kernel = "gauss")
+  save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"), 
+       file = paste0("RData/sim5-", i, "_20210303_huber.RData"))
+}
+
+
+
 #############################
-### Covariance estimation
+### Cov estimation - Huber
 #############################
 for (i in 1:3) {
   fname <- paste0("RData/sim3-", i, "_20210204.RData")
@@ -42,125 +66,190 @@ for (i in 1:3) {
 }
 
 
-
-
-
-load("RData/sim3-1_20210204.RData")
-# load("RData/sim3-2_20210204.RData")
-# load("RData/sim3-3_20210204.RData")
-
-num.sim <- 100   # number of simulations
-
-# list of manual functions and packages
-ftns <- fun2char()
-packages <- c("fdapace","mcfda","synfd")
-
-model.cov <- 2   # covariance function setting of the paper (1, 2)
-
-registerDoRNG(1000)
-cov.est.outlier <- foreach(sim = 1:num.sim, .packages = packages, .export = ftns) %do% {
-  print(paste0(sim, "th simulation:"))
-  start_time <- Sys.time()
+#############################
+### Cov estimation - WRM
+### - bw is substituted with other methods
+#############################
+for (i in 1:3) {
+  fname <- paste0("RData/sim5-", i, "_20210224.RData")
+  load(fname)
   
-  # Get simulation data
-  x <- data.list.outlier[[sim]]$x
-  gr <- data.list.outlier[[sim]]$gr
-
-  ### Covariance estimation
-  work.grid <- seq(min(gr), max(gr), length.out = 51)
-  cov.true <- get_cov_fragm(gr, model = model.cov)   # true covariance
-  cov.true <- ConvertSupport(fromGrid = gr, toGrid = work.grid, Cov = cov.true)   # transform to the observed grid
-  
-  ## 1. Yao, Müller, and Wang (2005)
-  ## 2. Liu and Müller (2009) - fitted.FPCA()
-  x.2 <- list(Ly = x$y,
-              Lt = x$t)
-  optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = 'gauss', verbose = FALSE)
-  mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)   # get bandwidth of mean estimation
-  cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
-  cov.yao <- cov.yao.obj$cov
-  if (length(work.grid) != 51) {
-    cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
-                              Cov = cov.yao.obj$cov)   # transform to the observed grid
-  }
-  
-  
-  ## 7. Lin & Wang (2020)
-  # estimate mean by local polynomial method
-  mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", 
-                         kernel = "gauss", bw = mu.yao.obj$optns$userBwMu)
-  cov.lin.obj <- tryCatch({
-    covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
-  },  error = function(e) { 
-    print("Lin cov error")
-    print(e)
-    return(NA) 
-  })
-  if (is.na(cov.lin.obj)) {
-    return(NULL)
-  }
-  cov.lin <- predict(cov.lin.obj, work.grid)
-
+  # No outliers
+  if (i == 1) {
+    # remove list contating "null"  
+    ind <- which(!sapply(cov.est, is.null))
+    data.list <- data.list[ind]
+    cov.est <- cov.est[ind]
+    num.sim <- length(cov.est)
     
-  ## Huber loss
-  # For computation times, we specified bw_mu.
-  mu.huber.obj <- tryCatch({
-    meanfunc(x.2$Lt, x.2$Ly, method = "HUBER", kernel = "gauss", bw = mu.yao.obj$optns$userBwMu)
-  }, error = function(e) { 
-    print("Huber mean error")
-    print(e) 
-    return(NA) 
-  })
-  if (is.na(mu.huber.obj)) {
-    return(NULL)
+    registerDoRNG(1000)
+    for (sim in 1:num.sim) {
+      print(paste0(sim, "th simulation:"))
+      
+      # if doesn't exist the estimation, pass this simulation.
+      if (is.null(cov.est[[sim]])) {
+        next
+      }
+      
+      start_time <- Sys.time()
+      
+      # Get simulation data
+      x <- data.list[[sim]]$x
+      gr <- data.list[[sim]]$gr
+      
+      ### Covariance estimation
+      work.grid <- seq(min(gr), max(gr), length.out = 51)
+      x.2 <- list(Ly = x$y,
+                  Lt = x$t)
+      
+      ## WRM
+      kernel <- "gauss"
+      # For computation times, we specified bw_mu.
+      mu.wrm.obj <- tryCatch({
+        meanfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
+                     bw = cov.est[[sim]]$mu.obj$yao$optns$userBwMu)
+      }, error = function(e) { 
+        print("WRM mean error")
+        print(e) 
+        return(TRUE) 
+      })
+      if (isTRUE(mu.wrm.obj)) {
+        # return(NULL)
+        cov.est[[sim]] <- FALSE
+        next
+      }
+      # bandwidth are selected from 5-fold CV (almost 3 minutes)
+      cov.wrm.obj <-  tryCatch({
+        covfunc.rob(x.2$Lt, x.2$Ly, mu = mu.wrm.obj, kernel = kernel, method = "WRM",
+                    bw = cov.est[[sim]]$cov.obj$huber$sig2x$obj$bw)
+      }, error = function(e) { 
+        print("WRM cov error")
+        print(e) 
+        return(TRUE) 
+      })
+      if (isTRUE(cov.wrm.obj)) {
+        # return(NULL)
+        cov.est[[sim]] <- FALSE
+        next
+      }
+      cov.wrm <- predict(cov.wrm.obj, work.grid)
+      
+      end_time <- Sys.time()
+      print(end_time - start_time)
+      
+      
+      # if some covariances is a not finite value
+      if (!is.finite(sum(cov.wrm))) {
+        # return(NULL)
+        cov.est[[sim]] <- FALSE
+        next
+      }
+      # if all covariances are 0
+      if ((sum(cov.wrm) == 0)) {
+        # return(NULL) 
+        cov.est[[sim]] <- FALSE
+        next
+      }
+    
+      cov.est[[sim]]$mu.obj$wrm <- mu.wrm.obj
+      cov.est[[sim]]$cov.obj$wrm <- cov.wrm.obj
+      cov.est[[sim]]$cov$wrm <- cov.wrm
+    }
+    
+    save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"),
+         file = paste0("RData/sim5-", i, "_20210303_wrm.RData"))
   }
-  # bandwidth are selected from 5-fold CV (almost 3 minutes)
-  cov.huber.obj <-  tryCatch({
-    covfunc(x.2$Lt, x.2$Ly, mu = mu.huber.obj, kernel = "gauss", method = "HUBER")
-  }, error = function(e) { 
-    print("Huber cov error")
-    print(e) 
-    return(NA) 
-  })
-  if (is.na(cov.huber.obj)) {
-    return(NULL)
+  
+  # With outliers
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, is.null))
+  data.list.outlier <- data.list.outlier[ind]
+  cov.est.outlier <- cov.est.outlier[ind]
+  num.sim <- length(cov.est.outlier)
+  
+  registerDoRNG(1000)
+  for (sim in 1:num.sim) {
+    print(paste0(sim, "th simulation:"))
+    
+    # if (length(cov.est.outlier) < sim) {
+    #   next
+    # }
+      
+    # if doesn't exist the estimation, pass this simulation.
+    if (is.null(cov.est.outlier[[sim]])) {
+      next
+    }
+    
+    start_time <- Sys.time()
+    
+    # Get simulation data
+    x <- data.list.outlier[[sim]]$x
+    gr <- data.list.outlier[[sim]]$gr
+    
+    ### Covariance estimation
+    work.grid <- seq(min(gr), max(gr), length.out = 51)
+    x.2 <- list(Ly = x$y,
+                Lt = x$t)
+    
+    ## WRM
+    kernel <- "gauss"
+    # For computation times, we specified bw_mu.
+    mu.wrm.obj <- tryCatch({
+      meanfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
+                   bw = cov.est.outlier[[sim]]$mu.obj$yao$optns$userBwMu)
+    }, error = function(e) { 
+      print("WRM mean error")
+      print(e) 
+      return(TRUE) 
+    })
+    if (isTRUE(mu.wrm.obj)) {
+      # return(NULL)
+      cov.est.outlier[[sim]] <- FALSE
+      next
+    }
+    # bandwidth are selected from 5-fold CV (almost 3 minutes)
+    cov.wrm.obj <-  tryCatch({
+      covfunc.rob(x.2$Lt, x.2$Ly, mu = mu.wrm.obj, kernel = kernel, method = "WRM",
+                  bw = cov.est.outlier[[sim]]$cov.obj$huber$sig2x$obj$bw)
+    }, error = function(e) { 
+      print("WRM cov error")
+      print(e) 
+      return(TRUE) 
+    })
+    if (isTRUE(cov.wrm.obj)) {
+      # return(NULL)
+      cov.est.outlier[[sim]] <- FALSE
+      next
+    }
+    cov.wrm <- predict(cov.wrm.obj, work.grid)
+    
+    end_time <- Sys.time()
+    print(end_time - start_time)
+    
+    
+    # if some covariances is a not finite value
+    if (!is.finite(sum(cov.wrm))) {
+      # return(NULL)
+      cov.est.outlier[[sim]] <- FALSE
+      next
+    }
+    # if all covariances are 0
+    if ((sum(cov.wrm) == 0)) {
+      # return(NULL) 
+      cov.est.outlier[[sim]] <- FALSE
+      next
+    }
+    
+    cov.est.outlier[[sim]]$mu.obj$wrm <- mu.wrm.obj
+    cov.est.outlier[[sim]]$cov.obj$wrm <- cov.wrm.obj
+    cov.est.outlier[[sim]]$cov$wrm <- cov.wrm
+    
+    print( length(cov.est.outlier[[sim]]$cov) )
   }
-  cov.huber <- predict(cov.huber.obj, work.grid)
-  
-  end_time <- Sys.time()
-  print(end_time - start_time)
-  
-  
-  # if some covariances is a not finite value
-  if (!is.finite(sum(cov.yao)) | !is.finite(sum(cov.lin)) | !is.finite(sum(cov.huber))) {
-    return(NULL)
-  }
-  # if all covariances are 0
-  if ((sum(cov.yao) == 0) | (sum(cov.lin) == 0) | (sum(cov.huber) == 0)) {
-    return(NULL) 
-  }
-  
-  
-  # output list
-  out <- list(work.grid = work.grid,
-              mu.obj = list(yao = mu.yao.obj,
-                            lin = mu.lin.obj,
-                            huber = mu.huber.obj),
-              cov.obj = list(yao = cov.yao.obj,
-                             lin = cov.lin.obj,
-                             huber = cov.huber.obj),
-              cov = list(true = cov.true,
-                         yao = cov.yao,
-                         lin = cov.lin,
-                         huber = cov.huber))
-  
-  return(out)
+  save(list = c("data.list","cov.est","data.list.outlier","cov.est.outlier"),
+       file = paste0("RData/sim5-", i, "_20210303_wrm.RData"))
 }
 
-
-save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-1_20210224.RData")
-# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-2_20210224.RData")
-# save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-3_20210224.RData")
 
 ### Error list
 # [1] "Lin cov error"
@@ -172,8 +261,10 @@ save(list = c("data.list.outlier","cov.est.outlier"), file = "RData/sim5-1_20210
 # <simpleError in diag(sig.t): invalid 'nrow' value (too large or NA)>
 
 
+
 # remove list contating "null"  
-ind <- which(!sapply(cov.est.outlier, is.null))
+# ind <- which(!sapply(cov.est.outlier, is.null))
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
 data.list.outlier <- data.list.outlier[ind]
 cov.est.outlier <- cov.est.outlier[ind]
 
@@ -181,29 +272,29 @@ cov.est.outlier <- cov.est.outlier[ind]
 #############################
 ### Calculate ISE
 #############################
-cname <- c("Yao(2005)","Lin(2020)","Lin + Huber")
-ise_mean <- matrix(0, 4, 6)
-ise_sd <- matrix(0, 4, 6)
+cname <- c("Yao(2005)","Lin(2020)","Lin + Huber","WRM")
+ise_mean <- matrix(0, 4, 8)
+ise_sd <- matrix(0, 4, 8)
 
 ##### Intrapolation parts (D_0)
 ### ISE
 ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
-ise_mean[1, 1:3] <- rowMeans(ise.cov)   # ISE
-ise_sd[1, 1:3] <- apply(ise.cov, 1, sd)
+ise_mean[1, 1:4] <- rowMeans(ise.cov)   # ISE
+ise_sd[1, 1:4] <- apply(ise.cov, 1, sd)
 
 
 ##### Extrapolation parts (S_0 \ D_0)
 ### ISE
 ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "extra")
-ise_mean[1, 4:6] <- rowMeans(ise.cov)   # ISE
-ise_sd[1, 4:6] <- apply(ise.cov, 1, sd)
+ise_mean[1, 5:8] <- rowMeans(ise.cov)   # ISE
+ise_sd[1, 5:8] <- apply(ise.cov, 1, sd)
 
 
 ### Covariance surface
-i <- 1
+i <- 2
 work.grid <- cov.est.outlier[[i]]$work.grid
 cov.list <- cov.est.outlier[[i]]$cov
-par(mfrow = c(2, 2))
+par(mfrow = c(3, 2))
 persp3D(work.grid, work.grid, cov.list$true, 
         theta = -40, phi = 30, expand = 1,
         xlab = "s", ylab = "t", zlab = "C(s,t)", main = "True")
@@ -216,24 +307,28 @@ persp3D(work.grid, work.grid, cov.list$lin,
 persp3D(work.grid, work.grid, cov.list$huber, 
         theta = -40, phi = 30, expand = 1,
         xlab = "s", ylab = "t", zlab = "C(s,t)", main = "Lin + Huber")
+persp3D(work.grid, work.grid, cov.list$wrm, 
+        theta = -40, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)", main = "WRM")
 
 
-
-i <- 3
+par(mfrow = c(1, 1))
+i <- 10
 work.grid <- cov.est.outlier[[i]]$work.grid
 cov.list <- cov.est.outlier[[i]]$cov
 matplot(work.grid, 
         cbind(diag(cov.list$true),
               diag(cov.list$yao),
               diag(cov.list$lin),
-              diag(cov.list$huber)),
-        type = "l", lwd = 2,
+              diag(cov.list$huber),
+              diag(cov.list$wrm)),
+        type = "l", lwd = 2, ylim = c(0, 5),
         xlab = "", ylab = "")
 abline(h = 0)
 legend("topright",
-       c("True","Yao","Lin","Huber"),
-       col = 1:4,
-       lty = 1:4)
+       c("True","Yao","Lin","Huber","WRM"),
+       col = 1:5,
+       lty = 1:5)
 
 par(mfrow = c(4, 4))
 for (j in 1:100) {

@@ -1,0 +1,541 @@
+---
+title: "Partially observed functional data"
+author: "Hyunsung Kim"
+date: '2021-03-03'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
+                      # cache = T,
+                      fig.align = "center", fig.width = 12, fig.height = 6)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+library(GA)   # persp plot
+library(mvtnorm)
+library(fdapace)   # 1, 2
+library(mcfda)   # 7
+library(synfd)   # 7
+library(doParallel)   # parallel computing
+library(doRNG)   # set.seed for foreach
+library(MASS)   # huber, rlm
+source("functions.R")
+library(kableExtra)
+library(tidyverse)
+library(gridExtra)
+library(latex2exp)
+source("utills.R")
+```
+
+
+
+
+# Covariance estimation
+- Lin+Huber의 경우, 5-fold CV를 통해 bandwidth를 결정하였으며, squared loss 대신 Huber loss를 사용함.
+- WRM의 경우, 위에서 선택된 bandwidth를 사용함.
+
+## Variance estimation
+
+```{r fig1, fig.cap = "Figure 1. Trajectories of true and estimated variances.", fig.height = 8, fig.width = 15}
+sim <- 20
+
+p <- list()
+for (k in 1:3) {
+  # fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  fname <- paste("RData/sim5-", k, "_20210303_wrm.RData", sep = "")
+  load(fname)
+  
+  if (k == 1) {
+    p <- c(p,  
+           ggplot_var(cov.est, sim, main = "Outlier X"))
+  }
+  p <- c(p, 
+         ggplot_var(cov.est.outlier, sim, main = paste("Outlier", k)))
+}
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 2,
+             as.table = F)   # columnwise plotting
+```
+
+## Covariance estimation
+
+```{r fig2, fig.cap = "Figure 2. True covariance surface and estimated covariance surfaces.", fig.height = 6, fig.width = 8}
+par(mfrow = c(4, 4),
+    mar = c(2, 2, 2, 2))
+for (k in 1:3) {
+  # fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  fname <- paste("RData/sim5-", k, "_20210303_wrm.RData", sep = "")
+  load(fname)
+  
+  if (k == 1) {
+    plot_cov_surf(cov.est, sim, title = TRUE, lab = "Outlier X")
+  }
+  plot_cov_surf(cov.est.outlier, sim, title = FALSE, lab = paste("Outlier", k))
+}
+```
+
+
+
+```{r tab1}
+#############################
+### Calculate RMISE with outliers
+#############################
+cname <- c("Yao (2005)","Lin (2020)","Huber","WRM")
+res.mat <- matrix(NA, 4, 9)
+colnames(res.mat) <- c("$N$", cname, cname)
+row.names(res.mat) <- c("Outlier X",
+                        paste0("Outlier ", 1:3))
+res.mat2 <- res.mat
+
+for (k in 1:3) {
+  # fname <- paste("RData/sim5-", k, "_20210224.RData", sep = "")
+  fname <- paste("RData/sim5-", k, "_20210303_wrm.RData", sep = "")
+  load(fname)
+  
+  if (k == 1) {
+    # remove list contating "null"  
+    ind <- which(!sapply(cov.est, function(x) { is.null(x) | isFALSE(x) }))
+    # ind <- which(!sapply(cov.est, is.null))
+    num.sim <- length(ind)   # number of simulations
+    data.list <- data.list[ind]
+    cov.est <- cov.est[ind]
+    
+    ### variance
+    ise.var <- summary_ise(data.list, cov.est, method = "var")
+    ### covariance
+    ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+    
+    # res.mat[k+1, ] <- c(num.sim,
+    #                     sqrt(rowMeans(ise.var)),
+    #                     sqrt(rowMeans(ise.cov)))
+    res.mat[k, ] <- c(num.sim,
+                        paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                               "(", 
+                               round(apply(ise.var, 1, sd), 2), 
+                               ")"),
+                        paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                               "(", 
+                               round(apply(ise.cov, 1, sd), 2), 
+                               ")"))
+    
+    
+    ### Intrapolation parts (D_0)
+    ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+    ### Extrapolation parts (S_0 \ D_0)
+    ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+  
+    # res.mat2[k+1, ] <- c(num.sim,
+    #                      rowMeans(ise.intra),
+    #                      rowMeans(ise.extra))
+    res.mat2[k, ] <- c(num.sim,
+                        paste0(round(rowMeans(ise.intra), 2), 
+                               "(", 
+                               round(apply(ise.intra, 1, sd), 2), 
+                               ")"),
+                        paste0(round(rowMeans(ise.extra), 2), 
+                               "(", 
+                               round(apply(ise.extra, 1, sd), 2), 
+                               ")"))
+  }
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+  # ind <- which(!sapply(cov.est.outlier, is.null))
+  num.sim <- length(ind)   # number of simulations
+  data.list.outlier <- data.list.outlier[ind]
+  cov.est.outlier <- cov.est.outlier[ind]
+  
+  ### variance
+  ise.var <- summary_ise(data.list.outlier, cov.est.outlier, method = "var")
+  ### covariance
+  ise.cov <- summary_ise(data.list.outlier, cov.est.outlier, method = "cov")
+  
+  # res.mat[k+1, ] <- c(num.sim,
+  #                     sqrt(rowMeans(ise.var)),
+  #                     sqrt(rowMeans(ise.cov)))
+  res.mat[k+1, ] <- c(num.sim,
+                      paste0(round(sqrt(rowMeans(ise.var)), 2), 
+                             "(", 
+                             round(apply(ise.var, 1, sd), 2), 
+                             ")"),
+                      paste0(round(sqrt(rowMeans(ise.cov)), 2), 
+                             "(", 
+                             round(apply(ise.cov, 1, sd), 2), 
+                             ")"))
+  
+  
+  ### Intrapolation parts (D_0)
+  ise.intra <- summary_ise(data.list.outlier, cov.est.outlier, method = "intra")
+  ### Extrapolation parts (S_0 \ D_0)
+  ise.extra <- summary_ise(data.list.outlier, cov.est.outlier, method = "extra")
+
+  # res.mat2[k+1, ] <- c(num.sim,
+  #                      rowMeans(ise.intra),
+  #                      rowMeans(ise.extra))
+  res.mat2[k+1, ] <- c(num.sim,
+                      paste0(round(rowMeans(ise.intra), 2), 
+                             "(", 
+                             round(apply(ise.intra, 1, sd), 2), 
+                             ")"),
+                      paste0(round(rowMeans(ise.extra), 2), 
+                             "(", 
+                             round(apply(ise.extra, 1, sd), 2), 
+                             ")"))
+  # res.mat2[k+1, 3:4] <- rowMeans(ise.extra)   # ISE
+  # ise_sd[2, 3:4] <- apply(ise.cov, 1, sd)
+}
+
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% 
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
+    add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 4, "$\\hat{\\mathbf{C}}$" = 4))
+
+
+knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 2. Average MISE (standard error) of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts.") %>% 
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>% 
+    add_header_above(c(" " = 1, " " = 1, "$\\mathcal{D}_0$" = 4, "$\\mathcal{S}_0 \\backslash \\mathcal{D}_0$" = 4))
+```
+
+
+
+<br>
+
+# PCA
+
+## Estimated first 3 eigenfunctions
+```{r fig3, fig.cap = "Figure 3. Estimated first 3 eigenfunctions for 1st simulation data.", fig.height = 12, fig.width = 15}
+p <- list()
+
+### With outliers
+for (k in 1:3) {
+  # fname <- paste0("RData/sim5-", k, "_20210224.RData")
+  fname <- paste0("RData/sim5-", k, "_20210303_wrm.RData")
+  load(fname)
+  
+  if (k == 1) {
+    p <- c(p, 
+           ggplot_eig(cov.est, sim, main = "Outlier X"))
+  }
+  p <- c(p, 
+         ggplot_eig(cov.est.outlier, sim, main = paste("Outlier", k)))
+}
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 4)
+```
+
+- Lin 방법에서 eigenfunction이 0으로 되는 현상은 $\hat{\sigma}_X^2(t)$가 음수로 추정되어 0으로 대체되었고, 그로 인해 시점 $t$가 포함되는 covariance 또한 모두 0으로 추정되어버림. [Figure 2 참고](#covariance-estimation-1)
+- 그로 인해, spectral decomposition을 하였을 떄, eigenvector가 0으로 계산됨.
+
+
+## MISE for first 3 eigenfunctions
+```{r tab2}
+# Parallel computing setting
+ncores <- detectCores() - 3
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+
+res <- list()
+
+### Eigen analysis
+for (k in 1:3) {
+  # fname <- paste0("RData/sim5-", k, "_20210224.RData")
+  fname <- paste0("RData/sim5-", k, "_20210303_wrm.RData")
+  load(fname)
+
+  if (k == 1) {
+    # remove list contating "null"
+    ind <- which(!sapply(cov.est, function(x) { is.null(x) | isFALSE(x) }))
+    # ind <- which(!sapply(cov.est, is.null))
+    cov.est <- cov.est[ind]
+    num.sim <- length(ind)
+
+    res[[k]] <- sim_eigen_result(cov.est, num.sim, seed = 1000)
+  }
+
+  # remove list contating "null"
+  ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+  # ind <- which(!sapply(cov.est.outlier, is.null))
+  cov.est.outlier <- cov.est.outlier[ind]
+  num.sim <- length(ind)
+
+  res[[k+1]] <- sim_eigen_result(cov.est.outlier, num.sim, seed = 1000)
+}
+stopCluster(cl)
+
+### Calculate ISE for 1~3 eigenfunctions
+cname <- c("Yao (2005)","Lin (2020)","Huber","WRM")
+res.mat <- matrix(NA, 4, 5)
+colnames(res.mat) <- c("$N$", cname)
+row.names(res.mat) <- c("Outlier X",
+                        paste0("Outlier ", 1:3))
+
+for (j in 1:4) {
+  pca.est <- res[[j]]
+  num.sim <- length(pca.est)
+  ise <- matrix(NA, num.sim, 4)
+
+  for (i in 1:num.sim) {
+    work.grid <- pca.est[[i]]$work.grid
+
+    eig.true <- pca.est[[i]]$true
+    eig.yao <- pca.est[[i]]$yao
+    eig.lin <- pca.est[[i]]$lin
+    eig.huber <- pca.est[[i]]$huber
+    eig.wrm <- pca.est[[i]]$wrm
+
+    # K <- length(which(eig.true$PVE < 0.99))
+    K <- 3
+
+    # calculate ISE for k eigenfunctions
+    ise_eig <- matrix(NA, K, 4)
+    for (k in 1:K) {
+      ise_eig[k, ] <- c(
+        get_ise(eig.true$phi[, k], eig.yao$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.lin$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.huber$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.wrm$phi[, k], work.grid)
+      )
+    }
+
+    ise[i, ] <- colSums(ise_eig)
+  }
+
+  res.mat[j, ] <- c(
+    num.sim,
+    paste0(round(sqrt(colMeans(ise)), 2),
+           "(",
+           round(apply(ise, 2, sd), 2),
+           ")")
+  )
+}
+
+knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average MISE (standard error) of first 3 eigenfunctions.") %>%
+  kable_styling("striped", full_width = FALSE, font_size = 14)
+```
+
+
+<br>
+
+# Noise variance estimation
+
+## Lin & Wang (2020)
+$$
+\begin{align}
+  \hat{A}_0 &= \frac{1}{n}\sum_{i=1}^n \frac{1}{m_i(m_i-1)} \sum_{j \ne l} Y_{ij}^21_{|T_{ij}-T_{il}|<h_0} \\
+  \hat{A}_1 &= \frac{1}{n}\sum_{i=1}^n \frac{1}{m_i(m_i-1)} \sum_{j \ne l} Y_{ij} Y_{il} 1_{|T_{ij}-T_{il}|<h_0} \\
+  \hat{B} &= \frac{1}{n}\sum_{i=1}^n \frac{1}{m_i(m_i-1)} \sum_{j \ne l} 1_{|T_{ij}-T_{il}|<h_0} \\
+\end{align}
+$$
+
+### Outlier X
+```{r}
+k <- 1
+fname <- paste0("RData/sim5-", k, "_20210303_wrm.RData")
+load(fname)
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est, function(x) { is.null(x) | isFALSE(x) }))
+cov.est <- cov.est[ind]
+    
+round(sapply(cov.est, function(x) { x$cov.obj$lin$sig2e }),
+      3)
+```
+
+### Outlier 1
+```{r}
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+    
+round(sapply(cov.est.outlier, function(x) { x$cov.obj$lin$sig2e }),
+      3)
+```
+
+
+## Median version
+- Lin & Wang 논문에 있는 sample mean 형태를 median을 바꾼 형태
+$$
+\begin{align}
+  \hat{A}_0 &= \text{median} \left\{ \frac{1}{m_i(m_i-1)} \sum_{j \ne l} Y_{ij}^21_{|T_{ij}-T_{il}|<h_0} \right\} \\
+  \hat{A}_1 &= \text{median} \left\{ \frac{1}{m_i(m_i-1)} \sum_{j \ne l} Y_{ij} Y_{il} 1_{|T_{ij}-T_{il}|<h_0} \right\} \\
+  \hat{B} &= \text{median} \left\{ \frac{1}{m_i(m_i-1)} \sum_{j \ne l} 1_{|T_{ij}-T_{il}|<h_0} \right\} \\
+\end{align}
+$$
+
+### Outlier X
+```{r}
+# remove list contating "null"  
+ind <- which(!sapply(cov.est, function(x) { is.null(x) | isFALSE(x) }))
+cov.est <- cov.est[ind]
+    
+round(sapply(cov.est, function(x) { x$cov.obj$huber$sig2e }),
+      3)
+```
+
+### Outlier 1
+```{r}
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+    
+round(sapply(cov.est.outlier, function(x) { x$cov.obj$huber$sig2e }),
+      3)
+```
+
+
+<br>
+
+# Problems
+
+## Selected bandwidth by 5-fold CV - L2 loss
+
+### Outlier X
+```{r}
+k <- 1
+fname <- paste0("RData/L2_CV/sim5-", k, "_20210224.RData")
+load(fname)
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est, function(x) { is.null(x) | isFALSE(x) }))
+cov.est <- cov.est[ind]
+    
+round(sapply(cov.est, function(x) { x$cov.obj$lin$sig2x$obj$bw }),
+      3)
+```
+
+### Outlier 1
+```{r}
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+    
+round(sapply(cov.est.outlier, function(x) { x$cov.obj$lin$sig2x$obj$bw }),
+      3)
+```
+
+<br>
+
+## Selected bandwidth by 5-fold CV - Huber loss
+
+### Outlier X
+```{r}
+k <- 1
+fname <- paste0("RData/sim5-", k, "_20210224.RData")
+load(fname)
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est, function(x) { is.null(x) | isFALSE(x) }))
+cov.est <- cov.est[ind]
+    
+round(sapply(cov.est, function(x) { x$cov.obj$lin$sig2x$obj$bw }),
+      3)
+```
+
+### Outlier 1
+```{r}
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+    
+round(sapply(cov.est.outlier, function(x) { x$cov.obj$lin$sig2x$obj$bw }),
+      3)
+```
+
+<br>
+
+## Variance
+```{r prob_var1, fig.cap = "Figure 4. Trajectories of true and estimated variances with outlier 1.", fig.height = 8, fig.width = 15}
+k <- 1
+fname <- paste("RData/sim5-", k, "_20210303_wrm.RData", sep = "")
+load(fname)
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+  
+p <- list()
+for (sim in 1:8) {
+  p <- c(p,  
+         ggplot_var(cov.est.outlier, sim, main = paste("Simulation", sim)))
+}
+p <- p[2*(1:8)]
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 2)
+```
+
+```{r prob_var2, fig.cap = "Figure 5. Trajectories of true and estimated variances with outlier 2.", fig.height = 8, fig.width = 15}
+k <- 2
+fname <- paste("RData/sim5-", k, "_20210303_wrm.RData", sep = "")
+load(fname)
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+  
+p <- list()
+for (sim in 1:8) {
+  p <- c(p,  
+         ggplot_var(cov.est.outlier, sim, main = paste("Simulation", sim)))
+}
+p <- p[2*(1:8)]
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 2)
+```
+
+```{r prob_var3, fig.cap = "Figure 6. Trajectories of true and estimated variances with outlier 3.", fig.height = 8, fig.width = 15}
+k <- 3
+fname <- paste("RData/sim5-", k, "_20210303_wrm.RData", sep = "")
+load(fname)
+
+# remove list contating "null"  
+ind <- which(!sapply(cov.est.outlier, function(x) { is.null(x) | isFALSE(x) }))
+cov.est.outlier <- cov.est.outlier[ind]
+  
+p <- list()
+for (sim in 1:8) {
+  p <- c(p,  
+         ggplot_var(cov.est.outlier, sim, main = paste("Simulation", sim)))
+}
+p <- p[2*(1:8)]
+
+grid.arrange(grobs = p,   # mget(): get multiple objects
+             nrow = 2)
+```
+
+

@@ -152,25 +152,89 @@ get_CE_score <- function() {
 }
 
 
+### Iteratively re-weighted least squares (IRLS) for robust regression (M-estimation)
+# Y : vector
+# X : matrix
+# method : "Huber"
+# maxit : 
+# weight : additional weight (for kernel regression)
+IRLS <- function(Y, X, method = "Huber", maxit = 30, weight = NULL,
+                 tol = 1e-4, k = 1.345) {
+  n <- length(Y)
+  
+  if (is.data.frame(X)) {
+    X <- as.matrix(X)
+  }
+  
+  beta <- matrix(0, maxit+1, ncol(X))  
+  beta[1, ] <- solve(t(X) %*% X, 
+                     t(X) %*% Y)   # initial value for beta (LSE estimator)
+  
+  resid <- Y - X %*% beta[1, ]
+  # s <- mad(resid) / 0.6745
+  s <- median(abs(resid)) / 0.6745
+  
+  for (iter in 1:maxit) {
+    W <- matrix(0, n, n)
+    Y_hat <- X %*% matrix(beta[iter, ], 
+                          ncol = 1)
+    tmp <- as.numeric((Y - Y_hat) / s)
+    if (method == "Huber") {   # psi(1st derivative) for huber's rho
+      psi <- ifelse(abs(tmp) < k, tmp, sign(tmp)*k)   
+    }
+    if (!is.null(weight)) {
+      if (length(psi) != length(weight)) {
+        stop("Lengths of Y and weight are not equal.")
+      }
+      w <- (psi*weight) / (Y - Y_hat)
+    } else {
+      w <- psi / (Y - Y_hat)
+    }
+    diag(W) <- abs(w)
+    # diag(W) <- psi.huber(tmp, k = 1.345, deriv = 0)
+    
+    XTWX <- t(X) %*% W %*% X
+    XTWY <- t(X) %*% W %*% Y
+    beta[iter+1, ] <- solve(XTWX, XTWY)
+    
+    if (sum(abs(beta[iter+1, ] - beta[iter, ])) < tol) {
+      # cat(paste0("Coverged in ", iter, " iterations! \n"))
+      break
+    }
+  }
+  
+  if (iter == maxit) {
+    warning(paste0("IRLS is not converged in maxit = ", maxit, "!"))
+  } 
+  
+  out <- list(beta = beta[iter+1, ],
+              iter = iter)
+  return(out)
+}
+
+
 
 ### Local polynomial kernel smoothing with huber loss (mean estimator)
 # Lt : a list of vectors or a vector containing time points for all curves
 # Ly : a list of vectors or a vector containing observations for all curves
 # newt : a vector containing time points to estimate
+# method : "Huber" or "WRM"
 # bw : bandwidth
 # kernel : a kernel function for kernel smoothing ("epan", "gauss" are supported.)
 # loss : a loss function for kernel smoothing("L2" is squared loss, "Huber" is huber loss.)
 #   For loss = "Huber", it uses `rlm()` in `MASS` and fits the robust regression with Huber loss. 
 #   So additional parameters of `rlm()` can be applied. (k2, maxit, ...)
-local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, deg = 1, 
-                              kernel = "epanechnikov", loss = "L2", k2 = 1.345, ...) {
+local_kern_smooth <- function(Lt, Ly, newt = NULL, method = "Huber", bw = NULL, deg = 1, 
+                              # loss = "L2", 
+                              kernel = "epanechnikov", k2 = 1.345, ...) {
   # If `bw` is not defined, 5-fold CV is performed.
   if (is.null(bw)) {
     if (!(is.list(Lt) & is.list(Ly))) {
       stop("Lt or Ly are not list type. If bw is NULL, 5-fold CV are performed but it is needed list type.")
     }
-    bw <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, newt = NULL,
-                               kernel = kernel, loss = loss, K = 5, parallel = TRUE, k2 = k2)
+    bw <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, method = method, kernel = kernel, 
+                               # loss = loss, 
+                               K = 5, parallel = TRUE, k2 = k2)
   }
   
   if (is.list(Lt) | is.list(Ly)) {
@@ -185,50 +249,77 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, deg = 1,
     newt <- unlist(newt)
   }
   
-  w <- 1/length(Lt)
-  mu_hat <- sapply(newt, function(t) {
-    tmp <- (Lt - t) / bw
-    
-    if (kernel == "epanechnikov") {
-      kern <- (3/4 * w) * (1 - tmp^2)   # Epanechnikov kernel
-    } else if (kernel == "gauss") {
-      kern <- w * 1/sqrt(2*pi) * exp(-1/2 * tmp^2)   # gaussian kernel
-    }
-    
-    idx <- which(kern > 0)   # non-negative values
-    W <- diag(kern[idx]) / bw
-    X <- matrix(1, length(idx), deg+1)
-    for (d in 1:deg) {
-      X[, d+1] <- (Lt[idx] - t)^d
-    }
-    # X[, 2] <- Lt[idx] - t
-    Y <- Ly[idx]
-    
-    if (loss == "L2") {   # squared loss
-      # Weighted least squares
-      beta <- solve(t(X) %*% W %*% X) %*% t(X) %*% W %*% Y
+  if (method == "Huber") {   # proposed Huber loss
+    w <- 1/length(Lt)
+    mu_hat <- sapply(newt, function(t) {
+      tmp <- (Lt - t) / bw
       
-      return(beta[1, ])
-    } else if (loss == "Huber") {   # huber loss
-      fit <- rlm(x = sqrt(W) %*% X,
-                 y = sqrt(W) %*% Y,
-                 # maxit = 100,
-                 scale.est = "Huber",
-                 ...)
-      # df <- data.frame(y = sqrt(W) %*% Ly[idx],
-      #                  x = sqrt(W) %*% X)
-      # fit <- rlm(y ~ .-1,
-      #            data = df,
-      #            method = "M",
-      #            maxit = 100,
+      if (kernel == "epanechnikov") {
+        kern <- (3/4 * w) * (1 - tmp^2)   # Epanechnikov kernel
+      } else if (kernel == "gauss") {
+        kern <- w * 1/sqrt(2*pi) * exp(-1/2 * tmp^2)   # gaussian kernel
+      }
+      
+      idx <- which(kern > 0)   # non-negative values
+      W <- diag(kern[idx]) / bw
+      X <- matrix(1, length(idx), deg+1)
+      for (d in 1:deg) {
+        X[, d+1] <- (Lt[idx] - t)^d
+      }
+      # X[, 2] <- Lt[idx] - t
+      Y <- Ly[idx]
+      
+      # Huber regression
+      fit <- IRLS(Y = Y, 
+                  X = X,
+                  weight = diag(W))
+      beta <- fit$beta
+      # fit <- rlm(x = sqrt(W) %*% X,
+      #            y = sqrt(W) %*% Y,
+      #            # maxit = 100,
       #            scale.est = "Huber",
-      #            k2 = 2)
-      beta <- fit$coefficients
+      #            ...)
+      # beta <- fit$coefficients
       
       return(beta[1])
-      # return(fit$s)
+      # if (loss == "L2") {   # squared loss
+      #   # Weighted least squares
+      #   beta <- solve(t(X) %*% W %*% X) %*% t(X) %*% W %*% Y
+      #   
+      #   return(beta[1, ])
+      # } else if (loss == "Huber") {   # huber loss
+      #   fit <- rlm(x = sqrt(W) %*% X,
+      #              y = sqrt(W) %*% Y,
+      #              # maxit = 100,
+      #              scale.est = "Huber",
+      #              ...)
+      #   # df <- data.frame(y = sqrt(W) %*% Ly[idx],
+      #   #                  x = sqrt(W) %*% X)
+      #   # fit <- rlm(y ~ .-1,
+      #   #            data = df,
+      #   #            method = "M",
+      #   #            maxit = 100,
+      #   #            scale.est = "Huber",
+      #   #            k2 = 2)
+      #   beta <- fit$coefficients
+      #   
+      #   return(beta[1])
+      #   # return(fit$s)
+      # }
+    })
+  } else if (method == "WRM") {   # robfilter package
+    if (kernel == "epanechnikov") {
+      kern <- 2
+    } else if (kernel == "gauss") {
+      kern <- 3
     }
-  })
+    wrm.obj <- wrm.smooth(Lt, 
+                          Ly,
+                          h = bw,
+                          xgrid = newt,
+                          weight = kern)
+    mu_hat <- wrm.obj$level
+  }
   
   return( as.numeric(mu_hat) )
 }
@@ -236,12 +327,14 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, bw = NULL, deg = 1,
 ### K-fold cross validation to find optimal bandwidth for local polynomial kernel smoother
 # Lt : a list of vectors containing time points for each curve
 # Ly : a list of vectors containing observations for each curve
+# method : "Huber" or "WRM"
 # K : the number of folds
 # bw_cand : user defined bandwidth candidates for CV
 # parallel : If parallel is TRUE, it implements `foreach()` in `doParallel` for CV.
 # Other parameters are same with `local_kern_smooth()`.
-cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", loss = "Huber", 
-                                 cv_loss = "L2", K = 5, 
+cv.local_kern_smooth <- function(Lt, Ly, method = "Huber", kernel = "epanechnikov", 
+                                 # loss = "Huber", 
+                                 cv_loss = "Huber", K = 5, 
                                  bw_cand = NULL, parallel = FALSE, k2 = 1.345, ...) {
   if (!(is.list(Lt) & is.list(Ly))) {
     stop("Lt and Ly should be only a list type.")
@@ -275,7 +368,7 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
     registerDoParallel(cl)
     
     cv_error <- foreach(i = 1:length(bw_cand), .combine = "c", 
-                        .export = c("local_kern_smooth"), .packages = c("MASS")) %dopar% {
+                        .export = c("local_kern_smooth","IRLS"), .packages = c("MASS","robfilter")) %dopar% {
       err <- 0
       for (k in 1:K) {
         Lt_train <- Lt[ -folds[[k]] ]
@@ -283,8 +376,9 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
         Lt_test <- Lt[ folds[[k]] ]
         Ly_test <- Ly[ folds[[k]] ]
         
-        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, 
-                                   bw = bw_cand[i], kernel = kernel, loss = loss, ...)
+        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                                   bw = bw_cand[i], kernel = kernel, ...)
+                                   # , loss = loss, ...)
         y <- unlist(Ly_test)
         if (cv_loss == "L2") {
           err <- err + sum((y - y_hat)^2)   # squared errors
@@ -307,8 +401,9 @@ cv.local_kern_smooth <- function(Lt, Ly, newt = NULL, kernel = "epanechnikov", l
       Ly_test <- Ly[ folds[[k]] ]
       
       for (i in 1:length(bw_cand)) {
-        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, 
-                                   bw = bw_cand[i], kernel = kernel, loss = loss, ...)
+        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                                   bw = bw_cand[i], kernel = kernel, ...)
+                                   # , loss = loss, ...)
         y <- unlist(Ly_test)
         # cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         if (cv_loss == "L2") {

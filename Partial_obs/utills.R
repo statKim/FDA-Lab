@@ -1,3 +1,6 @@
+##########################################
+### Load source codes
+##########################################
 load_sources <- function() {
   library(Rcpp)
   path <- "../../mcfda/src/"
@@ -148,10 +151,6 @@ cov_est_sim <- function(data.list, num.sim = NULL, seed = 1000, kernel = "epanec
 
 
 
-
-
-
-
 ##########################################
 ### Simulation summary functions
 ##########################################
@@ -162,37 +161,62 @@ summary_ise <- function(data.list, cov.est, method = "var") {
   if (method %in% c("var","cov")) {   ## validation for Lin & Wang(2020)
     if (method == "var") {   # variance
       ise.cov <- sapply(cov.est, function(x) {
-        c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
-          get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid),
-          get_ise(diag(x$cov$true), diag(x$cov$huber), x$work.grid))
+        num_method <- length(x$cov) - 1
+        ise <- numeric(num_method)
+        for (j in 1:num_method) {
+          ise[j] <- get_ise(diag(x$cov$true), diag(x$cov[[j+1]]), x$work.grid)
+        }
+        return(ise)
+        # c(get_ise(diag(x$cov$true), diag(x$cov$yao), x$work.grid),
+        #   get_ise(diag(x$cov$true), diag(x$cov$lin), x$work.grid),
+        #   get_ise(diag(x$cov$true), diag(x$cov$huber), x$work.grid))
       })
     } else if (method == "cov") {   # covariance
       ise.cov <- sapply(cov.est, function(x) {
-        c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
-          get_ise(x$cov$true, x$cov$lin, x$work.grid),
-          get_ise(x$cov$true, x$cov$huber, x$work.grid))
+        num_method <- length(x$cov) - 1
+        ise <- numeric(num_method)
+        for (j in 1:num_method) {
+          ise[j] <- get_ise(x$cov$true, x$cov[[j+1]], x$work.grid)
+        }
+        return(ise)
+        # c(get_ise(x$cov$true, x$cov$yao, x$work.grid),
+        #   get_ise(x$cov$true, x$cov$lin, x$work.grid),
+        #   get_ise(x$cov$true, x$cov$huber, x$work.grid))
       })
     } 
   } else if (method %in% c("intra","extra")) {   ## validation for Delaigle(2020)
     ise.cov <- mapply(function(x, y) {
       cov.list <- x$cov
       ind <- get_design_index(y$x$t)
+      num_method <- length(cov.list) - 1
+      ise <- numeric(num_method)
       
       if (method == "intra") {   # intrapolated part
-        cov.true <- cov_inter(cov.list$true, ind)
-        cov.yao <- cov_inter(cov.list$yao, ind)
-        cov.lin <- cov_inter(cov.list$lin, ind)
-        cov.huber <- cov_inter(cov.list$huber, ind)
+        for (j in 1:num_method) {
+          ise[j] <- get_ise(cov_inter(cov.list$true, ind), 
+                            cov_inter(cov.list[[j+1]], ind), 
+                            x$work.grid)
+        }
+        # cov.true <- cov_inter(cov.list$true, ind)
+        # cov.yao <- cov_inter(cov.list$yao, ind)
+        # cov.lin <- cov_inter(cov.list$lin, ind)
+        # cov.huber <- cov_inter(cov.list$huber, ind)
       } else if (method == "extra") {   # extrapolated part
-        cov.true <- cov_extra(cov.list$true, ind)
-        cov.yao <- cov_extra(cov.list$yao, ind)
-        cov.lin <- cov_extra(cov.list$lin, ind)
-        cov.huber <- cov_extra(cov.list$huber, ind)
+        for (j in 1:num_method) {
+          ise[j] <- get_ise(cov_extra(cov.list$true, ind), 
+                            cov_extra(cov.list[[j+1]], ind), 
+                            x$work.grid)
+        }
+        # cov.true <- cov_extra(cov.list$true, ind)
+        # cov.yao <- cov_extra(cov.list$yao, ind)
+        # cov.lin <- cov_extra(cov.list$lin, ind)
+        # cov.huber <- cov_extra(cov.list$huber, ind)
       }
       
-      c(get_ise(cov.true, cov.yao, x$work.grid),
-        get_ise(cov.true, cov.lin, x$work.grid),
-        get_ise(cov.true, cov.huber, x$work.grid))
+      return(ise)
+      # c(get_ise(cov.true, cov.yao, x$work.grid),
+      #   get_ise(cov.true, cov.lin, x$work.grid),
+      #   get_ise(cov.true, cov.huber, x$work.grid))
     },
     cov.est, data.list)
   }
@@ -216,32 +240,218 @@ sim_eigen_result <- function(cov.est, num.sim, seed = 1000) {
     cov.yao <- cov.est[[sim]]$cov$yao
     cov.lin <- cov.est[[sim]]$cov$lin
     cov.huber <- cov.est[[sim]]$cov$huber
+    cov.wrm <- cov.est[[sim]]$cov$wrm
     
     # eigen analysis
     eig.true <- get_eigen(cov = cov.true, grid = work.grid)
     eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
     eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
     eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
+    eig.wrm <- get_eigen(cov = cov.wrm, grid = work.grid)
     
     # change eigen direction(sign) for first K eigenvectors
     K <- min(ncol(eig.true$phi),
              ncol(eig.yao$phi),
              ncol(eig.lin$phi),
-             ncol(eig.huber$phi))
+             ncol(eig.huber$phi),
+             ncol(eig.wrm$phi))
     eig.yao$phi[, 1:K] <- check_eigen_sign(eig.yao$phi[, 1:K], eig.true$phi[, 1:K])
     eig.lin$phi[, 1:K] <- check_eigen_sign(eig.lin$phi[, 1:K], eig.true$phi[, 1:K])
     eig.huber$phi[, 1:K] <- check_eigen_sign(eig.huber$phi[, 1:K], eig.true$phi[, 1:K])
+    eig.wrm$phi[, 1:K] <- check_eigen_sign(eig.wrm$phi[, 1:K], eig.true$phi[, 1:K])
     
     # output list
     out <- list(work.grid = work.grid,
                 true = eig.true,
                 yao = eig.yao,
                 lin = eig.lin,
-                huber = eig.huber)
+                huber = eig.huber,
+                wrm = eig.wrm)
     
     return(out)
   }
   return(pca.est)
 }
 
+
+
+##########################################
+### Visualization functions for simulations
+##########################################
+require(tidyverse)
+## Visualize the variance functions
+ggplot_var <- function(cov.est, sim, main = "Outlier 1") {
+  fig <- list()   # figure list
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est, is.null))
+  # num.sim <- length(ind)   # number of simulations
+  # data.list <- data.list[ind]
+  cov.est <- cov.est[ind]
+
+  # time points for simulated data  
+  work.grid <- cov.est[[sim]]$work.grid
+  cov.list <- cov.est[[sim]]$cov
+  
+  # dataframe for ggplot2
+  df <- data.frame(
+    x = rep(work.grid, 5),
+    y = c(diag(cov.list$true),
+          diag(cov.list$yao),
+          diag(cov.list$lin),
+          diag(cov.list$huber),
+          diag(cov.list$wrm)),
+    method = factor(rep(c("True","Yao","Lin","Huber","WRM"),
+                        each = length(work.grid)),
+                    levels = c("True","Yao","Lin","Huber","WRM"))
+    # x = rep(work.grid, 4),
+    # y = c(diag(cov.list$true),
+    #       diag(cov.list$yao),
+    #       diag(cov.list$lin),
+    #       diag(cov.list$huber)),
+    # method = factor(rep(c("True","Yao(2005)","Lin(2020)","Lin + Huber loss"),
+    #                     each = length(work.grid)),
+    #                 levels = c("True","Yao(2005)","Lin(2020)","Lin + Huber loss"))
+  )
+  
+  # figure of all methods
+  fig[[1]] <- ggplot(df, aes(x, y, group = method, color = method)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = main) +
+    geom_hline(yintercept = 0, size = 0.8) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+  
+  fig[[2]] <- fig[[1]] + ylim(0, 5)
+  # # figure of true and a proposed method
+  # fig[[2]] <- df %>% 
+  #   # filter(method %in% c("True","Huber")) %>% 
+  #   filter(method %in% c("True","Huber","WRM")) %>% 
+  #   ggplot(aes(x, y, group = method, color = method)) +
+  #   geom_line(size = 1) +
+  #   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "") +
+  #   geom_hline(yintercept = 0, size = 0.8) +
+  #   theme_bw() +
+  #   theme(legend.title = element_blank(),
+  #         legend.position = "bottom")
+  
+  return(fig)
+}
+
+
+## Visualize the covaraince surfaces
+plot_cov_surf <- function(cov.est, sim, title = TRUE, lab = "Outlier 1") {
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est, is.null))
+  # num.sim <- length(ind)   # number of simulations
+  # data.list <- data.list[ind]
+  cov.est <- cov.est[ind]
+  
+  # time points for simulated data  
+  work.grid <- cov.est[[sim]]$work.grid
+  cov.list <- cov.est[[sim]]$cov
+  
+  if (isTRUE(title)) {
+    # main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin + Huber loss")
+    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin + Huber loss","WRM")
+  } else {
+    main <- c("","","","")
+  }
+  
+  ### Covariance surface
+  # par(mfrow = c(1, 3),
+  #     mar = c(0, 2, 7, 2))
+  # persp3D(work.grid, work.grid, cov.list$true, 
+  #         theta = -70, phi = 30, expand = 1,
+  #         main = main[1], 
+  #         xlab = "s", ylab = "t", zlab = "C(s,t)")
+  # mtext(lab, side = 2)
+  persp3D(work.grid, work.grid, cov.list$yao, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[2], 
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  mtext(lab, side = 2)
+  persp3D(work.grid, work.grid, cov.list$lin, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[3],
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  persp3D(work.grid, work.grid, cov.list$huber, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[4],
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  persp3D(work.grid, work.grid, cov.list$wrm, 
+          theta = -70, phi = 30, expand = 1,
+          main = main[5],
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+}
+
+## Visualize the first 3 eigenfunctions
+ggplot_eig <- function(cov.est, sim, main = "Outlier 1") {
+  fig <- list()   # figure list
+  
+  # remove list contating "null"  
+  ind <- which(!sapply(cov.est, is.null))
+  cov.est <- cov.est[ind]
+  
+  # estimated covariances from Simulation 3
+  work.grid <- cov.est[[sim]]$work.grid
+  cov.true <- cov.est[[sim]]$cov$true
+  cov.yao <- cov.est[[sim]]$cov$yao
+  cov.lin <- cov.est[[sim]]$cov$lin
+  cov.huber <- cov.est[[sim]]$cov$huber  
+  cov.wrm <- cov.est[[sim]]$cov$wrm  
+  
+  # eigen analysis
+  eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+  eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+  eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
+  eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
+  eig.wrm <- get_eigen(cov = cov.wrm, grid = work.grid)
+  
+  # change eigen direction(sign) for first K eigenvectors
+  K <- 3
+  eig.yao$phi[, 1:K] <- check_eigen_sign(eig.yao$phi[, 1:K], eig.true$phi[, 1:K])
+  eig.lin$phi[, 1:K] <- check_eigen_sign(eig.lin$phi[, 1:K], eig.true$phi[, 1:K])
+  eig.huber$phi[, 1:K] <- check_eigen_sign(eig.huber$phi[, 1:K], eig.true$phi[, 1:K])
+  eig.wrm$phi[, 1:K] <- check_eigen_sign(eig.wrm$phi[, 1:K], eig.true$phi[, 1:K])
+  
+  # fitst 3 eigenfunctions
+  for (i in 1:K) {
+    if (i == 1) {
+      # p_title <- paste("Outlier", k)
+      p_title <- main
+    } else {
+      p_title <- ""
+    }
+    
+    fig.data <- data.frame(
+      work.grid = rep(work.grid, 5),
+      phi = c(eig.true$phi[, i],
+              eig.yao$phi[, i],
+              eig.lin$phi[, i],
+              eig.huber$phi[, i],
+              eig.wrm$phi[, i]),
+      method = rep(c("True","Yao","Lin","Huber","WRM"), 
+                   each = length(work.grid))
+      # work.grid = rep(work.grid, 4),
+      # phi = c(eig.true$phi[, i],
+      #         eig.yao$phi[, i],
+      #         eig.lin$phi[, i],
+      #         eig.huber$phi[, i]),
+      # method = rep(c("True","Yao (2005)","Lin (2020)","Lin + Huber"), 
+      #              each = length(work.grid))
+    )
+    fig[[i]] <- ggplot(data = fig.data, 
+                             mapping = aes(work.grid, phi, color = method)) +
+      geom_line(size = 1) +
+      labs(x = TeX("$t$"), y = TeX(paste0("$\\phi_", i, "(t)$")), title = p_title) +
+      scale_color_discrete(breaks = c("True","Yao","Lin","Huber","WRM")) +
+      theme_bw() +
+      theme(legend.title = element_blank(),
+            legend.position = "bottom")
+  }
+  
+  return(fig)
+}
 
