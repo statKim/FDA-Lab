@@ -45,10 +45,18 @@
 <div id="TOC" class="toc">
 <div class="toc-box">
 <ul>
+<li><a href="#r-libraryga-persp-plot-librarymvtnorm-libraryfdapace-1-2-librarymcfda-7-librarysynfd-7-librarydoparallel-parallel-computing-librarydorng-set.seed-for-foreach-librarymass-huber-rlm-sourcefunctions.r-librarykableextra-librarytidyverse-librarygridextra-librarylatex2exp-sourceutills.r"><code>{r} # library(GA)   # persp plot # library(mvtnorm) # library(fdapace)   # 1, 2 # library(mcfda)   # 7 # library(synfd)   # 7 # library(doParallel)   # parallel computing # library(doRNG)   # set.seed for foreach # library(MASS)   # huber, rlm # source(&quot;functions.R&quot;) # library(kableExtra) # library(tidyverse) # library(gridExtra) # library(latex2exp) # source(&quot;utills.R&quot;) #</code></a></li>
 <li><a href="#iteratively-re-weighted-least-squares-irls-irwls">Iteratively re-weighted least squares (IRLS; IRWLS)</a>
 <ul>
-<li><a href="#irls-for-robust-regression">IRLS for robust regression</a></li>
+<li><a href="#irls-for-robust-regression">IRLS for robust regression</a>
+<ul>
+<li><a href="#irls-algorithm">IRLS algorithm</a></li>
+</ul></li>
 <li><a href="#irls-for-local-kernel-smoother-with-huber-loss">IRLS for local kernel smoother with Huber loss</a></li>
+</ul></li>
+<li><a href="#selection-delta-for-huber-loss">Selection <span class="math inline">\(\delta\)</span> for Huber loss</a>
+<ul>
+<li><a href="#naive-selection">Naive selection</a></li>
 </ul></li>
 </ul>
 </div>
@@ -73,14 +81,16 @@
     text-align: justify;
   }
 </style>
+<div id="r-libraryga-persp-plot-librarymvtnorm-libraryfdapace-1-2-librarymcfda-7-librarysynfd-7-librarydoparallel-parallel-computing-librarydorng-set.seed-for-foreach-librarymass-huber-rlm-sourcefunctions.r-librarykableextra-librarytidyverse-librarygridextra-librarylatex2exp-sourceutills.r" class="section level1">
+<h1><code>{r} # library(GA)   # persp plot # library(mvtnorm) # library(fdapace)   # 1, 2 # library(mcfda)   # 7 # library(synfd)   # 7 # library(doParallel)   # parallel computing # library(doRNG)   # set.seed for foreach # library(MASS)   # huber, rlm # source(&quot;functions.R&quot;) # library(kableExtra) # library(tidyverse) # library(gridExtra) # library(latex2exp) # source(&quot;utills.R&quot;) #</code></h1>
+</div>
 <div id="iteratively-re-weighted-least-squares-irls-irwls" class="section level1">
 <h1>Iteratively re-weighted least squares (IRLS; IRWLS)</h1>
 <div id="irls-for-robust-regression" class="section level2">
 <h2>IRLS for robust regression</h2>
 <ul>
-<li><span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span></li>
-<li>Let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
-<li>Normal equation : <span class="math display">\[
+<li>Our objective is to find <span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span>, and let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
+<li>Then a normal equation could be found by applying 1st derivative : <span class="math display">\[
 \frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho&#39;(x)
 \]</span></li>
 <li>Set <span class="math inline">\(w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).\)</span></li>
@@ -89,16 +99,22 @@
 \Leftrightarrow X^TWY-XWX^T\beta=0 
 \]</span></li>
 <li>Therefore, the solution can be obtained by weighted least squares as <span class="math display">\[ \hat{\beta} = (X^TWX)^{-1}X^TWY \]</span></li>
-<li>From above equations, set initial value <span class="math inline">\(\hat{\beta}^{(0)}\)</span>, then we can compute <span class="math inline">\(W^{(0)}\)</span>.</li>
-<li>Therefore, <span class="math inline">\(\hat{\beta}^{(1)}\)</span> for 1st iterations can be obtained as <span class="math display">\[
-\hat{\beta}^{(1)} = (X^TW^{(0)}X)^{-1}X^TW^{(0)}Y.
-\]</span></li>
-<li>Similarly, <span class="math inline">\(\hat{\beta}^{(t+1)}\)</span> for <span class="math inline">\(t\)</span>th iterations can be represented as <span class="math display">\[
-\hat{\beta}^{(t+1)} = (X^TW^{(t)}X)^{-1}X^TW^{(t)}Y.
-\]</span></li>
-<li>Repeat this procedure until <span class="math inline">\(\hat{\beta}^{(t)}\)</span> is converged.</li>
+<li>The above equation can be solved by following <strong>Iteratively re-weighted least squares (IRLS) algorithm</strong>.</li>
 </ul>
+<div id="irls-algorithm" class="section level3">
+<h3>IRLS algorithm</h3>
+<ol style="list-style-type: decimal">
+<li>Set initial value <span class="math inline">\(\hat{\beta}^{(0)}\)</span>, then we can compute <span class="math inline">\(W^{(0)}\)</span>.</li>
+<li>Therefore, <span class="math inline">\(\hat{\beta}^{(1)}\)</span> for 1st iterations can be obtained as <span class="math display">\[
+  \hat{\beta}^{(1)} = (X^TW^{(0)}X)^{-1}X^TW^{(0)}Y.
+  \]</span></li>
+<li>Similarly, <span class="math inline">\(\hat{\beta}^{(t+1)}\)</span> for <span class="math inline">\(t\)</span>th iterations can be represented as <span class="math display">\[
+  \hat{\beta}^{(t+1)} = (X^TW^{(t)}X)^{-1}X^TW^{(t)}Y.
+  \]</span></li>
+<li>Repeat this procedure until <span class="math inline">\(\hat{\beta}^{(t)}\)</span> is converged.</li>
+</ol>
 <p><br></p>
+</div>
 </div>
 <div id="irls-for-local-kernel-smoother-with-huber-loss" class="section level2">
 <h2>IRLS for local kernel smoother with Huber loss</h2>
@@ -109,14 +125,24 @@
 \end{align}
 \]</span></p>
 <ul>
-<li><span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span></li>
-<li>Let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
+<li>Vectorise <span class="math inline">\(\left( p = 1, \dots, P=\sum_{i=1}^n m_i \right)\)</span> and let weight <span class="math inline">\(K_p = w_i K_{h_{\mu}} (T_{ij}-t)\)</span>.</li>
+<li>Let <span class="math inline">\(L = \sum_{p=1}^P K_p \rho \left( \frac{y_p - x_p^T\beta}{s} \right)\)</span>, then we could find the solution <span class="math inline">\(\hat{\beta} = \arg\min_{\beta} L\)</span>.</li>
 <li>Normal equation : <span class="math display">\[
-\frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0
+\frac{\partial L}{\partial \beta} = \sum_{p=1}^P K_p x_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) = 0
 \]</span></li>
-<li>Set <span class="math inline">\(w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).\)</span></li>
+<li>Set <span class="math inline">\(w_p = \left\{ K_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) \right\} / \left( y_p - x_p^T\beta \right).\)</span></li>
+<li>Apply <strong>IRLS algorithm</strong> until <span class="math inline">\(\hat{\beta}\)</span> is converged.</li>
 </ul>
-<p>then belows are same.</p>
+<p><br></p>
+</div>
+</div>
+<div id="selection-delta-for-huber-loss" class="section level1">
+<h1>Selection <span class="math inline">\(\delta\)</span> for Huber loss</h1>
+<div id="naive-selection" class="section level2">
+<h2>Naive selection</h2>
+<p><span class="math display">\[
+  \delta = 1 / \max\left\{ Y_{ij} : i = 1,\dots,n, j = 1,\dots,m_i \right\}
+\]</span></p>
 </div>
 </div>
 </section>

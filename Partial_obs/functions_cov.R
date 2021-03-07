@@ -20,7 +20,7 @@
 meanfunc.rob <- function(Lt, 
                          Ly, 
                          newt = NULL, 
-                         method = c('Huber','WRM',"Bisquare"), 
+                         method = c("Huber","WRM","Bisquare"), 
                          bw = NULL,
                          kernel = "epanechnikov",
                          deg = 1, 
@@ -199,9 +199,10 @@ varfunc.rob <- function(Lt,
     mu <- meanfunc.rob(Lt, Ly, method = method)
   }
   
+  # calculate sum of squares
   gr <- sort(unique(unlist(Lt)))
   mu_hat <- predict(mu, gr)
-  vLy <- lapply(1:n, function(i) {
+  ss <- lapply(1:n, function(i) {
     ind <- match(Lt[[i]], gr)
     if (length(ind) == length(Lt[[i]])) {
       return( (Ly[[i]] - mu_hat[ind])^2 )
@@ -211,7 +212,7 @@ varfunc.rob <- function(Lt,
     }
   })
   
-  R <- list(obj = meanfunc.rob(Lt, vLy, method = method, ...),
+  R <- list(obj = meanfunc.rob(Lt, ss, method = method, ...),
             sig2 = sig2)
   class(R) <- 'varfunc.rob'
   
@@ -219,7 +220,7 @@ varfunc.rob <- function(Lt,
     newt <- Lt
   }
   
-  R$fitted <- predict(R, newt)
+  # R$fitted <- predict(R, newt)
   
   return(R)
 }
@@ -231,7 +232,7 @@ predict.varfunc.rob <- function(R, newt) {
     newt <- unlist(newt)
   }
   res <- predict(R$obj, newt)
-  res <- (res - R$sig2)
+  res <- res - R$sig2
   res[res < 0] <- 0
   
   return(res)
