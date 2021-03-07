@@ -20,7 +20,7 @@
 meanfunc.rob <- function(Lt, 
                          Ly, 
                          newt = NULL, 
-                         method = c('Huber','WRM'), 
+                         method = c('Huber','WRM',"Bisquare"), 
                          bw = NULL,
                          kernel = "epanechnikov",
                          deg = 1, 
@@ -29,8 +29,8 @@ meanfunc.rob <- function(Lt,
                          cv_optns = list(K = 5,
                                          Parallel = TRUE,
                                          Loss = "Huber"), ...) {
-  
-  if (!(method %in% c("Huber","WRM"))) {
+  method <- toupper(method)
+  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
@@ -113,6 +113,8 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
     
     tmp <- rep(Inf, length(newt0))
     
+    # print(meanfunc.obj$method)
+    
     tmp[ord] <- local_kern_smooth(Lt = meanfunc.obj$t, 
                                   Ly = meanfunc.obj$y, 
                                   newt = newt0[ord],
@@ -173,12 +175,13 @@ varfunc.rob <- function(Lt,
                         Ly,
                         newt = NULL,
                         sig2 = NULL,
-                        method = c("Huber","WRM"),
+                        method = c("Huber","WRM","Bisquare"),
                         mu = NULL,
                         # weig=NULL,
                         ...) {
   
-  if (!(method %in% c("Huber","WRM"))) {
+  method <- toupper(method)
+  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
@@ -244,9 +247,10 @@ covfunc.rob <- function(Lt,
                         newt = NULL, 
                         mu = NULL, 
                         weig = NULL, 
-                        method = c("Huber","WRM"), ...) {
+                        method = c("Huber","WRM","Bisquare"), ...) {
   
-  if (!(method %in% c("Huber","WRM"))) {
+  method <- toupper(method)
+  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   

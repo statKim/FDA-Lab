@@ -155,11 +155,10 @@ get_CE_score <- function() {
 ### Iteratively re-weighted least squares (IRLS) for robust regression (M-estimation)
 # Y : vector
 # X : matrix
-# method : "Huber"
+# method : "Huber","bisquare"
 # maxit : 
 # weight : additional weight (for kernel regression)
-IRLS <- function(Y, X, method = "Huber", maxit = 30, weight = NULL,
-                 tol = 1e-4, k = 1.345) {
+IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL, tol = 1e-4, k = 1.345) {
   n <- length(Y)
   
   if (is.data.frame(X)) {
@@ -179,8 +178,10 @@ IRLS <- function(Y, X, method = "Huber", maxit = 30, weight = NULL,
     Y_hat <- X %*% matrix(beta[iter, ], 
                           ncol = 1)
     tmp <- as.numeric((Y - Y_hat) / s)
-    if (method == "Huber") {   # psi(1st derivative) for huber's rho
+    if (toupper(method) == "HUBER") {   # psi(1st derivative) for huber's rho
       psi <- ifelse(abs(tmp) < k, tmp, sign(tmp)*k)   
+    } else if (toupper(method) == "BISQUARE") {
+      psi <- ifelse(abs(tmp) < k, 6*tmp/(k^2)*(1-(tmp/k)^2)^2, 0)
     }
     if (!is.null(weight)) {
       if (length(psi) != length(weight)) {
@@ -208,7 +209,8 @@ IRLS <- function(Y, X, method = "Huber", maxit = 30, weight = NULL,
   } 
   
   out <- list(beta = beta[iter+1, ],
-              iter = iter)
+              iter = iter,
+              scale.est = s)
   return(out)
 }
 
@@ -218,15 +220,20 @@ IRLS <- function(Y, X, method = "Huber", maxit = 30, weight = NULL,
 # Lt : a list of vectors or a vector containing time points for all curves
 # Ly : a list of vectors or a vector containing observations for all curves
 # newt : a vector containing time points to estimate
-# method : "Huber" or "WRM"
+# method : "Huber" or "WRM" or "Bisquare"
 # bw : bandwidth
 # kernel : a kernel function for kernel smoothing ("epan", "gauss" are supported.)
 # loss : a loss function for kernel smoothing("L2" is squared loss, "Huber" is huber loss.)
 #   For loss = "Huber", it uses `rlm()` in `MASS` and fits the robust regression with Huber loss. 
 #   So additional parameters of `rlm()` can be applied. (k2, maxit, ...)
-local_kern_smooth <- function(Lt, Ly, newt = NULL, method = "Huber", bw = NULL, deg = 1, 
+local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BISQUARE"), bw = NULL, deg = 1, 
                               # loss = "L2", 
                               kernel = "epanechnikov", k2 = 1.345, ...) {
+  method <- toupper(method)
+  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
+    stop(paste0(method, " is not provided. Check method parameter."))
+  }
+  
   # If `bw` is not defined, 5-fold CV is performed.
   if (is.null(bw)) {
     if (!(is.list(Lt) & is.list(Ly))) {
@@ -249,19 +256,19 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = "Huber", bw = NULL, 
     newt <- unlist(newt)
   }
   
-  if (method == "Huber") {   # proposed Huber loss
+  if (method %in% c("HUBER","BISQUARE")) {   # proposed Huber loss
     w <- 1/length(Lt)
     mu_hat <- sapply(newt, function(t) {
       tmp <- (Lt - t) / bw
       
       if (kernel == "epanechnikov") {
-        kern <- (3/4 * w) * (1 - tmp^2)   # Epanechnikov kernel
+        kern <- (3/4) * (1 - tmp^2)   # Epanechnikov kernel
       } else if (kernel == "gauss") {
-        kern <- w * 1/sqrt(2*pi) * exp(-1/2 * tmp^2)   # gaussian kernel
+        kern <- 1/sqrt(2*pi) * exp(-1/2 * tmp^2)   # gaussian kernel
       }
       
       idx <- which(kern > 0)   # non-negative values
-      W <- diag(kern[idx]) / bw
+      W <- diag(w * kern[idx]) / bw   # weight vector for w_i * K_h(x)
       X <- matrix(1, length(idx), deg+1)
       for (d in 1:deg) {
         X[, d+1] <- (Lt[idx] - t)^d
@@ -272,7 +279,9 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = "Huber", bw = NULL, 
       # Huber regression
       fit <- IRLS(Y = Y,
                   X = X,
-                  weight = diag(W))
+                  method = method,
+                  weight = diag(W),
+                  k = k2)
       beta <- fit$beta
       # fit <- rlm(x = X,
       #            y = Y,
@@ -334,12 +343,12 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = "Huber", bw = NULL, 
 ### K-fold cross validation to find optimal bandwidth for local polynomial kernel smoother
 # Lt : a list of vectors containing time points for each curve
 # Ly : a list of vectors containing observations for each curve
-# method : "Huber" or "WRM"
+# method : "Huber" or "WRM" or "Bisquare"
 # K : the number of folds
 # bw_cand : user defined bandwidth candidates for CV
 # parallel : If parallel is TRUE, it implements `foreach()` in `doParallel` for CV.
 # Other parameters are same with `local_kern_smooth()`.
-cv.local_kern_smooth <- function(Lt, Ly, method = "Huber", kernel = "epanechnikov", 
+cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechnikov", 
                                  # loss = "Huber", 
                                  cv_loss = "Huber", K = 5, 
                                  bw_cand = NULL, parallel = FALSE, k2 = 1.345, ...) {

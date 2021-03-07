@@ -48,7 +48,7 @@
 <li><a href="#iteratively-re-weighted-least-squares-irls-irwls">Iteratively re-weighted least squares (IRLS; IRWLS)</a>
 <ul>
 <li><a href="#irls-for-robust-regression">IRLS for robust regression</a></li>
-<li><a href="#irls-for-local-kernel-smoother">IRLS for local kernel smoother</a></li>
+<li><a href="#irls-for-local-kernel-smoother-with-huber-loss">IRLS for local kernel smoother with Huber loss</a></li>
 </ul></li>
 </ul>
 </div>
@@ -78,14 +78,14 @@
 <div id="irls-for-robust-regression" class="section level2">
 <h2>IRLS for robust regression</h2>
 <ul>
-<li><span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span></li>
-<li>Let <span class="math inline">\(L = \sum_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
+<li><span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span></li>
+<li>Let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
 <li>Normal equation : <span class="math display">\[
-\frac{\partial L}{\partial \beta} = \sum_i x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho&#39;(x)
+\frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho&#39;(x)
 \]</span></li>
 <li>Set <span class="math inline">\(w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).\)</span></li>
 <li>Then a normal equation be as <span class="math display">\[
-\sum_i x_iw_i(y_i - x_i^T\beta) = 0 \\
+\sum_{i=1}^n x_iw_i(y_i - x_i^T\beta) = 0 \\
 \Leftrightarrow X^TWY-XWX^T\beta=0 
 \]</span></li>
 <li>Therefore, the solution can be obtained by weighted least squares as <span class="math display">\[ \hat{\beta} = (X^TWX)^{-1}X^TWY \]</span></li>
@@ -100,14 +100,22 @@
 </ul>
 <p><br></p>
 </div>
-<div id="irls-for-local-kernel-smoother" class="section level2">
-<h2>IRLS for local kernel smoother</h2>
+<div id="irls-for-local-kernel-smoother-with-huber-loss" class="section level2">
+<h2>IRLS for local kernel smoother with Huber loss</h2>
 <p><span class="math display">\[
-\hat{\beta} = \arg\min_{\beta} \sum_i K_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right) \\
-\text{Let } L = \sum_i K_i \rho \left( \frac{y_i - x_i^T\beta}{s} \right). \\
-\text{Normal equation : } \frac{\partial L}{\partial \beta} = \sum_i x_i K_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho&#39;(x) \\
-\text{Set } w_i = \left\{ K_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) \right\} / \left( y_i - x_i^T\beta \right). \\
+\begin{align}
+  (\hat{b}_0, \hat{b}_1) &amp;= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\
+  (\hat{b}_0, \hat{b}_1) &amp;= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \rho \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right],
+\end{align}
 \]</span></p>
+<ul>
+<li><span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span></li>
+<li>Let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
+<li>Normal equation : <span class="math display">\[
+\frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0
+\]</span></li>
+<li>Set <span class="math inline">\(w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).\)</span></li>
+</ul>
 <p>then belows are same.</p>
 </div>
 </div>
