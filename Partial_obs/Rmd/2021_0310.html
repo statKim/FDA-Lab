@@ -45,18 +45,22 @@
 <div id="TOC" class="toc">
 <div class="toc-box">
 <ul>
-<li><a href="#r-libraryga-persp-plot-librarymvtnorm-libraryfdapace-1-2-librarymcfda-7-librarysynfd-7-librarydoparallel-parallel-computing-librarydorng-set.seed-for-foreach-librarymass-huber-rlm-sourcefunctions.r-librarykableextra-librarytidyverse-librarygridextra-librarylatex2exp-sourceutills.r"><code>{r} # library(GA)   # persp plot # library(mvtnorm) # library(fdapace)   # 1, 2 # library(mcfda)   # 7 # library(synfd)   # 7 # library(doParallel)   # parallel computing # library(doRNG)   # set.seed for foreach # library(MASS)   # huber, rlm # source(&quot;functions.R&quot;) # library(kableExtra) # library(tidyverse) # library(gridExtra) # library(latex2exp) # source(&quot;utills.R&quot;) #</code></a></li>
 <li><a href="#iteratively-re-weighted-least-squares-irls-irwls">Iteratively re-weighted least squares (IRLS; IRWLS)</a>
 <ul>
-<li><a href="#irls-for-robust-regression">IRLS for robust regression</a>
-<ul>
+<li><a href="#how-to-find-the-solution-for-robust-regression">How to find the solution for robust regression</a></li>
 <li><a href="#irls-algorithm">IRLS algorithm</a></li>
-</ul></li>
-<li><a href="#irls-for-local-kernel-smoother-with-huber-loss">IRLS for local kernel smoother with Huber loss</a></li>
+<li><a href="#irls-for-local-kernel-smoother-with-robust-loss-function">IRLS for local kernel smoother with robust loss function</a></li>
 </ul></li>
 <li><a href="#selection-delta-for-huber-loss">Selection <span class="math inline">\(\delta\)</span> for Huber loss</a>
 <ul>
-<li><a href="#naive-selection">Naive selection</a></li>
+<li><a href="#naive-method">Naive method</a></li>
+<li><a href="#cross-validation">Cross-validation</a></li>
+<li><a href="#adaptive-selection">Adaptive selection</a></li>
+</ul></li>
+<li><a href="#variance-trajectories-between-different-bandwidthes">Variance trajectories between different bandwidthes</a>
+<ul>
+<li><a href="#huber-loss">Huber loss</a></li>
+<li><a href="#wrm">WRM</a></li>
 </ul></li>
 </ul>
 </div>
@@ -81,15 +85,28 @@
     text-align: justify;
   }
 </style>
-<div id="r-libraryga-persp-plot-librarymvtnorm-libraryfdapace-1-2-librarymcfda-7-librarysynfd-7-librarydoparallel-parallel-computing-librarydorng-set.seed-for-foreach-librarymass-huber-rlm-sourcefunctions.r-librarykableextra-librarytidyverse-librarygridextra-librarylatex2exp-sourceutills.r" class="section level1">
-<h1><code>{r} # library(GA)   # persp plot # library(mvtnorm) # library(fdapace)   # 1, 2 # library(mcfda)   # 7 # library(synfd)   # 7 # library(doParallel)   # parallel computing # library(doRNG)   # set.seed for foreach # library(MASS)   # huber, rlm # source(&quot;functions.R&quot;) # library(kableExtra) # library(tidyverse) # library(gridExtra) # library(latex2exp) # source(&quot;utills.R&quot;) #</code></h1>
-</div>
+<!-- ```{r} -->
+<!-- library(GA)   # persp plot -->
+<!-- library(mvtnorm) -->
+<!-- library(fdapace)   # 1, 2 -->
+<!-- library(mcfda)   # 7 -->
+<!-- library(synfd)   # 7 -->
+<!-- library(doParallel)   # parallel computing -->
+<!-- library(doRNG)   # set.seed for foreach -->
+<!-- library(MASS)   # huber, rlm -->
+<!-- source("functions.R") -->
+<!-- library(kableExtra) -->
+<!-- library(tidyverse) -->
+<!-- library(gridExtra) -->
+<!-- library(latex2exp) -->
+<!-- source("utills.R") -->
+<!-- ``` -->
 <div id="iteratively-re-weighted-least-squares-irls-irwls" class="section level1">
 <h1>Iteratively re-weighted least squares (IRLS; IRWLS)</h1>
-<div id="irls-for-robust-regression" class="section level2">
-<h2>IRLS for robust regression</h2>
+<div id="how-to-find-the-solution-for-robust-regression" class="section level2">
+<h2>How to find the solution for robust regression</h2>
 <ul>
-<li>Our objective is to find <span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span>, and let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).\)</span></li>
+<li>Our objective is to find <span class="math inline">\(\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span>, and let <span class="math inline">\(L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)\)</span> where <span class="math inline">\(s = 1.4826*\text{MAD}(\{ |y_i - x_i^T\beta| :i=1,\dots,n\})\)</span>.</li>
 <li>Then a normal equation could be found by applying 1st derivative : <span class="math display">\[
 \frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho&#39;(x)
 \]</span></li>
@@ -101,8 +118,9 @@
 <li>Therefore, the solution can be obtained by weighted least squares as <span class="math display">\[ \hat{\beta} = (X^TWX)^{-1}X^TWY \]</span></li>
 <li>The above equation can be solved by following <strong>Iteratively re-weighted least squares (IRLS) algorithm</strong>.</li>
 </ul>
-<div id="irls-algorithm" class="section level3">
-<h3>IRLS algorithm</h3>
+</div>
+<div id="irls-algorithm" class="section level2">
+<h2>IRLS algorithm</h2>
 <ol style="list-style-type: decimal">
 <li>Set initial value <span class="math inline">\(\hat{\beta}^{(0)}\)</span>, then we can compute <span class="math inline">\(W^{(0)}\)</span>.</li>
 <li>Therefore, <span class="math inline">\(\hat{\beta}^{(1)}\)</span> for 1st iterations can be obtained as <span class="math display">\[
@@ -115,34 +133,60 @@
 </ol>
 <p><br></p>
 </div>
-</div>
-<div id="irls-for-local-kernel-smoother-with-huber-loss" class="section level2">
-<h2>IRLS for local kernel smoother with Huber loss</h2>
+<div id="irls-for-local-kernel-smoother-with-robust-loss-function" class="section level2">
+<h2>IRLS for local kernel smoother with robust loss function</h2>
 <p><span class="math display">\[
-\begin{align}
-  (\hat{b}_0, \hat{b}_1) &amp;= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\
-  (\hat{b}_0, \hat{b}_1) &amp;= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \rho \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right],
-\end{align}
-\]</span></p>
+(\hat{b}_0, \hat{b}_1) = \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\}
+\]</span> <!-- $$ --> <!-- \begin{align} --> <!--   (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\ --> <!--   (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \rho \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right], --> <!-- \end{align} --> <!-- $$ --></p>
 <ul>
-<li>Vectorise <span class="math inline">\(\left( p = 1, \dots, P=\sum_{i=1}^n m_i \right)\)</span> and let weight <span class="math inline">\(K_p = w_i K_{h_{\mu}} (T_{ij}-t)\)</span>.</li>
-<li>Let <span class="math inline">\(L = \sum_{p=1}^P K_p \rho \left( \frac{y_p - x_p^T\beta}{s} \right)\)</span>, then we could find the solution <span class="math inline">\(\hat{\beta} = \arg\min_{\beta} L\)</span>.</li>
+<li>Let <span class="math inline">\(x_{ij} = (1, T_{ij}-t)^T\)</span> and <span class="math inline">\(\beta = (b_0, b_1)^T\)</span>.</li>
+<li>Let <span class="math inline">\(L = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left( Y_{ij} - x_{ij}^T \beta \right)\)</span>, then we could find the solution <span class="math inline">\(\hat{\beta} = \arg\min_{\beta} L\)</span>.</li>
 <li>Normal equation : <span class="math display">\[
-\frac{\partial L}{\partial \beta} = \sum_{p=1}^P K_p x_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) = 0
+\frac{\partial L}{\partial \beta} = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) x_{ij} \psi \left( Y_{ij} - x_{ij}^T \beta \right) = 0
 \]</span></li>
-<li>Set <span class="math inline">\(w_p = \left\{ K_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) \right\} / \left( y_p - x_p^T\beta \right).\)</span></li>
+<li>Set <span class="math inline">\(w_i = \left\{ w_i K_{h_{\mu}} (T_{ij}-t) \psi \left( \frac{Y_{ij} - x_{ij}^T \beta}{s} \right) \right\} / \left( Y_{ij} - x_{ij}^T \beta \right).\)</span> <span style="color:red">s로 나누는 식 통일(실제 알고리즘에서는 s로 나눠서 진행함)</span></li>
 <li>Apply <strong>IRLS algorithm</strong> until <span class="math inline">\(\hat{\beta}\)</span> is converged.</li>
 </ul>
+<!-- - Vectorise $\left( p = 1, \dots, P=\sum_{i=1}^n m_i \right)$ and let weight $K_p = w_i K_{h_{\mu}} (T_{ij}-t)$. -->
+<!-- - Let $L = \sum_{p=1}^P K_p \rho \left( \frac{y_p - x_p^T\beta}{s} \right)$, then we could find the solution $\hat{\beta} = \arg\min_{\beta} L$. -->
+<!-- - Normal equation : -->
+<!--   $$ -->
+<!--   \frac{\partial L}{\partial \beta} = \sum_{p=1}^P K_p x_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) = 0 -->
+<!--   $$ -->
+<!-- - Set $w_p = \left\{ K_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) \right\} / \left( y_p - x_p^T\beta \right).$ -->
+<!-- - Apply **IRLS algorithm** until $\hat{\beta}$ is converged. -->
 <p><br></p>
 </div>
 </div>
 <div id="selection-delta-for-huber-loss" class="section level1">
 <h1>Selection <span class="math inline">\(\delta\)</span> for Huber loss</h1>
-<div id="naive-selection" class="section level2">
-<h2>Naive selection</h2>
+<div id="naive-method" class="section level2">
+<h2>Naive method</h2>
 <p><span class="math display">\[
-  \delta = 1 / \max\left\{ Y_{ij} : i = 1,\dots,n, j = 1,\dots,m_i \right\}
+  \delta = 1 / \max\left\{ |Y_{ij}| : i = 1,\dots,n, j = 1,\dots,m_i \right\}
 \]</span></p>
+</div>
+<div id="cross-validation" class="section level2">
+<h2>Cross-validation</h2>
+</div>
+<div id="adaptive-selection" class="section level2">
+<h2>Adaptive selection</h2>
+<p><br></p>
+</div>
+</div>
+<div id="variance-trajectories-between-different-bandwidthes" class="section level1">
+<h1>Variance trajectories between different bandwidthes</h1>
+<ul>
+<li>전체적으로 bandwidth는 smoothness에 영향을 주고, trajectory의 형태에는 큰 영향을 미치지는 않음.</li>
+</ul>
+<div id="huber-loss" class="section level2">
+<h2>Huber loss</h2>
+</div>
+<div id="wrm" class="section level2">
+<h2>WRM</h2>
+<ul>
+<li>Huber loss를 사용한 smoothing에 비해 다소 작게 estimate되는 경향이 있음.</li>
+</ul>
 </div>
 </div>
 </section>

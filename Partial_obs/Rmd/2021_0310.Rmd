@@ -43,28 +43,28 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
 knitr::opts_knit$set(root.dir = "../")
 ```
 
-# ```{r}
-# library(GA)   # persp plot
-# library(mvtnorm)
-# library(fdapace)   # 1, 2
-# library(mcfda)   # 7
-# library(synfd)   # 7
-# library(doParallel)   # parallel computing
-# library(doRNG)   # set.seed for foreach
-# library(MASS)   # huber, rlm
-# source("functions.R")
-# library(kableExtra)
-# library(tidyverse)
-# library(gridExtra)
-# library(latex2exp)
-# source("utills.R")
-# ```
+<!-- ```{r} -->
+<!-- library(GA)   # persp plot -->
+<!-- library(mvtnorm) -->
+<!-- library(fdapace)   # 1, 2 -->
+<!-- library(mcfda)   # 7 -->
+<!-- library(synfd)   # 7 -->
+<!-- library(doParallel)   # parallel computing -->
+<!-- library(doRNG)   # set.seed for foreach -->
+<!-- library(MASS)   # huber, rlm -->
+<!-- source("functions.R") -->
+<!-- library(kableExtra) -->
+<!-- library(tidyverse) -->
+<!-- library(gridExtra) -->
+<!-- library(latex2exp) -->
+<!-- source("utills.R") -->
+<!-- ``` -->
 
 
 # Iteratively re-weighted least squares (IRLS; IRWLS)
 
-## IRLS for robust regression
-- Our objective is to find $\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$, and let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right).$
+## How to find the solution for robust regression
+- Our objective is to find $\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$, and let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$ where $s = 1.4826*\text{MAD}(\{ |y_i - x_i^T\beta| :i=1,\dots,n\})$.
 - Then a normal equation could be found by applying 1st derivative : 
   $$
   \frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
@@ -80,7 +80,7 @@ knitr::opts_knit$set(root.dir = "../")
 - The above equation can be solved by following **Iteratively re-weighted least squares (IRLS) algorithm**.
 
 
-### IRLS algorithm
+## IRLS algorithm
 1. Set initial value $\hat{\beta}^{(0)}$, then we can compute $W^{(0)}$.
 2.  Therefore, $\hat{\beta}^{(1)}$ for 1st iterations can be obtained as
   $$
@@ -95,29 +95,69 @@ knitr::opts_knit$set(root.dir = "../")
 <br>
 
 
-## IRLS for local kernel smoother with Huber loss
+## IRLS for local kernel smoother with robust loss function
 $$
-\begin{align}
-  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\
-  (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \rho \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right],
-\end{align}
+(\hat{b}_0, \hat{b}_1) = \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\}
 $$
+<!-- $$ -->
+<!-- \begin{align} -->
+<!--   (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\ -->
+<!--   (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\sigma}} (T_{ij}-t) \rho \left[ \{Y_{ij} - \hat{\mu}(T_{ij})\}^2 - b_0 - b_1(T_{ij}-t) \right], -->
+<!-- \end{align} -->
+<!-- $$ -->
 
-- Vectorise $\left( p = 1, \dots, P=\sum_{i=1}^n m_i \right)$ and let weight $K_p = w_i K_{h_{\mu}} (T_{ij}-t)$.
-- Let $L = \sum_{p=1}^P K_p \rho \left( \frac{y_p - x_p^T\beta}{s} \right)$, then we could find the solution $\hat{\beta} = \arg\min_{\beta} L$.
+- Let $x_{ij} = (1, T_{ij}-t)^T$ and $\beta = (b_0, b_1)^T$.
+- Let $L = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left( Y_{ij} - x_{ij}^T \beta \right)$, then we could find the solution $\hat{\beta} = \arg\min_{\beta} L$.
 - Normal equation :
   $$
-  \frac{\partial L}{\partial \beta} = \sum_{p=1}^P K_p x_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) = 0
+  \frac{\partial L}{\partial \beta} = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) x_{ij} \psi \left( Y_{ij} - x_{ij}^T \beta \right) = 0
   $$
-- Set $w_p = \left\{ K_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) \right\} / \left( y_p - x_p^T\beta \right).$
+- Set $w_i = \left\{ w_i K_{h_{\mu}} (T_{ij}-t) \psi \left( \frac{Y_{ij} - x_{ij}^T \beta}{s} \right) \right\} / \left( Y_{ij} - x_{ij}^T \beta \right).$
+<span style="color:red">s로 나누는 식 통일(실제 알고리즘에서는 s로 나눠서 진행함)</span>
 - Apply **IRLS algorithm** until $\hat{\beta}$ is converged.
+
+
+<!-- - Vectorise $\left( p = 1, \dots, P=\sum_{i=1}^n m_i \right)$ and let weight $K_p = w_i K_{h_{\mu}} (T_{ij}-t)$. -->
+<!-- - Let $L = \sum_{p=1}^P K_p \rho \left( \frac{y_p - x_p^T\beta}{s} \right)$, then we could find the solution $\hat{\beta} = \arg\min_{\beta} L$. -->
+<!-- - Normal equation : -->
+<!--   $$ -->
+<!--   \frac{\partial L}{\partial \beta} = \sum_{p=1}^P K_p x_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) = 0 -->
+<!--   $$ -->
+<!-- - Set $w_p = \left\{ K_p \psi \left( \frac{y_p - x_p^T\beta}{s} \right) \right\} / \left( y_p - x_p^T\beta \right).$ -->
+<!-- - Apply **IRLS algorithm** until $\hat{\beta}$ is converged. -->
 
 
 <br>
 
 # Selection $\delta$ for Huber loss
 ## Naive method
+
 $$
-  \delta = 1 / \max\left\{ Y_{ij} : i = 1,\dots,n, j = 1,\dots,m_i \right\}
+  \delta = 1 / \max\left\{ |Y_{ij}| : i = 1,\dots,n, j = 1,\dots,m_i \right\}
 $$
+
 ## Cross-validation
+
+## Adaptive selection
+
+
+<br>
+
+# Variance trajectories between different bandwidths
+- 전체적으로 bandwidth는 smoothness에 영향을 주고, trajectory의 형태에는 큰 영향을 미치지는 않음.
+
+## Huber loss
+```{r}
+
+```
+
+
+## WRM
+- Huber loss를 사용한 smoothing에 비해 다소 작게 estimate되는 경향이 있음.
+```{r}
+
+```
+
+
+
+

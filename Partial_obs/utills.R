@@ -1,25 +1,4 @@
 ##########################################
-### Load source codes
-##########################################
-load_sources <- function() {
-  library(Rcpp)
-  path <- "../../mcfda/src/"
-  flist <- list.files(path)
-  flist <- c("cov.cpp","mean.cpp","Rhessian.cpp" )
-  for (fname in flist) {
-    print(fname)
-    sourceCpp(paste0(path, fname))
-  }
-  
-  path <- "../../mcfda/R/"
-  flist <- list.files(path)
-  for (fname in flist) {
-    print(fname)
-    source(paste0(path, fname))
-  }
-}
-
-##########################################
 ### Functions for simulations
 ##########################################
 cov_est_sim <- function(data.list, num.sim = NULL, seed = 1000, kernel = "epanechnikov") {

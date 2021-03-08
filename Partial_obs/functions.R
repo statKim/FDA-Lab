@@ -1,11 +1,33 @@
 ##########################################
 ### Functions
 ##########################################
+require(fdapace)
+load_sources()
 source("sim_Lin_Wang(2020).R")
 source("sim_Delaigle(2020).R")
 source("utills.R")
-require(fdapace)
+source("functions_cov.R")
 # require(pracma)
+
+
+### Load source codes
+load_sources <- function() {
+  library(Rcpp)
+  path <- "../../mcfda/src/"
+  flist <- list.files(path)
+  flist <- c("cov.cpp","mean.cpp","Rhessian.cpp" )
+  for (fname in flist) {
+    print(fname)
+    sourceCpp(paste0(path, fname))
+  }
+  
+  path <- "../../mcfda/R/"
+  flist <- list.files(path)
+  for (fname in flist) {
+    print(fname)
+    source(paste0(path, fname))
+  }
+}
 
 ### Get function name in the global environment
 fun2char <- function() {
@@ -170,8 +192,7 @@ IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL
                      t(X) %*% Y)   # initial value for beta (LSE estimator)
   
   resid <- Y - X %*% beta[1, ]
-  # s <- mad(resid) / 0.6745
-  s <- median(abs(resid)) / 0.6745   # re-scaled MAD
+  s <- mad(resid)   # re-scaled MAD by MAD*1.4826
   
   for (iter in 1:maxit) {
     W <- matrix(0, n, n)
@@ -350,8 +371,13 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
 # Other parameters are same with `local_kern_smooth()`.
 cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechnikov", 
                                  # loss = "Huber", 
-                                 cv_loss = "Huber", K = 5, 
+                                 cv_loss = "HUBER", K = 5, 
                                  bw_cand = NULL, parallel = FALSE, k2 = 1.345, ...) {
+  cv_loss <- toupper(cv_loss)
+  if (!(cv_loss %in% c("HUBER","L1","L2"))) {
+    stop(paste0(cv_loss, " is not provided. Check cv_loss parameter."))
+  }
+  
   if (!(is.list(Lt) & is.list(Ly))) {
     stop("Lt and Ly should be only a list type.")
   }
@@ -359,7 +385,7 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
   if (is.null(bw_cand)) {
     a <- min(unlist(Lt))
     b <- max(unlist(Lt))
-    bw_cand <- 10^seq(-2, 0, length.out = 20) * (b - a)/3
+    bw_cand <- 10^seq(-2, 0, length.out = 10) * (b - a)/3
   }
   
   # get index for each folds
@@ -392,16 +418,25 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
         Lt_test <- Lt[ folds[[k]] ]
         Ly_test <- Ly[ folds[[k]] ]
         
+        y_hat <- tryCatch({
+          local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                            bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
+        }, error = function(e) { 
+          print(e)
+          return(0) 
+        })
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-                                   bw = bw_cand[i], kernel = kernel, ...)
+                                   bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
                                    # , loss = loss, ...)
         y <- unlist(Ly_test)
-        if (cv_loss == "L2") {
-          err <- err + sum((y - y_hat)^2)   # squared errors
-        } else if (cv_loss == "Huber") {
+        if (cv_loss == "L2") {   # squared errors
+          err <- err + sum((y - y_hat)^2)
+        } else if (cv_loss == "HUBER") {   # Huber errors
           a <- abs(y - y_hat)
           err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
           err <- err + sum(err_huber)
+        } else if (cv_loss == "L1") {   # absolute errors
+          err <- err + sum(abs(y - y_hat))
         }
       }
       
@@ -424,7 +459,7 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
         # cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         if (cv_loss == "L2") {
           cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
-        } else if (cv_loss == "Huber") {
+        } else if (cv_loss == "HUBER") {
           a <- abs(y - y_hat)
           err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
           cv_error[i] <- cv_error[i] + sum(err_huber)

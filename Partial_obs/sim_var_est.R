@@ -6,13 +6,13 @@ library(synfd)   # 7
 library(doParallel)   # parallel computing
 library(doRNG)   # set.seed for foreach
 library(MASS)   # huber, rlm
-source("functions.R")
-source("functions_cov.R")
-source("utills.R")
-load_sources()
 library(latex2exp)
 library(tidyverse)
 library(robfilter)
+# load_sources()
+source("functions.R")
+# source("functions_cov.R")
+# source("utills.R")
 
 
 ### IRLS test for Huber regression
@@ -159,6 +159,7 @@ system.time({
 ### Load example data
 #####################################
 sim <- 20
+sim <- 1
 model.cov <- 2   # covariance function setting of the paper (1, 2)
 
 # Get simulation data
@@ -212,8 +213,8 @@ df <- data.frame(id = factor(unlist(sapply(1:length(x.2$Lt),
                                     )),
                  t = unlist(x.2$Lt),
                  y = unlist(x.2$Ly))
-ggplot(df, aes(t, y, group = id)) +
-  geom_line() +
+ggplot(df, aes(t, y, color = id)) +
+  geom_line(size = 1) +
   theme_bw() +
   # ylim(-10, 10) +
   theme(legend.position = "none")
@@ -224,35 +225,38 @@ ggplot(df, aes(t, y, group = id)) +
 ### Find optimal delta for Huber loss
 ### - k <- 1 / max(abs(y))
 #####################################
-k_cand <- c(1 / max(abs(unlist(x.2$Ly))), 1e-4, 0.001, 0.01, 0.1, 0.5, 0.7, 1, 1.345)
+# k_cand <- c(1 / max(abs(unlist(x.2$Ly))), 1e-4, 0.001, 0.01, 0.1, 0.5, 0.7, 1, 1.345)
+k_cand <- c(1 / max(abs(unlist(x.2$Ly))),
+            10^seq(-3, 1, length.out = 10) * (1 - 0)/3)
 var_est <- matrix(0, length(gr), length(k_cand)+1)
 var_est[, 1] <- diag(cov.true)
 system.time({
   for (i in 1:length(k_cand)) {
     print(k_cand[i])
-    # wrm.obj <- wrm.smooth(Lt, 
-    #                       ss,
-    #                       h = bw_cand[i],
-    #                       xgrid = gr,
-    #                       weight = 4)
-    #  
-    # var_est[, i+1] <- wrm.obj$level
     
     bw <- 0.1
     kernel <- "gauss"
-    mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "Huber", kernel = kernel, bw = bw, k2 = k_cand[i])
+    mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, bw = bw, k2 = k_cand[i])
     var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
-                                 method = "Huber", kernel = kernel, bw = bw, k2 = k_cand[i])
+                                 method = "huber", kernel = kernel, bw = bw, k2 = k_cand[i])
     var_est[, i+1] <- predict(var.huber.obj, gr)
   }
 }) 
-df <- data.frame(t = rep(gr, length(k_cand)+1),
-                 y = as.numeric(var_est),
-                 k_huber = rep(factor(c("True", round(k_cand, 5)), 
-                                      levels = c("True", round(k_cand, 5))), 
+df <- data.frame(t = rep(gr, length(k_cand)+3),
+                 y = c(as.numeric(var_est),
+                       diag(cov.yao),
+                       diag(cov.lin)),
+                 k_huber = rep(factor(c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                        round(k_cand[-1], 4), "Yao", "Lin"), 
+                                      levels = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                                 round(k_cand[-1], 4), "Yao", "Lin")), 
                                each = length(gr)))
-p1 <- ggplot(df, aes(t, y, color = k_huber)) +
+p1 <- ggplot(df, 
+             aes(t, y, color = k_huber, linetype = k_huber)) +
   geom_line(size = 1) +
+  scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                   round(k_cand[-1], 4), "Yao", "Lin"),
+                        values = c("solid", rep("dashed", 11), rep("solid", 2))) +
   theme_bw() +
   theme(legend.position = "bottom",
         legend.title = element_blank())
@@ -260,31 +264,34 @@ p2 <- p1 + ylim(0, 5)
 gridExtra::grid.arrange(p1, p2, 
                         nrow = 1)
 
-par(mfrow = c(1, 2))
-matplot(var_est, type = "l")
-legend("topright",
-       c("True", round(k_cand, 5)),
-       col = 1:ncol(var_est),
-       lty = 1:ncol(var_est))
-matplot(var_est, type = "l",
-        ylim = c(0, 5))
-# matplot(var_est[, 1:4], type= "l")
-lines(diag(cov.yao), col = 2)
-lines(diag(cov.lin), col = 3)
+# par(mfrow = c(1, 2))
+# matplot(var_est, type = "l")
+# legend("topright",
+#        c("True", "Naive", round(k_cand, 5)),
+#        col = 1:ncol(var_est),
+#        lty = 1:ncol(var_est))
+# matplot(var_est, type = "l",
+#         ylim = c(0, 5))
+# # matplot(var_est[, 1:4], type= "l")
+# lines(diag(cov.yao), col = 2)
+# lines(diag(cov.lin), col = 3)
 
+ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
+k_cand[which.min(ise_var)]
 
 
 #####################################
 ### bandwidth test for Huber loss
 #####################################
-bw_cand <- c(0.01,0.05,0.1,0.2,0.3)
+bw_cand <- 10^seq(-2, 0, length.out = 10) * (1 - 0)/3
 var_est <- matrix(0, length(gr), length(bw_cand)+1)
 var_est[, 1] <- diag(cov.true)
 system.time({
   for (i in 1:length(bw_cand)) {
     print(bw_cand[i])
     
-    k <- 1 / max(abs(unlist(x.2$Ly)))
+    # k <- 1 / max(abs(unlist(x.2$Ly)))
+    k <- k_cand[which.min(ise_var)]   # optimal delta for Huber loss from above procedure
     kernel <- "gauss"
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "Huber", kernel = kernel, bw = bw_cand[i], k2 = k)
     var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
@@ -294,41 +301,26 @@ system.time({
 }) 
 df <- data.frame(t = rep(gr, length(bw_cand)+1),
                  y = as.numeric(var_est),
-                 bw = rep(c("True",bw_cand), each = length(gr)))
+                 bw = rep(factor(c("True",round(bw_cand, 3)),
+                                 levels = c("True",round(bw_cand, 3))), 
+                          each = length(gr)))
 ggplot(df, aes(t, y, color = bw)) +
   geom_line(size = 1) +
+  scale_linetype_manual(breaks = c("True", round(bw_cand, 3)),
+                        values = c("solid", rep("dashed", 10))) +
   theme_bw() +
   theme(legend.position = "bottom",
         legend.title = element_blank())
 
+ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
+bw_cand[which.min(ise_var)]
 
 
 
 #####################################
 ### bandwidth test for WRM
 #####################################
-# # user  system elapsed 
-# # 14.26    0.03   14.29 
-# Lt <- unlist(x.2$Lt)
-# Ly <- unlist(x.2$Ly)
-# # ind <- sort(Lt, index.return = T)$ix
-# # Lt <- Lt[ind]
-# # Ly <- Ly[ind]
-# system.time({
-#   wrm.obj <- wrm.smooth(Lt, 
-#                         Ly,
-#                         h = 0.1,
-#                         xgrid = gr,
-#                         weight = 3)
-# })  
-# mu_hat <- wrm.obj$level
-# 
-# ind <- match(Lt, gr)
-# # length(ind)
-# # identical(Lt, gr[ind])
-# ss <- (Ly - gr[ind])^2
-
-bw_cand <- c(0.01,0.05,0.1,0.2,0.3)
+bw_cand <- 10^seq(-2, 0, length.out = 10) * (1 - 0)/3
 var_est <- matrix(0, length(gr), length(bw_cand)+1)
 var_est[, 1] <- diag(cov.true)
 system.time({
@@ -344,11 +336,46 @@ system.time({
 }) 
 df <- data.frame(t = rep(gr, length(bw_cand)+1),
                  y = as.numeric(var_est),
-                 bw = rep(c("True",bw_cand), each = length(gr)))
-ggplot(df, aes(t, y, color = bw)) +
+                 bw = rep(factor(c("True", round(bw_cand, 3)),
+                                 levels = c("True", round(bw_cand, 3))),
+                          each = length(gr)))
+ggplot(df, aes(t, y, color = bw, linetype = bw)) +
   geom_line(size = 1) +
   theme_bw() +
   theme(legend.position = "bottom",
         legend.title = element_blank())
 
 
+
+#####################################
+### CV test - bandwidth
+#####################################
+source("functions.R")
+system.time({
+  bw_cv_obj <- cv.local_kern_smooth(Lt = x.2$Lt,
+                                    Ly = x.2$Ly, 
+                                    method = "HUBER",
+                                    kernel = "gauss", 
+                                    deg = 1,
+                                    k2 = 0.0009,
+                                    cv_loss = "L1",
+                                    K = 5, 
+                                    parallel = TRUE)
+})
+bw_cv_obj
+## Huber
+# $selected_bw
+# [1] 0.1998281
+# 
+# $cv.error
+# bw    error
+# 1  0.003333333 1236.383
+# 2  0.005560335 1236.240
+# 3  0.009275198 1233.941
+# 4  0.015471963 1227.743
+# 5  0.025808789 1221.489
+# 6  0.043051656 1213.584
+# 7  0.071814490 1204.240
+# 8  0.119793789 1195.135
+# 9  0.199828083 1192.843
+# 10 0.333333333 1196.146
