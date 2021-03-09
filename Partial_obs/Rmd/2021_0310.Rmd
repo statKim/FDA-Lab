@@ -43,46 +43,59 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
 knitr::opts_knit$set(root.dir = "../")
 ```
 
-<!-- ```{r} -->
-<!-- library(GA)   # persp plot -->
-<!-- library(mvtnorm) -->
-<!-- library(fdapace)   # 1, 2 -->
-<!-- library(mcfda)   # 7 -->
-<!-- library(synfd)   # 7 -->
-<!-- library(doParallel)   # parallel computing -->
-<!-- library(doRNG)   # set.seed for foreach -->
-<!-- library(MASS)   # huber, rlm -->
-<!-- source("functions.R") -->
-<!-- library(kableExtra) -->
-<!-- library(tidyverse) -->
-<!-- library(gridExtra) -->
-<!-- library(latex2exp) -->
-<!-- source("utills.R") -->
-<!-- ``` -->
+```{r}
+library(GA)   # persp plot
+library(mvtnorm)
+library(fdapace)   # 1, 2
+library(mcfda)   # 7
+library(synfd)   # 7
+library(doParallel)   # parallel computing
+library(doRNG)   # set.seed for foreach
+library(MASS)   # huber, rlm
+library(kableExtra)
+library(tidyverse)
+library(gridExtra)
+library(latex2exp)
+source("functions.R")
+source("utills.R")
+```
 
 
 # Iteratively re-weighted least squares (IRLS; IRWLS)
 
 ## How to find the solution for robust regression
-- Our objective is to find $\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$, and let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$ where $s = 1.4826*\text{MAD}(\{ |y_i - x_i^T\beta| :i=1,\dots,n\})$.
-- Then a normal equation could be found by applying 1st derivative : 
+- The **M-estimator** for robust regression can be obtained from 
+  $$
+  \hat{\beta} = \underset{\beta}{\operatorname{\arg\min}} \sum_{i=1}^n \rho \left( y_i - x_i^T\beta \right).
+  $$
+
+- The **scale-invariant M-estimator** is the following formula :
+  $$
+  \hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)
+  $$
+  where $s$ is a measure of the scale, and one of the estimate of $s$ is
+  $$
+  \hat{s} = 1.4826*\text{MAD}\left( \{ |y_i - x_i^T\beta| :i=1,\dots,n\} \right).
+  $$
+
+<!-- - Our objective is to find $\hat{\beta} = \arg\min_{\beta} \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$, and let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$ where $s = 1.4826*\text{MAD}(\{ |y_i - x_i^T\beta| :i=1,\dots,n\})$. -->
+- Now, let $L = \sum_{i=1}^n \rho \left( \frac{y_i - x_i^T\beta}{s} \right)$, then a normal equation could be found by applying 1st derivative : 
   $$
   \frac{\partial L}{\partial \beta} = \sum_{i=1}^n x_i \psi \left( \frac{y_i - x_i^T\beta}{s} \right) = 0, \text{ where } \psi(x) = \rho'(x)
   $$
-- Set $w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right).$
-- Then a normal equation be as 
+- Set a weight $w_i = \psi \left( \frac{y_i - x_i^T\beta}{s} \right) / \left( y_i - x_i^T\beta \right)$, then a normal equation could be represented as 
   $$
   \sum_{i=1}^n x_iw_i(y_i - x_i^T\beta) = 0 \\
   \Leftrightarrow X^TWY-XWX^T\beta=0 
   $$
-- Therefore, the solution can be obtained by weighted least squares as 
+- Therefore, the solution can be obtained by weighted least squares (WLS) as 
   $$ \hat{\beta} = (X^TWX)^{-1}X^TWY $$
-- The above equation can be solved by following **Iteratively re-weighted least squares (IRLS) algorithm**.
+- To solve the above equation, we need to compute iteratively by following **Iteratively re-weighted least squares (IRLS) algorithm**.
 
 
 ## IRLS algorithm
 1. Set initial value $\hat{\beta}^{(0)}$, then we can compute $W^{(0)}$.
-2.  Therefore, $\hat{\beta}^{(1)}$ for 1st iterations can be obtained as
+2.  Therefore, $\hat{\beta}^{(1)}$ for 1st iteration can be obtained as
   $$
   \hat{\beta}^{(1)} = (X^TW^{(0)}X)^{-1}X^TW^{(0)}Y.
   $$
@@ -96,9 +109,14 @@ knitr::opts_knit$set(root.dir = "../")
 
 
 ## IRLS for local kernel smoother with robust loss function
-$$
-(\hat{b}_0, \hat{b}_1) = \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\}
-$$
+- The **M-estimator** of local polynomial smoother can be obtained from
+  $$
+  (\hat{b}_0, \hat{b}_1) = \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\}.
+  $$
+- The **scale-invariant M-estimator** is the following formula :
+  $$
+  (\hat{b}_0, \hat{b}_1) = \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ \frac{Y_{ij} - b_0 - b_1(T_{ij}-t)}{s} \right\}.
+  $$
 <!-- $$ -->
 <!-- \begin{align} -->
 <!--   (\hat{b}_0, \hat{b}_1) &= \underset{(b_0,b_1) \in \mathbb{R}^2}{\operatorname{\arg\min}} \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left\{ Y_{ij} - b_0 - b_1(T_{ij}-t) \right\} , \\ -->
@@ -107,13 +125,12 @@ $$
 <!-- $$ -->
 
 - Let $x_{ij} = (1, T_{ij}-t)^T$ and $\beta = (b_0, b_1)^T$.
-- Let $L = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left( Y_{ij} - x_{ij}^T \beta \right)$, then we could find the solution $\hat{\beta} = \arg\min_{\beta} L$.
+- Let $L = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) \rho \left( \frac{Y_{ij} - x_{ij}^T \beta}{s} \right)$, then we could find the solution $\hat{\beta} = \arg\min_{\beta} L$.
 - Normal equation :
   $$
   \frac{\partial L}{\partial \beta} = \sum_{i=1}^n w_i \sum_{j=1}^{m_i} K_{h_{\mu}} (T_{ij}-t) x_{ij} \psi \left( Y_{ij} - x_{ij}^T \beta \right) = 0
   $$
 - Set $w_i = \left\{ w_i K_{h_{\mu}} (T_{ij}-t) \psi \left( \frac{Y_{ij} - x_{ij}^T \beta}{s} \right) \right\} / \left( Y_{ij} - x_{ij}^T \beta \right).$
-<span style="color:red">s로 나누는 식 통일(실제 알고리즘에서는 s로 나눠서 진행함)</span>
 - Apply **IRLS algorithm** until $\hat{\beta}$ is converged.
 
 
@@ -143,20 +160,196 @@ $$
 
 <br>
 
-# Variance trajectories between different bandwidths
+# Variance trajectories between different robustness parameters in Huber function and bandwidths
+- Huber function의 cutoff parameter $\delta$에 따라 형태가 매우 달라짐.
 - 전체적으로 bandwidth는 smoothness에 영향을 주고, trajectory의 형태에는 큰 영향을 미치지는 않음.
+- WRM은 Huber loss를 사용한 경우에 비해 under estimate되는 경향이 보임.
 
-## Huber loss
-```{r}
+## 1st simulation data
+```{r data_load_1st, fig.cap = "Figure 1. Sample curves for 1st simulation data."}
+### Load example data
+load("RData/sim3-2_20210204.RData")
+# sim <- 20
+sim <- 1
+model.cov <- 2   # covariance function setting of the paper (1, 2)
+kernel <- "gauss"
+bw <- 0.1
 
+# Get simulation data
+x <- data.list.outlier[[sim]]$x
+gr <- data.list.outlier[[sim]]$gr
+# range(unlist(x$t))
+
+### Covariance estimation
+work.grid <- seq(min(gr), max(gr), length.out = 51)
+cov.true <- get_cov_fragm(gr, model = model.cov)   # true covariance
+cov.true <- ConvertSupport(fromGrid = gr, toGrid = work.grid, Cov = cov.true)   # transform to the observed grid
+
+x.2 <- list(Ly = x$y,
+            Lt = x$t)
+
+# trajectories of generated data
+df <- data.frame(id = factor(unlist(sapply(1:length(x.2$Lt), 
+                                           function(id) { 
+                                             rep(id, length(x.2$Lt[[id]])) 
+                                           }) 
+                                    )),
+                 t = unlist(x.2$Lt),
+                 y = unlist(x.2$Ly))
+p1 <- ggplot(df, aes(t, y, color = id)) +
+  geom_line(size = 1) +
+  labs(x = TeX("$t$"), y = TeX("$Y(t)$")) +
+  theme_bw() +
+  # ylim(-10, 10) +
+  theme(legend.position = "none")
+p2 <- p1 + 
+  ylim(-10, 10) +
+  theme(legend.position = "none")
+gridExtra::grid.arrange(p1, p2, 
+                        nrow = 1)
+```
+
+### $\delta$ in Huber function
+```{r huber_delta_1st, fig.cap = "Figure 2. Trajectories of true and estimated variances with different robustness parameter $\\delta$."}
+load("RData/20210310_fig_1st.RData")
+p1 <- ggplot(df_delta, 
+             aes(t, y, color = k_huber, linetype = k_huber)) +
+  geom_line(size = 1) +
+  scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                   round(k_cand[-1], 4), "Yao", "Lin"),
+                        values = c("solid", rep("dashed", 11), rep("solid", 2))) +
+  labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$")) +
+  theme_bw() +
+  theme(legend.position = c(0.8, 0.65),
+        legend.title = element_blank())
+p2 <- p1 + 
+  ylim(0, 5) +
+  theme(legend.position = "none")
+gridExtra::grid.arrange(p1, p2, 
+                        nrow = 1)
+```
+
+### Bandwidth for local kernel smoother and WRM
+```{r fig_bw_1st, fig.cap = "Figure 3. Trajectories of true and estimated variances with different bandwidths."}
+p1 <- ggplot(df_bw, aes(t, y, color = bw, linetype = bw)) +
+  geom_line(size = 1) +
+  scale_linetype_manual(breaks = c("True", round(bw_cand, 3)),
+                        values = c("solid", rep("dashed", 10))) +
+  labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "Huber loss") +
+  theme_bw() +
+  theme(legend.position = c(0.5, 0.75),
+        legend.title = element_blank())
+p2 <- ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) +
+  geom_line(size = 1) +
+   scale_linetype_manual(breaks = c("True", round(bw_cand, 3)),
+                        values = c("solid", rep("dashed", 10))) +
+  labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "WRM") +
+  theme_bw() +
+  theme(legend.position = "none",
+        legend.title = element_blank())
+gridExtra::grid.arrange(p1, p2, 
+                        nrow = 1)
 ```
 
 
-## WRM
-- Huber loss를 사용한 smoothing에 비해 다소 작게 estimate되는 경향이 있음.
-```{r}
 
+## 20th simulation data
+### $\delta$ in Huber function
+```{r data_load_20th, fig.cap = "Figure 4. Sample curves for 20th simulation data and trajectories of true and estimated variances with different robustness parameter $\\delta$."}
+### Load example data
+load("RData/sim3-2_20210204.RData")
+sim <- 20
+# sim <- 1
+model.cov <- 2   # covariance function setting of the paper (1, 2)
+kernel <- "gauss"
+bw <- 0.1
+
+# Get simulation data
+x <- data.list.outlier[[sim]]$x
+gr <- data.list.outlier[[sim]]$gr
+# range(unlist(x$t))
+
+### Covariance estimation
+work.grid <- seq(min(gr), max(gr), length.out = 51)
+cov.true <- get_cov_fragm(gr, model = model.cov)   # true covariance
+cov.true <- ConvertSupport(fromGrid = gr, toGrid = work.grid, Cov = cov.true)   # transform to the observed grid
+
+x.2 <- list(Ly = x$y,
+            Lt = x$t)
+
+# trajectories of generated data
+df <- data.frame(id = factor(unlist(sapply(1:length(x.2$Lt), 
+                                           function(id) { 
+                                             rep(id, length(x.2$Lt[[id]])) 
+                                           }) 
+                                    )),
+                 t = unlist(x.2$Lt),
+                 y = unlist(x.2$Ly))
+p1 <- ggplot(df, aes(t, y, color = id)) +
+  geom_line(size = 1) +
+  labs(x = TeX("$t$"), y = TeX("$Y(t)$")) +
+  theme_bw() +
+  # ylim(-10, 10) +
+  theme(legend.position = "none")
+
+load("RData/20210310_fig_20th.RData")
+p2 <- ggplot(df_delta, 
+             aes(t, y, color = k_huber, linetype = k_huber)) +
+  geom_line(size = 1) +
+  scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                   round(k_cand[-1], 4), "Yao", "Lin"),
+                        values = c("solid", rep("dashed", 11), rep("solid", 2))) +
+  labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$")) +
+  ylim(0, 5) +
+  theme_bw() +
+  theme(legend.position = c(0.8, 0.65),
+        legend.title = element_blank())
+gridExtra::grid.arrange(p1, p2, 
+                        nrow = 1)
 ```
+
+<!-- ```{r huber_delta_20nd, fig.cap = "Figure 5. Trajectories of true and estimated variances with different robustness parameter $\\delta$."} -->
+<!-- load("RData/20210310_fig_20nd.RData") -->
+<!-- p1 <- ggplot(df_delta,  -->
+<!--              aes(t, y, color = k_huber, linetype = k_huber)) + -->
+<!--   geom_line(size = 1) + -->
+<!--   scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)),  -->
+<!--                                    round(k_cand[-1], 4), "Yao", "Lin"), -->
+<!--                         values = c("solid", rep("dashed", 11), rep("solid", 2))) + -->
+<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$")) + -->
+<!--   theme_bw() + -->
+<!--   theme(legend.position = c(0.8, 0.65), -->
+<!--         legend.title = element_blank()) -->
+<!-- p2 <- p1 +  -->
+<!--   ylim(0, 5) + -->
+<!--   theme(legend.position = "none") -->
+<!-- gridExtra::grid.arrange(p1, p2,  -->
+<!--                         nrow = 1) -->
+<!-- ``` -->
+
+### Bandwidth for local kernel smoother and WRM
+```{r fig_bw_20th, fig.cap = "Figure 5. Trajectories of true and estimated variances with different bandwidths."}
+p1 <- ggplot(df_bw, aes(t, y, color = bw, linetype = bw)) +
+  geom_line(size = 1) +
+  scale_linetype_manual(breaks = c("True", round(bw_cand, 3)),
+                        values = c("solid", rep("dashed", 10))) +
+  labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "Huber loss") +
+  theme_bw() +
+  theme(legend.position = c(0.5, 0.75),
+        legend.title = element_blank())
+p2 <- ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) +
+  geom_line(size = 1) +
+   scale_linetype_manual(breaks = c("True", round(bw_cand, 3)),
+                        values = c("solid", rep("dashed", 10))) +
+  labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "WRM") +
+  theme_bw() +
+  theme(legend.position = "none",
+        legend.title = element_blank())
+gridExtra::grid.arrange(p1, p2, 
+                        nrow = 1)
+```
+
+
 
 
 

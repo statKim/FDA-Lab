@@ -254,7 +254,7 @@ covfunc.rob <- function(Lt,
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
-  return(cov.huber(Lt, Ly, mu = mu, newt = newt, method = method, ...))
+  return(covfunc.rob.huber(Lt, Ly, mu = mu, newt = newt, method = method, ...))
   # if (method == 'Huber') {
   #   return(cov.huber(Lt, Ly, mu = mu, newt = newt, ...))
   # } else {
@@ -262,22 +262,22 @@ covfunc.rob <- function(Lt,
   # }
 }
 
-cov.huber <- function(Lt, 
-                      Ly, 
-                      newt = NULL,
-                      method = "Huber",
-                      domain = NULL,
-                      weig = NULL,
-                      corf = NULL, # correlation function(theta,x,y)
-                      mu = NULL,
-                      sig2e = NULL,
-                      sig2x = NULL,
-                      pfunc = NULL,
-                      theta0 = NULL,
-                      lb = NULL,
-                      ub = NULL,
-                      D = NULL,
-                      kernel = "epanechnikov", ...) {
+covfunc.rob.huber <- function(Lt, 
+                              Ly, 
+                              newt = NULL,
+                              method = "HUBER",
+                              domain = NULL,
+                              weig = NULL,
+                              corf = NULL, # correlation function(theta,x,y)
+                              mu = NULL,
+                              sig2e = NULL,
+                              sig2x = NULL,
+                              pfunc = NULL,
+                              theta0 = NULL,
+                              lb = NULL,
+                              ub = NULL,
+                              D = NULL,
+                              kernel = "epanechnikov", ...) {
   
   if (is.null(corf)) {
     corf <- function(x, y, theta) {

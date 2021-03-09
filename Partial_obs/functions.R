@@ -2,7 +2,7 @@
 ### Functions
 ##########################################
 require(fdapace)
-load_sources()
+require(tidyverse)
 source("sim_Lin_Wang(2020).R")
 source("sim_Delaigle(2020).R")
 source("utills.R")
@@ -28,6 +28,7 @@ load_sources <- function() {
     source(paste0(path, fname))
   }
 }
+
 
 ### Get function name in the global environment
 fun2char <- function() {
@@ -178,8 +179,10 @@ get_CE_score <- function() {
 # Y : vector
 # X : matrix
 # method : "Huber","bisquare"
-# maxit : 
+# maxit : maximun iteration numbers
 # weight : additional weight (for kernel regression)
+# tol : tolerence rate
+# k : delta for Huber function(or Tukey's biweight function)
 IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL, tol = 1e-4, k = 1.345) {
   n <- length(Y)
   
@@ -187,9 +190,10 @@ IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL
     X <- as.matrix(X)
   }
   
+  # initial value for beta (LSE estimator)
   beta <- matrix(0, maxit+1, ncol(X))  
   beta[1, ] <- solve(t(X) %*% X, 
-                     t(X) %*% Y)   # initial value for beta (LSE estimator)
+                     t(X) %*% Y)   
   
   resid <- Y - X %*% beta[1, ]
   s <- mad(resid)   # re-scaled MAD by MAD*1.4826
@@ -218,6 +222,8 @@ IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL
     XTWX <- t(X) %*% W %*% X
     XTWY <- t(X) %*% W %*% Y
     beta[iter+1, ] <- solve(XTWX, XTWY)
+    
+    # s <- mad(Y - X %*% beta[iter+1, ])   # update scale estimate
     
     if (sum(abs(beta[iter+1, ] - beta[iter, ])) < tol) {
       # cat(paste0("Coverged in ", iter, " iterations! \n"))
@@ -409,40 +415,96 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
     cl <- makeCluster(ncores)
     registerDoParallel(cl)
     
-    cv_error <- foreach(i = 1:length(bw_cand), .combine = "c", 
-                        .export = c("local_kern_smooth","IRLS"), .packages = c("MASS","robfilter")) %dopar% {
-      err <- 0
-      for (k in 1:K) {
-        Lt_train <- Lt[ -folds[[k]] ]
-        Ly_train <- Ly[ -folds[[k]] ]
-        Lt_test <- Lt[ folds[[k]] ]
-        Ly_test <- Ly[ folds[[k]] ]
-        
-        y_hat <- tryCatch({
-          local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-                            bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
-        }, error = function(e) { 
-          print(e)
-          return(0) 
-        })
-        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-                                   bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
-                                   # , loss = loss, ...)
-        y <- unlist(Ly_test)
-        if (cv_loss == "L2") {   # squared errors
-          err <- err + sum((y - y_hat)^2)
-        } else if (cv_loss == "HUBER") {   # Huber errors
-          a <- abs(y - y_hat)
-          err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
-          err <- err + sum(err_huber)
-        } else if (cv_loss == "L1") {   # absolute errors
-          err <- err + sum(abs(y - y_hat))
-        }
+    # matrix of bw_cand and fold
+    bw_fold_mat <- data.frame(bw_cand = rep(bw_cand, each = K),
+                              fold = rep(1:K, length(bw_cand)))
+    
+    cv_error <- foreach(i = 1:nrow(bw_fold_mat), .combine = "c", 
+                        .export = c("local_kern_smooth","IRLS"), 
+                        .packages = c("robfilter"),
+                        .errorhandling = "pass") %dopar% {
+      
+      bw <- bw_fold_mat$bw_cand[i]   # bandwidth candidate
+      k <- bw_fold_mat$fold[i]   # fold for K-fold CV
+
+      # data of kth fold      
+      Lt_train <- Lt[ -folds[[k]] ]
+      Ly_train <- Ly[ -folds[[k]] ]
+      Lt_test <- Lt[ folds[[k]] ]
+      Ly_test <- Ly[ folds[[k]] ]
+      
+      y_hat <- tryCatch({
+        local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                          bw = bw, kernel = kernel, k2 = k2, ...)
+      }, error = function(e) {
+        return(NA)
+      })
+      
+      # if error occurs in kernel smoothing, return Inf
+      if (is.na(y_hat)) {
+        return(Inf)
+      }
+      
+      # y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+      #                            bw = bw, kernel = kernel, k2 = k2, ...)
+      y <- unlist(Ly_test)
+      if (cv_loss == "L2") {   # squared errors
+        err <- sum((y - y_hat)^2)
+      } else if (cv_loss == "HUBER") {   # Huber errors
+        a <- abs(y - y_hat)
+        err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
+        err <- sum(err_huber)
+      } else if (cv_loss == "L1") {   # absolute errors
+        err <- sum(abs(y - y_hat))
       }
       
       return(err)
     }
     stopCluster(cl)
+    
+    bw_fold_mat$cv_error <- cv_error
+    cv_obj <- bw_fold_mat %>% 
+      group_by(bw_cand) %>% 
+      summarise(cv_error = sum(cv_error))
+    
+    bw <- list(selected_bw = cv_obj$bw_cand[ which.min(cv_obj$cv_error) ],
+               cv.error = cv_obj)
+    
+    # cv_error <- foreach(i = 1:length(bw_cand), .combine = "c", 
+    #                     .export = c("local_kern_smooth","IRLS"), .packages = c("MASS","robfilter"),
+    #                     .errorhandling = "pass", .verbose = TRUE) %dopar% {
+    #   err <- 0
+    #   for (k in 1:K) {
+    #     Lt_train <- Lt[ -folds[[k]] ]
+    #     Ly_train <- Ly[ -folds[[k]] ]
+    #     Lt_test <- Lt[ folds[[k]] ]
+    #     Ly_test <- Ly[ folds[[k]] ]
+    #     
+    #     # y_hat <- tryCatch({
+    #     #   local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+    #     #                     bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
+    #     # }, error = function(e) { 
+    #     #   print(e)
+    #     #   return(0) 
+    #     # })
+    #     y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+    #                                bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
+    #                                # , loss = loss, ...)
+    #     y <- unlist(Ly_test)
+    #     if (cv_loss == "L2") {   # squared errors
+    #       err <- err + sum((y - y_hat)^2)
+    #     } else if (cv_loss == "HUBER") {   # Huber errors
+    #       a <- abs(y - y_hat)
+    #       err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
+    #       err <- err + sum(err_huber)
+    #     } else if (cv_loss == "L1") {   # absolute errors
+    #       err <- err + sum(abs(y - y_hat))
+    #     }
+    #   }
+    #   
+    #   return(err)
+    # }
+    # stopCluster(cl)
   } else {
     cv_error <- rep(0, length(bw_cand))
     for (k in 1:K) {
@@ -466,11 +528,11 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
         }
       }
     }
+    
+    bw <- list(selected_bw = bw_cand[ which.min(cv_error) ],
+               cv.error = data.frame(bw = bw_cand,
+                                     error = cv_error))
   }
-  
-  bw <- list(selected_bw = bw_cand[ which.min(cv_error) ],
-             cv.error = data.frame(bw = bw_cand,
-                                   error = cv_error))
   
   return(bw)
 }

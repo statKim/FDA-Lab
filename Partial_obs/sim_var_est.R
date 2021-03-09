@@ -9,9 +9,9 @@ library(MASS)   # huber, rlm
 library(latex2exp)
 library(tidyverse)
 library(robfilter)
-# load_sources()
+load_sources()
 source("functions.R")
-# source("functions_cov.R")
+source("functions_cov.R")
 # source("utills.R")
 
 
@@ -158,9 +158,12 @@ system.time({
 #####################################
 ### Load example data
 #####################################
-sim <- 20
+load("RData/sim3-2_20210204.RData")
+# sim <- 20
 sim <- 1
 model.cov <- 2   # covariance function setting of the paper (1, 2)
+kernel <- "gauss"
+bw <- 0.1
 
 # Get simulation data
 x <- data.list.outlier[[sim]]$x
@@ -227,7 +230,7 @@ ggplot(df, aes(t, y, color = id)) +
 #####################################
 # k_cand <- c(1 / max(abs(unlist(x.2$Ly))), 1e-4, 0.001, 0.01, 0.1, 0.5, 0.7, 1, 1.345)
 k_cand <- c(1 / max(abs(unlist(x.2$Ly))),
-            10^seq(-3, 1, length.out = 10) * (1 - 0)/3)
+            10^seq(-3, 2, length.out = 10) * (1 - 0)/3)
 var_est <- matrix(0, length(gr), length(k_cand)+1)
 var_est[, 1] <- diag(cov.true)
 system.time({
@@ -242,25 +245,27 @@ system.time({
     var_est[, i+1] <- predict(var.huber.obj, gr)
   }
 }) 
-df <- data.frame(t = rep(gr, length(k_cand)+3),
-                 y = c(as.numeric(var_est),
-                       diag(cov.yao),
-                       diag(cov.lin)),
-                 k_huber = rep(factor(c("True", paste0("Naive: ", round(k_cand[1], 4)), 
-                                        round(k_cand[-1], 4), "Yao", "Lin"), 
-                                      levels = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
-                                                 round(k_cand[-1], 4), "Yao", "Lin")), 
-                               each = length(gr)))
-p1 <- ggplot(df, 
+df_delta <- data.frame(t = rep(gr, length(k_cand)+3),
+                       y = c(as.numeric(var_est),
+                             diag(cov.yao),
+                             diag(cov.lin)),
+                       k_huber = rep(factor(c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                              round(k_cand[-1], 4), "Yao", "Lin"), 
+                                            levels = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
+                                                       round(k_cand[-1], 4), "Yao", "Lin")), 
+                                     each = length(gr)))
+p1 <- ggplot(df_delta, 
              aes(t, y, color = k_huber, linetype = k_huber)) +
   geom_line(size = 1) +
   scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
                                    round(k_cand[-1], 4), "Yao", "Lin"),
                         values = c("solid", rep("dashed", 11), rep("solid", 2))) +
   theme_bw() +
-  theme(legend.position = "bottom",
+  theme(legend.position = c(0.8, 0.7),
         legend.title = element_blank())
-p2 <- p1 + ylim(0, 5)
+p2 <- p1 + 
+  ylim(0, 5) +
+  theme(legend.position = "none")
 gridExtra::grid.arrange(p1, p2, 
                         nrow = 1)
 
@@ -276,8 +281,16 @@ gridExtra::grid.arrange(p1, p2,
 # lines(diag(cov.yao), col = 2)
 # lines(diag(cov.lin), col = 3)
 
-ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
-k_cand[which.min(ise_var)]
+ise_var <- df_delta %>% 
+  group_by(k_huber) %>% 
+  summarise(ise = get_ise(y, diag(cov.true), gr))
+# ise_var[-1, ] %>% 
+#   filter(ise == min(ise)) %>% 
+#   select(k_huber)
+k_cand[which.min(ise_var$ise[-1])]
+  
+# ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
+# k_cand[which.min(ise_var)]
 
 
 #####################################
@@ -291,25 +304,29 @@ system.time({
     print(bw_cand[i])
     
     # k <- 1 / max(abs(unlist(x.2$Ly)))
-    k <- k_cand[which.min(ise_var)]   # optimal delta for Huber loss from above procedure
+    k <- k_cand[which.min(ise_var$ise[-1])]   # optimal delta for Huber loss from above procedure
     kernel <- "gauss"
-    mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "Huber", kernel = kernel, bw = bw_cand[i], k2 = k)
-    var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
-                                 method = "Huber", kernel = kernel, bw = bw_cand[i], k2 = k)
-    var_est[, i+1] <- predict(var.huber.obj, gr)
+    tryCatch({
+      mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "Huber", kernel = kernel, bw = bw_cand[i], k2 = k)
+      var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
+                                   method = "Huber", kernel = kernel, bw = bw_cand[i], k2 = k)
+      var_est[, i+1] <- predict(var.huber.obj, gr)
+    }, error = function(e){
+      print(e)
+    })
   }
 }) 
-df <- data.frame(t = rep(gr, length(bw_cand)+1),
-                 y = as.numeric(var_est),
-                 bw = rep(factor(c("True",round(bw_cand, 3)),
-                                 levels = c("True",round(bw_cand, 3))), 
-                          each = length(gr)))
-ggplot(df, aes(t, y, color = bw)) +
+df_bw <- data.frame(t = rep(gr, length(bw_cand)+1),
+                    y = as.numeric(var_est),
+                    bw = rep(factor(c("True",round(bw_cand, 3)),
+                                    levels = c("True",round(bw_cand, 3))), 
+                             each = length(gr)))
+ggplot(df_bw, aes(t, y, color = bw)) +
   geom_line(size = 1) +
   scale_linetype_manual(breaks = c("True", round(bw_cand, 3)),
                         values = c("solid", rep("dashed", 10))) +
   theme_bw() +
-  theme(legend.position = "bottom",
+  theme(legend.position = c(0.5, 0.75),
         legend.title = element_blank())
 
 ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
@@ -334,22 +351,27 @@ system.time({
     var_est[, i+1] <- predict(var.wrm.obj, gr)
   }
 }) 
-df <- data.frame(t = rep(gr, length(bw_cand)+1),
-                 y = as.numeric(var_est),
-                 bw = rep(factor(c("True", round(bw_cand, 3)),
-                                 levels = c("True", round(bw_cand, 3))),
-                          each = length(gr)))
-ggplot(df, aes(t, y, color = bw, linetype = bw)) +
+df_bw_wrm <- data.frame(t = rep(gr, length(bw_cand)+1),
+                        y = as.numeric(var_est),
+                        bw = rep(factor(c("True", round(bw_cand, 3)),
+                                        levels = c("True", round(bw_cand, 3))),
+                                 each = length(gr)))
+ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) +
   geom_line(size = 1) +
   theme_bw() +
   theme(legend.position = "bottom",
         legend.title = element_blank())
 
+# save(list = c("k_cand","df_delta","bw_cand","df_bw","df_bw_wrm"),
+#      file = "RData/20210310_fig_1st.RData")
+# save(list = c("k_cand","df_delta","bw_cand","df_bw","df_bw_wrm"),
+#      file = "RData/20210310_fig_20th.RData")
 
 
 #####################################
 ### CV test - bandwidth
 #####################################
+# 아 왜 오래 걸려 ㅡㅡ 첫번째 부분에서 에러뜨긴 하는듯... k2 값이 작아서 오래 걸리는건가??
 source("functions.R")
 system.time({
   bw_cv_obj <- cv.local_kern_smooth(Lt = x.2$Lt,
@@ -357,7 +379,7 @@ system.time({
                                     method = "HUBER",
                                     kernel = "gauss", 
                                     deg = 1,
-                                    k2 = 0.0009,
+                                    k2 = 0.001,
                                     cv_loss = "L1",
                                     K = 5, 
                                     parallel = TRUE)
