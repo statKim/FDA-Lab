@@ -146,7 +146,19 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
     
     return(R)
   } else if(is.vector(newt)) {
-    return(pred(newt))
+    # obtain unique time point => merge to newt
+    df_newt <- data.frame(t = newt)
+    newt_unique <- unique(newt)
+    pred_unique <- pred(newt_unique)
+    df_newt_unique <- data.frame(t = newt_unique,
+                                 pred = pred_unique)
+    pred_newt <- df_newt %>% 
+      left_join(df_newt_unique, by = "t") %>% 
+      select(pred) %>% 
+      unlist()
+    
+    return(as.numeric(pred_newt))
+    # return(pred(newt))
   }
   else stop('newt must be a vector or a list of vectors of real numbers')
 }
@@ -293,7 +305,7 @@ covfunc.rob.huber <- function(Lt,
   if (is.null(mu)) {
     mu <- meanfunc.rob(Lt, Ly, kernel = kernel, method = method)   # Huber option
   }
-  mu.hat <- predict(mu, unlist(Lt)) 
+  mu.hat <- predict(mu, unlist(Lt))   #  TOO SLOW => Need to improve speed
   
   print("Finish mean estimation!")
   
@@ -306,7 +318,7 @@ covfunc.rob.huber <- function(Lt,
     sig2x <- varfunc.rob(Lt, Ly, mu = mu, sig2 = sig2e, kernel = kernel, 
                          method = method, ...)   # Huber option
   }
-  var.hat <- predict(sig2x, Lt)
+  var.hat <- predict(sig2x, unlist(Lt))   #  TOO SLOW => Need to improve speed
   
   print("Finish variance estimation!")
   

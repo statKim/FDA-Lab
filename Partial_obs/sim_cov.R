@@ -24,19 +24,19 @@ bw <- 0.1   # fixed bandwidth
 k2 <- 1.345   # delta in huber function
 
 # outlyngness
-out.type <- 4   # 4~6 are available
-out.prop <- 0   # proportion of outliers
+out.type <- 5   # 4~6 are available
+out.prop <- 0.2   # proportion of outliers
 
 # simulation result
+data.list <- list()
 cov.est <- list()
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, 100)   # collection of seed with no error occurs
 
+
 # repeat until 100 simulations are obtained
-while (num.sim < 5) {
-  start_time <- Sys.time()
-  
+while (num.sim < 100) {
   #############################
   ### Data generation
   #############################
@@ -72,6 +72,7 @@ while (num.sim < 5) {
   x.2 <- list(Ly = x$y,
               Lt = x$t)
   
+  start_time <- Sys.time()
   ### Yao, Müller, and Wang (2005)
   kern <- ifelse(kernel == "epanechnikov", "epan", kernel)
   optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = kern, verbose = FALSE,
@@ -93,7 +94,11 @@ while (num.sim < 5) {
                               Cov = cov.yao.obj$cov)   # transform to the observed grid
   }
   print("Finish Yao et al.")
+  end_time <- Sys.time()
+  print(end_time - start_time)
   
+  
+  start_time <- Sys.time()
   ### Lin & Wang (2020)
   tryCatch({
     # estimate mean by local polynomial method
@@ -110,8 +115,11 @@ while (num.sim < 5) {
   }
   cov.lin <- predict(cov.lin.obj, work.grid)
   print("Finish Lin & Wang")
+  end_time <- Sys.time()
+  print(end_time - start_time)
   
   
+  start_time <- Sys.time()
   ### Huber loss
   tryCatch({
     # For computation times, we specified bw_mu.
@@ -131,8 +139,11 @@ while (num.sim < 5) {
   }
   cov.huber <- predict(cov.huber.obj, work.grid)
   print("Finish Huber loss")
+  end_time <- Sys.time()
+  print(end_time - start_time)
   
   
+  start_time <- Sys.time()
   ### WRM
   tryCatch({
     mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
@@ -149,8 +160,6 @@ while (num.sim < 5) {
   }
   cov.wrm <- predict(cov.wrm.obj, work.grid)
   print("Finish WRM")
-  
-  
   end_time <- Sys.time()
   print(end_time - start_time)
   
@@ -158,12 +167,14 @@ while (num.sim < 5) {
   # if some covariances is a not finite value
   if (!is.finite(sum(cov.yao)) | !is.finite(sum(cov.lin)) | 
       !is.finite(sum(cov.huber)) | !is.finite(sum(cov.wrm))) {
+    cat("Estimated covariances do not have finite values. \n")
     next
   }
   
   # if all covariances are 0
   if ((sum(cov.yao) == 0) | (sum(cov.lin) == 0) | 
       (sum(cov.huber) == 0) | (sum(cov.wrm) == 0)) {
+    cat("Estimated covariance have all 0 values. \n")
     next
   }
   
@@ -189,9 +200,13 @@ while (num.sim < 5) {
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
+  data.list[[num.sim]] <- list(x = x,
+                               gr = gr)
   cov.est[[num.sim]] <- out
 }
 
+save(list = c("sim.seed","data.list","cov.est"),
+     file = "RData/20210310_outlier_2.RData")
 
 
 
