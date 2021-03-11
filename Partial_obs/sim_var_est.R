@@ -378,11 +378,10 @@ system.time({
                                     Ly = x.2$Ly, 
                                     method = "HUBER",
                                     kernel = "gauss", 
-                                    deg = 1,
                                     k2 = 0.001,
                                     cv_loss = "L1",
                                     K = 5, 
-                                    parallel = TRUE)
+                                    ncores = 9)
 })
 bw_cv_obj
 ## Huber

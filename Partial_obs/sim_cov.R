@@ -220,13 +220,13 @@ save(list = c("sim.seed","data.list","cov.est"),
 # method : "Huber"
 # K : the number of folds
 # delta_cand : user defined delta candidates for CV
-# parallel : If parallel is TRUE, it implements `foreach()` in `doParallel` for CV.
+# ncores : If ncores > 1, it implements `foreach()` in `doParallel` for CV.
 # Other parameters are same with `local_kern_smooth()`.
 cv.delta.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechnikov", 
-                                       cv_loss = "L1", K = 5, 
-                                       delta_cand = NULL, parallel = FALSE, bw = 0.2, ...) {
+                                       cv_loss = "L1", ncores = 1,
+                                       K = 5, delta_cand = NULL,  bw = NULL, ...) {
   cv_loss <- toupper(cv_loss)
-  if (!(cv_loss %in% c("HUBER","L1","L2"))) {
+  if (!(cv_loss %in% c("L1","L2"))) {
     stop(paste0(cv_loss, " is not provided. Check cv_loss parameter."))
   }
   
@@ -238,6 +238,13 @@ cv.delta.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epane
     a <- min(unlist(Lt))
     b <- max(unlist(Lt))
     delta_cand <- 10^seq(-3, 2, length.out = 10) * (b - a)/3
+  }
+  
+  # fixed bandwidth
+  if (is.null(bw)) {
+    a <- min(unlist(Lt))
+    b <- max(unlist(Lt))
+    bw <- (b - a) / 5
   }
   
   # get index for each folds
@@ -254,10 +261,14 @@ cv.delta.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epane
   }
   
   # K-fold cross validation
-  if (parallel == TRUE) {
-    require(doParallel)
+  if (ncores > 1) {
     # Parallel computing setting
-    ncores <- detectCores() - 3
+    require(doParallel)
+    if (ncores > detectCores()) {
+      ncores <- detectCores() - 3
+      warning(paste0("ncores is too large. We now use", ncores, " cores."))
+    }
+    # ncores <- detectCores() - 3
     cl <- makeCluster(ncores)
     registerDoParallel(cl)
     
@@ -313,7 +324,7 @@ cv.delta.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epane
       summarise(cv_error = sum(cv_error))
     
     delta <- list(selected_delta = cv_obj$delta_cand[ which.min(cv_obj$cv_error) ],
-                  cv.error = cv_obj)
+                  cv.error = as.data.frame(cv_obj))
   } else {
     cv_error <- rep(0, length(delta_cand))
     for (k in 1:K) {
@@ -325,11 +336,11 @@ cv.delta.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epane
       for (i in 1:length(delta_cand)) {
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
                                    bw = bw, k2 = delta_cand[i], kernel = kernel, ...)
-        # , loss = loss, ...)
         y <- unlist(Ly_test)
-        # cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         if (cv_loss == "L2") {
           cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
+        } else if (cv_loss == "L1") {
+          cv_error[i] <- cv_error[i] + sum(abs(y - y_hat))   # LAD
         # } else if (cv_loss == "HUBER") {
         #   a <- abs(y - y_hat)
         #   err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
@@ -351,10 +362,10 @@ system.time({
                                              Ly = x.2$Ly, 
                                              method = "HUBER",
                                              kernel = "gauss", 
-                                             deg = 1,
-                                             bw = 0.1,
+                                             # deg = 1,
+                                             # bw = 0.1,
                                              cv_loss = "L1",
-                                             K = 5, 
-                                             parallel = TRUE)
+                                             # K = 5, 
+                                             ncores = 9)
 })
 delta_cv_obj

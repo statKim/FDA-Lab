@@ -3,6 +3,7 @@
 ##########################################
 require(fdapace)
 require(tidyverse)
+require(tidyverse)
 source("sim_Lin_Wang(2020).R")
 source("sim_Delaigle(2020).R")
 source("utills.R")
@@ -197,6 +198,8 @@ IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL
   
   resid <- Y - X %*% beta[1, ]
   s <- mad(resid)   # re-scaled MAD by MAD*1.4826
+  # print(abs(resid- median(resid)))
+  # s <- median(abs(resid - median(resid))) * 1.4826
   
   for (iter in 1:maxit) {
     W <- matrix(0, n, n)
@@ -253,8 +256,8 @@ IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL
 # loss : a loss function for kernel smoothing("L2" is squared loss, "Huber" is huber loss.)
 #   For loss = "Huber", it uses `rlm()` in `MASS` and fits the robust regression with Huber loss. 
 #   So additional parameters of `rlm()` can be applied. (k2, maxit, ...)
-local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BISQUARE"), bw = NULL, deg = 1, 
-                              # loss = "L2", 
+local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BISQUARE"), 
+                              bw = NULL, deg = 1, ncores = 1,
                               kernel = "epanechnikov", k2 = 1.345, ...) {
   method <- toupper(method)
   if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
@@ -267,8 +270,7 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
       stop("Lt or Ly are not list type. If bw is NULL, 5-fold CV are performed but it is needed list type.")
     }
     bw <- cv.local_kern_smooth(Lt = Lt, Ly = Ly, method = method, kernel = kernel, 
-                               # loss = loss, 
-                               K = 5, parallel = TRUE, k2 = k2)
+                               ncores = ncores, k2 = k2)
   }
   
   if (is.list(Lt) | is.list(Ly)) {
@@ -300,7 +302,6 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
       for (d in 1:deg) {
         X[, d+1] <- (Lt[idx] - t)^d
       }
-      # X[, 2] <- Lt[idx] - t
       Y <- Ly[idx]
       
       # Huber regression
@@ -310,46 +311,14 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
                   weight = diag(W),
                   k = k2)
       beta <- fit$beta
-      # fit <- rlm(x = X,
-      #            y = Y,
-      #            # maxit = 100,
-      #            scale.est = "Huber",
-      #            weights = diag(W),
-      #            ...)
-      # beta <- fit$coefficients
-      # fit <- rlm(x = sqrt(W) %*% X,
-      #            y = sqrt(W) %*% Y,
-      #            # maxit = 100,
-      #            scale.est = "Huber",
-      #            ...)
-      # beta <- fit$coefficients
       
       return(beta[1])
-      # if (loss == "L2") {   # squared loss
-      #   # Weighted least squares
-      #   beta <- solve(t(X) %*% W %*% X) %*% t(X) %*% W %*% Y
-      #   
-      #   return(beta[1, ])
-      # } else if (loss == "Huber") {   # huber loss
-      #   fit <- rlm(x = sqrt(W) %*% X,
-      #              y = sqrt(W) %*% Y,
-      #              # maxit = 100,
-      #              scale.est = "Huber",
-      #              ...)
-      #   # df <- data.frame(y = sqrt(W) %*% Ly[idx],
-      #   #                  x = sqrt(W) %*% X)
-      #   # fit <- rlm(y ~ .-1,
-      #   #            data = df,
-      #   #            method = "M",
-      #   #            maxit = 100,
-      #   #            scale.est = "Huber",
-      #   #            k2 = 2)
-      #   beta <- fit$coefficients
-      #   
-      #   return(beta[1])
-      #   # return(fit$s)
-      # }
     })
+  } else if (method == "L2") {   # squared loss
+      # Weighted least squares
+      beta <- solve(t(X) %*% W %*% X) %*% t(X) %*% W %*% Y
+
+      return(beta[1, ])
   } else if (method == "WRM") {   # robfilter package
     if (kernel == "epanechnikov") {
       kern <- 2
@@ -373,12 +342,11 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
 # method : "Huber" or "WRM" or "Bisquare"
 # K : the number of folds
 # bw_cand : user defined bandwidth candidates for CV
-# parallel : If parallel is TRUE, it implements `foreach()` in `doParallel` for CV.
+# ncores : If ncores > 1, it implements `foreach()` in `doParallel` for CV.
 # Other parameters are same with `local_kern_smooth()`.
 cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechnikov", 
-                                 # loss = "Huber", 
-                                 cv_loss = "HUBER", K = 5, 
-                                 bw_cand = NULL, parallel = FALSE, k2 = 1.345, ...) {
+                                 cv_loss = "HUBER", ncores = 1, k2 = 1.345,
+                                 K = 5, bw_cand = NULL, ...) {
   cv_loss <- toupper(cv_loss)
   if (!(cv_loss %in% c("HUBER","L1","L2"))) {
     stop(paste0(cv_loss, " is not provided. Check cv_loss parameter."))
@@ -408,10 +376,14 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
   }
   
   # K-fold cross validation
-  if (parallel == TRUE) {
-    require(doParallel)
+  if (ncores > 1) {
     # Parallel computing setting
-    ncores <- detectCores() - 3
+    require(doParallel)
+    if (ncores > detectCores()) {
+      ncores <- detectCores() - 3
+      warning(paste0("ncores is too large. We now use", ncores, " cores."))
+    }
+    # ncores <- detectCores() - 3
     cl <- makeCluster(ncores)
     registerDoParallel(cl)
     
@@ -439,7 +411,6 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
       }, error = function(e) {
         return(NA)
       })
-      
       # if error occurs in kernel smoothing, return Inf
       if (is.na(y_hat)) {
         return(Inf)
@@ -468,7 +439,7 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
       summarise(cv_error = sum(cv_error))
     
     bw <- list(selected_bw = cv_obj$bw_cand[ which.min(cv_obj$cv_error) ],
-               cv.error = cv_obj)
+               cv.error = as.data.frame(cv_obj))
     
     # cv_error <- foreach(i = 1:length(bw_cand), .combine = "c", 
     #                     .export = c("local_kern_smooth","IRLS"), .packages = c("MASS","robfilter"),

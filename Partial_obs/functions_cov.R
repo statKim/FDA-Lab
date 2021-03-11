@@ -27,7 +27,7 @@ meanfunc.rob <- function(Lt,
                          k2 = 1.345,
                          cv = FALSE, 
                          cv_optns = list(K = 5,
-                                         Parallel = TRUE,
+                                         ncores = 9,
                                          Loss = "Huber"), ...) {
   method <- toupper(method)
   if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
@@ -59,7 +59,7 @@ meanfunc.rob <- function(Lt,
                                       # k2 = k2,
                                       cv_loss = cv_optns$Loss, 
                                       K = cv_optns$K, 
-                                      parallel = cv_optns$Parallel,
+                                      ncores = cv_optns$ncores,
                                       ...)
     bw <- bw_cv_obj$selected_bw
   }
@@ -90,7 +90,7 @@ meanfunc.rob <- function(Lt,
   
   if (!is.null(newt)) {
     R$fitted <- predict(R, newt)
-  } 
+  }
   
   if (cv == TRUE) {
     R$cv_optns <- cv_optns
