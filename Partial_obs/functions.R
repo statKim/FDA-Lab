@@ -303,6 +303,7 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
         X[, d+1] <- (Lt[idx] - t)^d
       }
       Y <- Ly[idx]
+      # print(paste(t, ":", length(kern[idx])))   # number of non-negative weights
       
       # Huber regression
       fit <- IRLS(Y = Y,
