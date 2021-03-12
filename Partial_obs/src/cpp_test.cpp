@@ -23,32 +23,61 @@ VectorXd getEigenValues(Map<MatrixXd> M) {
 }
 
 
-// This is a simple example of exporting a C++ function to R. You can
-// source this function into an R session using the Rcpp::sourceCpp 
-// function (or via the Source button on the editor toolbar). Learn
-// more about Rcpp at:
-//
-//   http://www.rcpp.org/
-//   http://adv-r.had.co.nz/Rcpp.html
-//   http://gallery.rcpp.org/
-//
-
 // [[Rcpp::export]]
-Eigen::VectorXd test(Eigen::VectorXd x,
-                     Eigen::VectorXd y) {
+Rcpp::List get_positive_elements(Eigen::VectorXd Y,
+                                 Eigen::MatrixXd X,
+                                 Eigen::VectorXd W) {
+  int n = W.size();
   
-  Eigen::VectorXd z = (1./2. * x).array().exp();
-  // Eigen::VectorXd z = (1. / 2.) * x;
-  return z;
+  Rcpp::NumericVector Y_pos(n);
+  Rcpp::NumericMatrix X_pos(n, X.cols());
+  Rcpp::NumericVector W_pos(n);
+  Rcpp::NumericVector row_na(X.cols(), R_NaN);
+  Rcpp::NumericVector row_x(X.cols());
+  for (int i = 0; i < n; i++) {
+    if (W(i) > 0) {
+      Y_pos(i) = Y(i);
+      row_x = Rcpp::wrap(X.row(i));
+      X_pos.row(i) = row_x;
+      W_pos(i) = W(i);
+    } else {
+      Y_pos(i) = R_NaN;
+      X_pos.row(i) = row_na;
+      W_pos(i) = R_NaN;
+    }
+  }
+  
+  Rcpp::NumericVector Y_rm_neg = na_omit(Y_pos);
+  Rcpp::NumericVector W_rm_neg = na_omit(W_pos);
+  
+  int n_pos = Y_rm_neg.length();
+  
+  Rcpp::NumericMatrix X_rm_neg(n_pos, X.cols());
+  Rcpp::NumericVector col_x(n_pos);
+  for (int j = 0; j < X.cols(); j++) {
+    col_x = na_omit(X_pos.column(j));
+    X_rm_neg.column(j) = col_x;
+  }
+  
+  return Rcpp::List::create(Rcpp::_("Y") = Y_rm_neg, 
+                            Rcpp::_["X"] = X_rm_neg,
+                            Rcpp::_["W"] = W_rm_neg,
+                            Rcpp::_["n_pos"] = n_pos);
 }
 
 
-// You can include R code blocks in C++ files processed with sourceCpp
-// (useful for testing and development). The R code will be automatically 
-// run after the compilation.
-//
+// [[Rcpp::export]]
+Eigen::VectorXd test(Eigen::VectorXd Y) {
+  Y.resize(3);
+  
+  return Y;
+}
+
 
 /*** R
-test(1:3, 1:3)
-exp(1/2 * c(1:3))
+i <- c(-1,1,-2,2,-3,3,-4,4,-5,5)
+get_positive_elements(i,
+                      cbind(i, i),
+                      i)
+# test(1:5)
 */

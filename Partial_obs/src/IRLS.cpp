@@ -1,5 +1,6 @@
 #include <RcppEigen.h>
 // [[Rcpp::depends(RcppEigen)]]
+#include <Rcpp.h>
 #include <map>          
 #include <string>       
 #include <vector>       
@@ -22,23 +23,66 @@ VectorXd getEigenValues(Map<MatrixXd> M) {
   return es.eigenvalues();
 }
 
-// Get median using a R function
+// // Get median using a R function
+// // [[Rcpp::export]]
+// double median_r(Eigen::VectorXd x) {
+//   // Obtain environment containing function
+//   Rcpp::Environment base("package:stats"); 
+//   
+//   // Make function callable from C++
+//   Rcpp::Function median_r = base["median"];  
+//   
+//   // Call the function and receive its list output
+//   Rcpp::NumericVector res = median_r(Rcpp::_["x"] = x,
+//                                      Rcpp::_["na.rm"]  = true);
+//   
+//   // Return test object in list structure
+//   return res[0];
+//   
+// }
+
 // [[Rcpp::export]]
-double median_r(Eigen::VectorXd x) {
-  // Obtain environment containing function
-  Rcpp::Environment base("package:stats"); 
+Rcpp::List get_positive_elements(Eigen::VectorXd Y,
+                                 Eigen::MatrixXd X,
+                                 Eigen::VectorXd W) {
+  int n = W.size();
   
-  // Make function callable from C++
-  Rcpp::Function median_r = base["median"];  
+  Rcpp::NumericVector Y_pos(n);
+  Rcpp::NumericMatrix X_pos(n, X.cols());
+  Rcpp::NumericVector W_pos(n);
+  Rcpp::NumericVector row_na(X.cols(), R_NaN);
+  Rcpp::NumericVector row_x(X.cols());
+  for (int i = 0; i < n; i++) {
+    if (W(i) > 0) {
+      Y_pos(i) = Y(i);
+      row_x = Rcpp::wrap(X.row(i));
+      X_pos.row(i) = row_x;
+      W_pos(i) = W(i);
+    } else {
+      Y_pos(i) = R_NaN;
+      X_pos.row(i) = row_na;
+      W_pos(i) = R_NaN;
+    }
+  }
   
-  // Call the function and receive its list output
-  Rcpp::NumericVector res = median_r(Rcpp::_["x"] = x,
-                                     Rcpp::_["na.rm"]  = true);
+  Rcpp::NumericVector Y_rm_neg = na_omit(Y_pos);
+  Rcpp::NumericVector W_rm_neg = na_omit(W_pos);
   
-  // Return test object in list structure
-  return res[0];
+  int n_pos = Y_rm_neg.length();
   
+  Rcpp::NumericMatrix X_rm_neg(n_pos, X.cols());
+  Rcpp::NumericVector col_x(n_pos);
+  for (int j = 0; j < X.cols(); j++) {
+    col_x = na_omit(X_pos.column(j));
+    X_rm_neg.column(j) = col_x;
+  }
+  
+  return Rcpp::List::create(Rcpp::_["Y"] = Y_rm_neg, 
+                            Rcpp::_["X"] = X_rm_neg,
+                            Rcpp::_["W"] = W_rm_neg,
+                            Rcpp::_["n_pos"] = n_pos);
 }
+
 
 // Iteratively re-weighted least sqaures
 // [[Rcpp::export]]
@@ -60,10 +104,10 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
   Eigen::VectorXd beta_hat(X.cols());   // beta_hat
   beta_hat = beta.row(0);
   Y_hat = X * beta_hat;
-  Eigen::VectorXd resid = Y - Y_hat;
-  Eigen::VectorXd resid_med = resid.array() - median_r(resid);
-  double s = median_r(resid_med.cwiseAbs()) * 1.4826;  // re-scaled MAD by MAD*1.4826
-  
+  Rcpp::NumericVector resid = Rcpp::wrap(Y - Y_hat);
+  Rcpp::NumericVector resid_med = abs(resid - median(resid));
+  double s = median(resid_med) * 1.4826;  // re-scaled MAD by MAD*1.4826
+
   // if weight is NULL, set 1
   Eigen::VectorXd weight(n);
   if (weight_.isNotNull()) {
@@ -83,7 +127,7 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
   // iterate until beta converged
   for (int i = 0; i < maxit; i++) {
     beta_hat = beta.row(i);
-    Y_hat = X * beta_hat;
+    // Y_hat = X * beta_hat;
     tmp = (Y - Y_hat).array() / s;
     
     // psi function of Huber loss
@@ -116,7 +160,7 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
     }
   }
   
-  return Rcpp::List::create(Rcpp::_("beta") = beta_hat, 
+  return Rcpp::List::create(Rcpp::_["beta"] = beta_hat, 
                             Rcpp::_["iter"] = iter,
                             Rcpp::_["scale.est"] = s);
 }
@@ -126,25 +170,30 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
 inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
                                      Eigen::VectorXd Ly,
                                      Eigen::VectorXd newt,
-                                     std::string kernel = "gauss",
+                                     std::string kernel = "epanechnikov",
                                      const double bw = 0.1,
                                      const double k = 1.345,
                                      const int deg = 1) {
   int n_newt = newt.size();   // number of grid which is predicted
   int n = Lt.size();   // number of Lt
-  Eigen::VectorXd w(n);
-  w.setOnes();
-  Eigen::VectorXd weig = w.array() / n;   // 1/length(Lt)
+  
+  // Eigen::VectorXd w(n);
+  // w.setOnes();
+  // Eigen::VectorXd weig = w.array() / n;   // 1/length(Lt)
+  double weig = 1. / n;   // 1/length(Lt)
   
   Eigen::VectorXd tmp(n);
   Eigen::VectorXd kern(n);
   Rcpp::NumericVector W(n);
+  // Eigen::VectorXd W(n);
   Eigen::MatrixXd X(n, deg+1);
   X.setOnes();
   Eigen::VectorXd Y(n);
   Rcpp::List fit;
   Eigen::VectorXd beta_hat(deg+1);
   Eigen::VectorXd mu_hat(n_newt);
+  Rcpp::List pos_idx_obj;
+  int n_pos = 0;
   
   for (int t = 0; t < n_newt; t++) {
     tmp = (Lt.array() - newt(t)) / bw;
@@ -155,24 +204,31 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
       kern = 1./sqrt(2.*M_PI) * (-1./2. * tmp.array().pow(2)).exp();   // gaussian kernel
     }
     
-    // weight vector for w_i * K_h(x)
-    W = (weig.array() * kern.array()) / bw;   
-    
     // X matrix
     for (int d = 0; d < deg; d++) {
       X.col(d+1) = (Lt.array() - newt(t)).pow(d+1);
     }
-    
+
+    // obtain data which has non-negative weights
+    pos_idx_obj = get_positive_elements(Ly, X, kern);
+    n_pos = pos_idx_obj["n_pos"];
+    X.resize(n_pos, deg+1);
+    Y.resize(n_pos);
+    kern.resize(n_pos);
+    X = pos_idx_obj["X"];
+    Y = pos_idx_obj["Y"];
+    kern = pos_idx_obj["W"];
+    // Y = Ly;
+
+    // weight vector for w_i * K_h(x)
+    W = (weig * kern.array()) / bw;
+
     // Huber regression
-    fit = IRLScpp(Ly, X, W, 30, 0.0001, k);
-    
+    fit = IRLScpp(Y, X, W, 30, 0.0001, k);
+
     beta_hat = fit["beta"];
     mu_hat(t) = beta_hat(0);
   }
-  
-  // Rcpp::NumericVector T = Rcpp::wrap(Ly);
-  // // Rcpp::as<NumericVector>(Ly);
-  // double Y = median(T);
   
   return mu_hat;
 }
@@ -182,14 +238,18 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
 
 
 /*** R
-locpolysmooth(Lt = 1:5,
-              Ly = 1:5,
-              newt = 1:5)
+set.seed(1000)
+newt <- seq(0, 1, length.out = 51)
+Lt <- sample(newt, 100, replace = T)
+Ly <- rnorm(100)
+locpolysmooth(Lt = Lt,
+              Ly = Ly,
+              newt = newt)
 # library(MASS)
 # IRLScpp(Y = stackloss$stack.loss,
 #         X = as.matrix(stackloss[, 1:3]),
 #         weight_ = NULL)
-# IRLS(Y = stackloss$stack.loss, 
+# IRLS(Y = stackloss$stack.loss,
 #      X = stackloss[, 1:3],
 #      method = "huber")
 */
