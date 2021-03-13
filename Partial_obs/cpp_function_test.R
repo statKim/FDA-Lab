@@ -96,9 +96,9 @@ local_kern_smooth_cpp <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM",
   return( as.numeric(mu_hat) )
 }
 
-cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechnikov", 
-                                 cv_loss = "HUBER", ncores = 1, k2 = 1.345,
-                                 K = 5, bw_cand = NULL, ...) {
+cv.local_kern_smooth_cpp <- function(Lt, Ly, method = "HUBER", kernel = "epanechnikov", 
+                                     cv_loss = "HUBER", ncores = 1, k2 = 1.345,
+                                     K = 5, bw_cand = NULL, ...) {
   cv_loss <- toupper(cv_loss)
   if (!(cv_loss %in% c("HUBER","L1","L2"))) {
     stop(paste0(cv_loss, " is not provided. Check cv_loss parameter."))
@@ -144,7 +144,8 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
                               fold = rep(1:K, length(bw_cand)))
     
     cv_error <- foreach(i = 1:nrow(bw_fold_mat), .combine = "c", 
-                        .export = c("local_kern_smooth_cpp","IRLS"), 
+                        .export = c("local_kern_smooth_cpp"),
+                        # .noexport = c("locpolysmooth","IRLScpp","get_positive_elements"),
                         .packages = c("robfilter"),
                         .errorhandling = "pass") %dopar% {
                           
@@ -157,19 +158,19 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
       Lt_test <- Lt[ folds[[k]] ]
       Ly_test <- Ly[ folds[[k]] ]
       
-      y_hat <- tryCatch({
-        local_kern_smooth_cpp(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-                              bw = bw, kernel = kernel, k2 = k2, ...)
-      }, error = function(e) {
-        return(NA)
-      })
-      # if error occurs in kernel smoothing, return Inf
-      if (is.na(y_hat)) {
-        return(Inf)
-      }
+      y_hat <- local_kern_smooth_cpp(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                                     bw = bw, kernel = kernel, k2 = k2, ...)
+      # y_hat <- tryCatch({
+      #   local_kern_smooth_cpp(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+      #                         bw = bw, kernel = kernel, k2 = k2, ...)
+      # }, error = function(e) {
+      #   return(NA)
+      # })
+      # # if error occurs in kernel smoothing, return Inf
+      # if (is.na(y_hat)) {
+      #   return(Inf)
+      # }
       
-      # y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-      #                            bw = bw, kernel = kernel, k2 = k2, ...)
       y <- unlist(Ly_test)
       if (cv_loss == "L2") {   # squared errors
         err <- sum((y - y_hat)^2)
@@ -192,42 +193,6 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
     
     bw <- list(selected_bw = cv_obj$bw_cand[ which.min(cv_obj$cv_error) ],
                cv.error = as.data.frame(cv_obj))
-    
-    # cv_error <- foreach(i = 1:length(bw_cand), .combine = "c", 
-    #                     .export = c("local_kern_smooth","IRLS"), .packages = c("MASS","robfilter"),
-    #                     .errorhandling = "pass", .verbose = TRUE) %dopar% {
-    #   err <- 0
-    #   for (k in 1:K) {
-    #     Lt_train <- Lt[ -folds[[k]] ]
-    #     Ly_train <- Ly[ -folds[[k]] ]
-    #     Lt_test <- Lt[ folds[[k]] ]
-    #     Ly_test <- Ly[ folds[[k]] ]
-    #     
-    #     # y_hat <- tryCatch({
-    #     #   local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-    #     #                     bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
-    #     # }, error = function(e) { 
-    #     #   print(e)
-    #     #   return(0) 
-    #     # })
-    #     y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-    #                                bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
-    #                                # , loss = loss, ...)
-    #     y <- unlist(Ly_test)
-    #     if (cv_loss == "L2") {   # squared errors
-    #       err <- err + sum((y - y_hat)^2)
-    #     } else if (cv_loss == "HUBER") {   # Huber errors
-    #       a <- abs(y - y_hat)
-    #       err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
-    #       err <- err + sum(err_huber)
-    #     } else if (cv_loss == "L1") {   # absolute errors
-    #       err <- err + sum(abs(y - y_hat))
-    #     }
-    #   }
-    #   
-    #   return(err)
-    # }
-    # stopCluster(cl)
   } else {
     cv_error <- rep(0, length(bw_cand))
     for (k in 1:K) {
@@ -237,17 +202,31 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
       Ly_test <- Ly[ folds[[k]] ]
       
       for (i in 1:length(bw_cand)) {
-        y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-                                   bw = bw_cand[i], kernel = kernel, ...)
-        # , loss = loss, ...)
+        y_hat <- local_kern_smooth_cpp(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                                       bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
+        # y_hat <- tryCatch({
+        #   local_kern_smooth_cpp(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+        #                         bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
+        # }, error = function(e) {
+        #   return(NA)
+        # })
+        # # if error occurs in kernel smoothing, return Inf
+        # if (is.na(y_hat)) {
+        #   return(Inf)
+        # }
+        # if (i == 1 && k == 1) {
+        #   print(y_hat)
+        # }
+        
         y <- unlist(Ly_test)
-        # cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         if (cv_loss == "L2") {
           cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         } else if (cv_loss == "HUBER") {
           a <- abs(y - y_hat)
           err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
           cv_error[i] <- cv_error[i] + sum(err_huber)
+        } else if (cv_loss == "L1") {   # absolute errors
+          cv_error[i] <- cv_error[i] + sum(abs(y - y_hat))
         }
       }
     }
@@ -264,37 +243,20 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
 ####################################
 ### Benchmark between R vs C++
 ####################################
-
 library(Rcpp)
+library(rbenchmark)
 sourceCpp("src/IRLS.cpp")
 source("functions.R")
 
-system.time({
-  local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
-                    bw = bw, kernel = "gauss", k2 = 1.345)
-})
-system.time({
-  local_kern_smooth_cpp(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
-                        bw = bw, kernel = "gauss", k2 = 1.345)
-})
-
-system.time({
-  local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
-                    bw = bw, kernel = "epanechnikov", k2 = 1.345)
-})
-system.time({
-  local_kern_smooth_cpp(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
-                        bw = bw, kernel = "epanechnikov", k2 = 1.345)
-})
-
-
-library(rbenchmark)
+### kernel smoothing computation speed
+# epanechnikov kernel
 benchmark(R_smoother = local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
                                          bw = bw, kernel = "epanechnikov", k2 = 1.345),
           C_smoother = local_kern_smooth_cpp(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
                                              bw = bw, kernel = "epanechnikov", k2 = 1.345),
           columns = c("test", "replications", "elapsed", "relative"))
 
+# gaussian kernel
 benchmark(R_smoother = local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
                                          bw = bw, kernel = "gauss", k2 = 1.345),
           C_smoother = local_kern_smooth_cpp(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
@@ -303,6 +265,43 @@ benchmark(R_smoother = local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HU
           replications = 100)
 
 
+### kernel smoothing computation speed
+# gaussian kernel
+benchmark(R_smoother = local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
+                                         bw = bw, kernel = "gauss", k2 = 1.345),
+          C_smoother = local_kern_smooth_cpp(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
+                                             bw = bw, kernel = "gauss", k2 = 1.345),
+          columns = c("test", "replications", "elapsed", "relative"),
+          replications = 1)
+
+system.time({
+  registerDoRNG(1000)
+  bw_cv_obj_cpp <- cv.local_kern_smooth_cpp(Lt = x.2$Lt,
+                                            Ly = x.2$Ly, 
+                                            method = "HUBER",
+                                            kernel = "gauss", 
+                                            k2 = 1.345,
+                                            cv_loss = "L1",
+                                            K = 5, 
+                                            ncores = 1)
+})
+bw_cv_obj_cpp
+
+system.time({
+  registerDoRNG(1000)
+  bw_cv_obj <- cv.local_kern_smooth(Lt = x.2$Lt,
+                                    Ly = x.2$Ly, 
+                                    method = "HUBER",
+                                    kernel = "gauss", 
+                                    k2 = 1.345,
+                                    cv_loss = "L1",
+                                    K = 5, 
+                                    ncores = 9)
+})
+bw_cv_obj
 
 
-
+local_kern_smooth(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
+                  bw = 0.003333333, kernel = "gauss", k2 = 1.345)
+local_kern_smooth_cpp(x.2$Lt, x.2$Ly, newt = gr, method = "HUBER", 
+                      bw = 0.003333333, kernel = "gauss", k2 = 1.345)

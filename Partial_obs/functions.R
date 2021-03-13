@@ -228,7 +228,12 @@ IRLS <- function(Y, X, method = c("Huber","Bisquare"), maxit = 30, weight = NULL
     
     # s <- mad(Y - X %*% beta[iter+1, ])   # update scale estimate
     
-    if (sum(abs(beta[iter+1, ] - beta[iter, ])) < tol) {
+    conv <- sum(abs(beta[iter+1, ] - beta[iter, ]))
+    if (is.nan(conv)) {
+      warning("NaN is produced in IRLS algorithm.")
+      break
+    }
+    if (conv < tol) {
       # cat(paste0("Coverged in ", iter, " iterations! \n"))
       break
     }
@@ -408,19 +413,19 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
       Lt_test <- Lt[ folds[[k]] ]
       Ly_test <- Ly[ folds[[k]] ]
       
-      y_hat <- tryCatch({
-        local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-                          bw = bw, kernel = kernel, k2 = k2, ...)
-      }, error = function(e) {
-        return(NA)
-      })
-      # if error occurs in kernel smoothing, return Inf
-      if (is.na(y_hat)) {
-        return(Inf)
-      }
+      # y_hat <- tryCatch({
+      #   local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+      #                     bw = bw, kernel = kernel, k2 = k2, ...)
+      # }, error = function(e) {
+      #   return(NA)
+      # })
+      # # if error occurs in kernel smoothing, return Inf
+      # if (is.na(y_hat)) {
+      #   return(Inf)
+      # }
       
-      # y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
-      #                            bw = bw, kernel = kernel, k2 = k2, ...)
+      y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+                                 bw = bw, kernel = kernel, k2 = k2, ...)
       y <- unlist(Ly_test)
       if (cv_loss == "L2") {   # squared errors
         err <- sum((y - y_hat)^2)
@@ -491,14 +496,29 @@ cv.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
         y_hat <- local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
                                    bw = bw_cand[i], kernel = kernel, ...)
                                    # , loss = loss, ...)
+        # y_hat <- tryCatch({
+        #   local_kern_smooth(Lt = Lt_train, Ly = Ly_train, newt = Lt_test, method = method,
+        #                     bw = bw_cand[i], kernel = kernel, k2 = k2, ...)
+        # }, error = function(e) {
+        #   return(NA)
+        # })
+        # # if error occurs in kernel smoothing, return Inf
+        # if (is.na(y_hat)) {
+        #   return(Inf)
+        # }
+        # if (i == 1 && k == 1) {
+        #   print(y_hat)
+        # }
+        
         y <- unlist(Ly_test)
-        # cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         if (cv_loss == "L2") {
           cv_error[i] <- cv_error[i] + sum((y - y_hat)^2)   # squared errors
         } else if (cv_loss == "HUBER") {
           a <- abs(y - y_hat)
           err_huber <- ifelse(a > k2, k2*(a - k2/2), a^2/2)
           cv_error[i] <- cv_error[i] + sum(err_huber)
+        } else if (cv_loss == "L1") {   # absolute errors
+          cv_error[i] <- cv_error[i] + sum(abs(y - y_hat))
         }
       }
     }

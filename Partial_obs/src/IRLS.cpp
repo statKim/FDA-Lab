@@ -15,13 +15,7 @@ using Rcpp::as;
 using Eigen::Map;                       // 'maps' rather than copies
 using Eigen::MatrixXd;                  // variable size matrix, double precision
 using Eigen::VectorXd;                  // variable size vector, double precision
-using Eigen::SelfAdjointEigenSolver;    // one of the eigenvalue solvers
 
-// [[Rcpp::export]]
-VectorXd getEigenValues(Map<MatrixXd> M) {
-  SelfAdjointEigenSolver<MatrixXd> es(M);
-  return es.eigenvalues();
-}
 
 // // Get median using a R function
 // // [[Rcpp::export]]
@@ -41,6 +35,10 @@ VectorXd getEigenValues(Map<MatrixXd> M) {
 //   
 // }
 
+// Get data with positive kernel weights for local regression
+// - Y : observed data (unlist(Ly))
+// - X : observed grid (unlist(Lt))
+// - W : weight from kernel function
 // [[Rcpp::export]]
 Rcpp::List get_positive_elements(Eigen::VectorXd Y,
                                  Eigen::MatrixXd X,
@@ -84,7 +82,14 @@ Rcpp::List get_positive_elements(Eigen::VectorXd Y,
 }
 
 
-// Iteratively re-weighted least sqaures
+// Iteratively re-weighted least squares (IRLS) for robust regression (M-estimation)
+// - Y : observed data (unlist(Ly))
+// - X : observed grid (unlist(Lt))
+// - weight_ : weight vector (Default = NULL)
+// - maxit : maximun iteration numbers
+// - weight : additional weight (for kernel regression)
+// - tol : tolerence rate
+// - k : delta for Huber function(or Tukey's biweight function)
 // [[Rcpp::export]]
 inline Rcpp::List IRLScpp(const Eigen::VectorXd Y, 
                           const Eigen::MatrixXd X,
@@ -166,6 +171,15 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
 }
 
 
+// Local polynomial kernel smoothing with huber loss (mean estimator)
+// It is used for local_kern_smooth() in R function
+// - Lt : a list of vectors or a vector containing time points for all curves
+// - Ly : a list of vectors or a vector containing observations for all curves
+// - newt : a vector containing time points to estimate
+// - kernel : a kernel function for kernel smoothing ("epan", "gauss" are supported.)
+// - bw : bandwidth
+// - k : delta for Huber function (or Tukey's biweight function)
+// - deg : degree of polynomial
 // [[Rcpp::export]]
 inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
                                      Eigen::VectorXd Ly,
@@ -177,9 +191,6 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
   int n_newt = newt.size();   // number of grid which is predicted
   int n = Lt.size();   // number of Lt
   
-  // Eigen::VectorXd w(n);
-  // w.setOnes();
-  // Eigen::VectorXd weig = w.array() / n;   // 1/length(Lt)
   double weig = 1. / n;   // 1/length(Lt)
   
   Eigen::VectorXd tmp(n);
@@ -231,37 +242,36 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
   }
   
   return mu_hat;
-  // return fit;
 }
 
 
 
 
-
-/*** R
-set.seed(1000)
-newt <- seq(0, 1, length.out = 51)
-Lt <- sample(newt, 100, replace = T)
-Ly <- rnorm(100)
-# locpolysmooth(Lt = Lt,
-#               Ly = Ly,
-#               newt = newt)
-
-local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER", 
-                  bw = bw, kernel = "gauss", k2 = 1.345)
-local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER", 
-                      bw = bw, kernel = "gauss", k2 = 1.345)
-local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER",
-                  bw = bw, kernel = "epanechnikov", k2 = 1.345)
-local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER",
-                      bw = bw, kernel = "epanechnikov", k2 = 1.345)
-
-# library(MASS)
-# IRLScpp(Y = stackloss$stack.loss,
-#         X = as.matrix(stackloss[, 1:3]),
-#         weight_ = NULL)
-# IRLS(Y = stackloss$stack.loss,
-#      X = stackloss[, 1:3],
-#      method = "huber")
-*/
+// 
+// /*** R
+// set.seed(1000)
+// newt <- seq(0, 1, length.out = 51)
+// Lt <- sample(newt, 100, replace = T)
+// Ly <- rnorm(100)
+// # locpolysmooth(Lt = Lt,
+// #               Ly = Ly,
+// #               newt = newt)
+// 
+// local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER", 
+//                   bw = bw, kernel = "gauss", k2 = 1.345)
+// local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER", 
+//                       bw = bw, kernel = "gauss", k2 = 1.345)
+// local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER",
+//                   bw = bw, kernel = "epanechnikov", k2 = 1.345)
+// local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER",
+//                       bw = bw, kernel = "epanechnikov", k2 = 1.345)
+// 
+// # library(MASS)
+// # IRLScpp(Y = stackloss$stack.loss,
+// #         X = as.matrix(stackloss[, 1:3]),
+// #         weight_ = NULL)
+// # IRLS(Y = stackloss$stack.loss,
+// #      X = stackloss[, 1:3],
+// #      method = "huber")
+// */
 
