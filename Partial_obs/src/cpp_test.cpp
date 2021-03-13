@@ -68,16 +68,21 @@ Rcpp::List get_positive_elements(Eigen::VectorXd Y,
 
 // [[Rcpp::export]]
 Eigen::VectorXd test(Eigen::VectorXd Y) {
-  Y.resize(3);
+  // Y.resize(3);
   
-  return Y;
+  Eigen::VectorXd kern = (3./4.) * (1 - Y.array().pow(2));
+  
+  return kern;
 }
 
 
 /*** R
-i <- c(-1,1,-2,2,-3,3,-4,4,-5,5)
+set.seed(1000)
+# i <- c(-1,1,-2,2,-3,3,-4,4,-5,5)
+i <- rnorm(100)
 get_positive_elements(i,
-                      cbind(i, i),
+                      cbind(rep(1, length(i)), 
+                            i),
                       i)
 # test(1:5)
 */

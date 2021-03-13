@@ -104,6 +104,7 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
   Eigen::VectorXd beta_hat(X.cols());   // beta_hat
   beta_hat = beta.row(0);
   Y_hat = X * beta_hat;
+  // Y_hat = X * beta.row(0);
   Rcpp::NumericVector resid = Rcpp::wrap(Y - Y_hat);
   Rcpp::NumericVector resid_med = abs(resid - median(resid));
   double s = median(resid_med) * 1.4826;  // re-scaled MAD by MAD*1.4826
@@ -127,7 +128,7 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
   // iterate until beta converged
   for (int i = 0; i < maxit; i++) {
     beta_hat = beta.row(i);
-    // Y_hat = X * beta_hat;
+    Y_hat = X * beta_hat;
     tmp = (Y - Y_hat).array() / s;
     
     // psi function of Huber loss
@@ -153,7 +154,6 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
     beta_hat = beta.row(i+1);
     
     // if beta converges before maxit, break.
-    // conv = (beta.row(i+1) - beta.row(i)).cwiseAbs().sum();
     if ((beta.row(i+1) - beta.row(i)).cwiseAbs().sum() < tol) {
       iter = i+1;
       break;
@@ -187,7 +187,6 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
   Rcpp::NumericVector W(n);
   // Eigen::VectorXd W(n);
   Eigen::MatrixXd X(n, deg+1);
-  X.setOnes();
   Eigen::VectorXd Y(n);
   Rcpp::List fit;
   Eigen::VectorXd beta_hat(deg+1);
@@ -205,10 +204,12 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
     }
     
     // X matrix
+    X.resize(n, deg+1);
+    X.setOnes();
     for (int d = 0; d < deg; d++) {
       X.col(d+1) = (Lt.array() - newt(t)).pow(d+1);
     }
-
+    
     // obtain data which has non-negative weights
     pos_idx_obj = get_positive_elements(Ly, X, kern);
     n_pos = pos_idx_obj["n_pos"];
@@ -218,8 +219,7 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
     X = pos_idx_obj["X"];
     Y = pos_idx_obj["Y"];
     kern = pos_idx_obj["W"];
-    // Y = Ly;
-
+    
     // weight vector for w_i * K_h(x)
     W = (weig * kern.array()) / bw;
 
@@ -231,6 +231,7 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
   }
   
   return mu_hat;
+  // return fit;
 }
 
 
@@ -242,9 +243,19 @@ set.seed(1000)
 newt <- seq(0, 1, length.out = 51)
 Lt <- sample(newt, 100, replace = T)
 Ly <- rnorm(100)
-locpolysmooth(Lt = Lt,
-              Ly = Ly,
-              newt = newt)
+# locpolysmooth(Lt = Lt,
+#               Ly = Ly,
+#               newt = newt)
+
+local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER", 
+                  bw = bw, kernel = "gauss", k2 = 1.345)
+local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER", 
+                      bw = bw, kernel = "gauss", k2 = 1.345)
+local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER",
+                  bw = bw, kernel = "epanechnikov", k2 = 1.345)
+local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER",
+                      bw = bw, kernel = "epanechnikov", k2 = 1.345)
+
 # library(MASS)
 # IRLScpp(Y = stackloss$stack.loss,
 #         X = as.matrix(stackloss[, 1:3]),

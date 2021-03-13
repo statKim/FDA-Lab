@@ -297,7 +297,8 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
       }
       
       idx <- which(kern > 0)   # non-negative values
-      W <- diag(w * kern[idx]) / bw   # weight vector for w_i * K_h(x)
+      W <- w * kern[idx] / bw   # weight vector for w_i * K_h(x)
+      # W <- diag(w * kern[idx]) / bw   # weight vector for w_i * K_h(x)
       X <- matrix(1, length(idx), deg+1)
       for (d in 1:deg) {
         X[, d+1] <- (Lt[idx] - t)^d
@@ -309,7 +310,8 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
       fit <- IRLS(Y = Y,
                   X = X,
                   method = method,
-                  weight = diag(W),
+                  weight = W,
+                  # weight = diag(W),
                   k = k2)
       beta <- fit$beta
       
