@@ -1,3 +1,10 @@
+### Load pacakges and source codes
+require(fdapace)
+require(tidyverse)
+require(tidyverse)
+source("R/utills.R")
+load_sources()
+
 ########################################################
 ### Robust mean estimation for functional snippets
 ########################################################
@@ -164,18 +171,18 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
 }
 
 
-#' estimate the window width of snippets
-#' @export
-estimate.delta <- function(Lt) {
-  if(is.list(Lt)) {
-    tmp <- lapply(Lt, function(v) { max(v) - min(v) })
-    return( max(unlist(tmp)) )
-  } else if (is.vector(Lt)) {
-    return( max(Lt)-min(Lt) )
-  } else {
-    stop('unsupported type of Lt')
-  }
-}
+#' #' estimate the window width of snippets
+#' #' @export
+#' estimate.delta <- function(Lt) {
+#'   if(is.list(Lt)) {
+#'     tmp <- lapply(Lt, function(v) { max(v) - min(v) })
+#'     return( max(unlist(tmp)) )
+#'   } else if (is.vector(Lt)) {
+#'     return( max(Lt)-min(Lt) )
+#'   } else {
+#'     stop('unsupported type of Lt')
+#'   }
+#' }
 
 
 
@@ -236,7 +243,7 @@ varfunc.rob <- function(Lt,
   return(R)
 }
 
-#' @export
+### Predict variance at new time points
 predict.varfunc.rob <- function(R, newt) {
   
   if (is.list(newt)) {
@@ -360,11 +367,7 @@ covfunc.rob.huber <- function(Lt,
 }
 
 
-#' predict cov functions at new locations
-#' @param covobj the object obtained by calling \code{covfunc}
-#' @param newt a vector or a list of vectors of real numbers
-#' @return the estimated mean function evaluated at \code{newt}. It has the same format of \code{newt}
-#' @export
+### Predict covariance at new time points
 predict.covfunc.rob <- function(covobj, newt) {
   pred <- function(newt) {  # newt is a vector
     stopifnot(is.vector(newt))
@@ -388,11 +391,9 @@ predict.covfunc.rob <- function(covobj, newt) {
 
 
 
-
-
-
-
-
+#########################################################
+### Robust noise variance estimation for functional snippets
+#########################################################
 sigma2.rob <- function(t, y, h = NULL) {
   if (is.list(y)) {   # irregular data
     n <- length(t)
