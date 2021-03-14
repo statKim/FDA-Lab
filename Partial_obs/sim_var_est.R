@@ -9,10 +9,7 @@ library(MASS)   # huber, rlm
 library(latex2exp)
 library(tidyverse)
 library(robfilter)
-load_sources()
-source("functions.R")
-source("functions_cov.R")
-# source("utills.R")
+source("R/functions.R")
 
 
 ### IRLS test for Huber regression
@@ -229,19 +226,20 @@ ggplot(df, aes(t, y, color = id)) +
 ### - k <- 1 / max(abs(y))
 #####################################
 # k_cand <- c(1 / max(abs(unlist(x.2$Ly))), 1e-4, 0.001, 0.01, 0.1, 0.5, 0.7, 1, 1.345)
-k_cand <- c(1 / max(abs(unlist(x.2$Ly))),
-            10^seq(-3, 2, length.out = 10) * (1 - 0)/3)
+k_cand <- union(1.345,
+                10^seq(-3, 2, length.out = 10) * (1 - 0)/3)
 var_est <- matrix(0, length(gr), length(k_cand)+1)
 var_est[, 1] <- diag(cov.true)
 system.time({
   for (i in 1:length(k_cand)) {
     print(k_cand[i])
     
-    bw <- 0.1
+    bw_fixed <- 0.1
     kernel <- "gauss"
-    mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, bw = bw, k2 = k_cand[i])
+    mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
+                                 bw = bw_fixed, k2 = k_cand[i])
     var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
-                                 method = "huber", kernel = kernel, bw = bw, k2 = k_cand[i])
+                                 method = "huber", kernel = kernel, bw = bw_fixed, k2 = k_cand[i])
     var_est[, i+1] <- predict(var.huber.obj, gr)
   }
 }) 
@@ -249,16 +247,13 @@ df_delta <- data.frame(t = rep(gr, length(k_cand)+3),
                        y = c(as.numeric(var_est),
                              diag(cov.yao),
                              diag(cov.lin)),
-                       k_huber = rep(factor(c("True", paste0("Naive: ", round(k_cand[1], 4)), 
-                                              round(k_cand[-1], 4), "Yao", "Lin"), 
-                                            levels = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
-                                                       round(k_cand[-1], 4), "Yao", "Lin")), 
+                       k_huber = rep(factor(c("True", round(k_cand, 4), "Yao", "Lin"), 
+                                            levels = c("True", round(k_cand, 4), "Yao", "Lin")), 
                                      each = length(gr)))
 p1 <- ggplot(df_delta, 
              aes(t, y, color = k_huber, linetype = k_huber)) +
   geom_line(size = 1) +
-  scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)), 
-                                   round(k_cand[-1], 4), "Yao", "Lin"),
+  scale_linetype_manual(breaks = c("True", round(k_cand, 4), "Yao", "Lin"),
                         values = c("solid", rep("dashed", 11), rep("solid", 2))) +
   theme_bw() +
   theme(legend.position = c(0.8, 0.7),
@@ -269,28 +264,40 @@ p2 <- p1 +
 gridExtra::grid.arrange(p1, p2, 
                         nrow = 1)
 
-# par(mfrow = c(1, 2))
-# matplot(var_est, type = "l")
-# legend("topright",
-#        c("True", "Naive", round(k_cand, 5)),
-#        col = 1:ncol(var_est),
-#        lty = 1:ncol(var_est))
-# matplot(var_est, type = "l",
-#         ylim = c(0, 5))
-# # matplot(var_est[, 1:4], type= "l")
-# lines(diag(cov.yao), col = 2)
-# lines(diag(cov.lin), col = 3)
-
+# Compare CV results and true optimal delta
+var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
+                             method = "huber", kernel = kernel, bw = bw_fixed, k2 = NULL)
 ise_var <- df_delta %>% 
   group_by(k_huber) %>% 
   summarise(ise = get_ise(y, diag(cov.true), gr))
-# ise_var[-1, ] %>% 
-#   filter(ise == min(ise)) %>% 
-#   select(k_huber)
+
+var.huber.obj$obj$k2
 k_cand[which.min(ise_var$ise[-1])]
-  
-# ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
-# k_cand[which.min(ise_var)]
+
+
+
+# # par(mfrow = c(1, 2))
+# # matplot(var_est, type = "l")
+# # legend("topright",
+# #        c("True", "Naive", round(k_cand, 5)),
+# #        col = 1:ncol(var_est),
+# #        lty = 1:ncol(var_est))
+# # matplot(var_est, type = "l",
+# #         ylim = c(0, 5))
+# # # matplot(var_est[, 1:4], type= "l")
+# # lines(diag(cov.yao), col = 2)
+# # lines(diag(cov.lin), col = 3)
+# 
+# ise_var <- df_delta %>% 
+#   group_by(k_huber) %>% 
+#   summarise(ise = get_ise(y, diag(cov.true), gr))
+# # ise_var[-1, ] %>% 
+# #   filter(ise == min(ise)) %>% 
+# #   select(k_huber)
+# k_cand[which.min(ise_var$ise[-1])]
+#   
+# # ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
+# # k_cand[which.min(ise_var)]
 
 
 #####################################
@@ -333,6 +340,16 @@ ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), g
 bw_cand[which.min(ise_var)]
 
 
+# Compare CV results and true optimal bandwidth
+var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
+                             method = "huber", kernel = kernel, bw = NULL, k2 = k)
+ise_var <- apply(var_est[, -1], 2, function(cov){ get_ise(cov, diag(cov.true), gr) })
+
+var.huber.obj$obj$bw
+bw_cand[which.min(ise_var)]
+
+cbind(bw_cand, ise_var)
+
 
 #####################################
 ### bandwidth test for WRM
@@ -374,7 +391,7 @@ ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) +
 # 아 왜 오래 걸려 ㅡㅡ 첫번째 부분에서 에러뜨긴 하는듯... k2 값이 작아서 오래 걸리는건가??
 source("functions.R")
 system.time({
-  bw_cv_obj <- cv.local_kern_smooth(Lt = x.2$Lt,
+  bw_cv_obj <- bw.local_kern_smooth(Lt = x.2$Lt,
                                     Ly = x.2$Ly, 
                                     method = "HUBER",
                                     kernel = "gauss", 

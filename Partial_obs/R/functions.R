@@ -32,10 +32,15 @@ meanfunc.rob <- function(Lt,
                          kernel = "epanechnikov",
                          deg = 1, 
                          k2 = 1.345,
-                         cv = FALSE, 
-                         cv_optns = list(K = 5,
-                                         ncores = 9,
-                                         Loss = "Huber"), ...) {
+                         ncores = 1,
+                         cv_delta_loss = "L1",
+                         cv_bw_loss = "HUBER",
+                         cv_K = 5,
+                         # cv = FALSE, 
+                         # cv_optns = list(K = 5,
+                         #                 ncores = 1,
+                         #                 Loss = "Huber"), 
+                         ...) {
   method <- toupper(method)
   if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
@@ -56,19 +61,41 @@ meanfunc.rob <- function(Lt,
   
   # kernel <- tolower(get.optional.param('kernel',others,'epanechnikov'))
   # bw <- get.optional.param('bw',others,NULL)
-  if (is.null(bw) | isTRUE(cv)) {
-    print(paste0(cv_optns$K, "-fold CV is performed."))
-    bw_cv_obj <- cv.local_kern_smooth(Lt = Lt, 
+  
+  cv <- FALSE
+  # 5-fold CV for delta in Huber function
+  if (is.null(k2) | ncores > 1) {
+    print(paste0(cv_K, "-fold CV is performed for delta in Huber function."))
+    delta_cv_obj <- delta.local_kern_smooth(Lt = Lt, 
+                                            Ly = Ly, 
+                                            method = method,
+                                            kernel = kernel, 
+                                            deg = deg,
+                                            # k2 = k2,
+                                            bw = bw,
+                                            cv_loss = cv_delta_loss, 
+                                            K = cv_K, 
+                                            ncores = ncores,
+                                            ...)
+    k2 <- delta_cv_obj$selected_delta
+    cv <- TRUE
+  }
+  
+  # 5-fold CV for bandwidth
+  if (is.null(bw) | ncores > 1) {
+    print(paste0(cv_K, "-fold CV is performed for bandwidth."))
+    bw_cv_obj <- bw.local_kern_smooth(Lt = Lt, 
                                       Ly = Ly, 
                                       method = method,
                                       kernel = kernel, 
                                       deg = deg,
                                       # k2 = k2,
-                                      cv_loss = cv_optns$Loss, 
-                                      K = cv_optns$K, 
-                                      ncores = cv_optns$ncores,
+                                      cv_loss = cv_bw_loss, 
+                                      K = cv_K, 
+                                      ncores = ncores,
                                       ...)
     bw <- bw_cv_obj$selected_bw
+    cv <- TRUE
   }
   
   n <- length(Lt)
@@ -100,7 +127,11 @@ meanfunc.rob <- function(Lt,
   }
   
   if (cv == TRUE) {
-    R$cv_optns <- cv_optns
+    # R$cv_optns <- cv_optns
+    R$cv_optns <- list(K = cv_K,
+                       ncores = ncores,
+                       delta_loss = cv_delta_loss,
+                       bw_loss = cv_bw_loss)
   }
   
   return(R)
@@ -152,7 +183,7 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
     })
     
     return(R)
-  } else if(is.vector(newt)) {
+  } else if (is.vector(newt)) {
     # obtain unique time point => merge to newt
     df_newt <- data.frame(t = newt)
     newt_unique <- unique(newt)
@@ -161,7 +192,7 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
                                  pred = pred_unique)
     pred_newt <- df_newt %>% 
       left_join(df_newt_unique, by = "t") %>% 
-      select(pred) %>% 
+      dplyr::select(pred) %>% 
       unlist()
     
     return(as.numeric(pred_newt))
