@@ -184,7 +184,8 @@ system.time({
     kern <- kernel
   }
   optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = kern, verbose = FALSE,
-                userBwMu = bw, userBwCov = bw)
+                kFoldMuCov = 5, methodBwMu = "CV", methodBwCov = "CV", useBinnedCov = FALSE)
+                # userBwMu = bw, userBwCov = bw)
   mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)   # get bandwidth of mean estimation
   cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
   cov.yao <- cov.yao.obj$cov
@@ -197,10 +198,20 @@ system.time({
 
 ## 7. Lin & Wang (2020)
 system.time({
-  # estimate mean by local polynomial method
-  mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", 
-                         kernel = kernel, bw = bw)
-  cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
+  # 5-fold CV (It took very long time when we use CV option in mcfda package.)
+  cv.mu.lin.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "L2", kernel = kernel,
+                                cv_bw_loss = "L2", ncores = 9,
+                                bw = NULL)
+  cv.var.lin.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = cv.mu.lin.obj, kernel = kernel,
+                                method = "L2",  cv_bw_loss = "L2", ncores = 9,
+                                bw = NULL)
+  # estimate mean, variance, covariance
+  mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                         bw = cv.mu.lin.obj$bw)   # It occurs error or very slow.
+  var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                         mu = mu.lin.obj, bw = cv.var.lin.obj$obj$bw)
+  cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
+                         mu = mu.lin.obj, sig2x = var.lin.obj)
   cov.lin <- predict(cov.lin.obj, work.grid)
 })
 
@@ -389,7 +400,8 @@ ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) +
 ### CV test - bandwidth
 #####################################
 # 아 왜 오래 걸려 ㅡㅡ 첫번째 부분에서 에러뜨긴 하는듯... k2 값이 작아서 오래 걸리는건가??
-source("functions.R")
+# C++로 짠 이후에 매우 빠르게 개선됨!!
+source("R/functions.R")
 system.time({
   bw_cv_obj <- bw.local_kern_smooth(Lt = x.2$Lt,
                                     Ly = x.2$Ly, 
@@ -398,22 +410,18 @@ system.time({
                                     k2 = 0.001,
                                     cv_loss = "L1",
                                     K = 5, 
+                                    ncores = 1)
+})
+bw_cv_obj
+
+# WRM
+system.time({
+  bw_cv_obj <- bw.local_kern_smooth(Lt = x.2$Lt,
+                                    Ly = x.2$Ly, 
+                                    method = "WRM",
+                                    kernel = "gauss", 
+                                    cv_loss = "L1",
+                                    K = 5,
                                     ncores = 9)
 })
 bw_cv_obj
-## Huber
-# $selected_bw
-# [1] 0.1998281
-# 
-# $cv.error
-# bw    error
-# 1  0.003333333 1236.383
-# 2  0.005560335 1236.240
-# 3  0.009275198 1233.941
-# 4  0.015471963 1227.743
-# 5  0.025808789 1221.489
-# 6  0.043051656 1213.584
-# 7  0.071814490 1204.240
-# 8  0.119793789 1195.135
-# 9  0.199828083 1192.843
-# 10 0.333333333 1196.146

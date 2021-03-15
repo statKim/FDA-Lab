@@ -8,11 +8,11 @@
 # loss : a loss function for kernel smoothing("L2" is squared loss, "Huber" is huber loss.)
 #   For loss = "Huber", it uses `rlm()` in `MASS` and fits the robust regression with Huber loss. 
 #   So additional parameters of `rlm()` can be applied. (k2, maxit, ...)
-local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BISQUARE"), 
+local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("L2","HUBER","WRM","BISQUARE"), 
                               bw = NULL, deg = 1, ncores = 1,
                               kernel = "epanechnikov", k2 = 1.345, ...) {
   method <- toupper(method)
-  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
+  if (!(method %in% c("L2","HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
@@ -46,10 +46,31 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("HUBER","WRM","BIS
                             k = k2,
                             deg = deg)
   } else if (method == "L2") {   # squared loss
-    # Weighted least squares
-    beta <- solve(t(X) %*% W %*% X) %*% t(X) %*% W %*% Y
-    
-    return(beta[1, ])
+    w <- 1/length(Lt)
+    mu_hat <- sapply(newt, function(t) {
+      tmp <- (Lt - t) / bw
+      
+      if (kernel == "epanechnikov") {
+        kern <- (3/4) * (1 - tmp^2)   # Epanechnikov kernel
+      } else if (kernel == "gauss") {
+        kern <- 1/sqrt(2*pi) * exp(-1/2 * tmp^2)   # gaussian kernel
+      }
+      
+      idx <- which(kern > 0)   # non-negative values
+      W <- w * kern[idx] / bw   # weight vector for w_i * K_h(x)
+      # W <- diag(w * kern[idx]) / bw   # weight vector for w_i * K_h(x)
+      X <- matrix(1, length(idx), deg+1)
+      for (d in 1:deg) {
+        X[, d+1] <- (Lt[idx] - t)^d
+      }
+      Y <- Ly[idx]
+      # print(paste(t, ":", length(kern[idx])))   # number of non-negative weights
+      
+      # Weighted least squares
+      beta <- solve(t(X) %*% diag(W) %*% X) %*% t(X) %*% diag(W) %*% Y
+      
+      return(beta[1, ])
+    })
   } else if (method == "WRM") {   # robfilter package
     if (kernel == "epanechnikov") {
       kern <- 2
@@ -125,7 +146,7 @@ bw.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
                               fold = rep(1:K, length(bw_cand)))
     
     cv_error <- foreach(i = 1:nrow(bw_fold_mat), .combine = "c", 
-                        .export = c("local_kern_smooth_cpp"),
+                        .export = c("local_kern_smooth"),
                         # .noexport = c("locpolysmooth","IRLScpp","get_positive_elements"),
                         .packages = c("robfilter"),
                         .errorhandling = "pass") %dopar% {
@@ -285,7 +306,7 @@ delta.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechn
                                  fold = rep(1:K, length(delta_cand)))
     
     cv_error <- foreach(i = 1:nrow(delta_fold_mat), .combine = "c", 
-                        .export = c("local_kern_smooth","IRLS"), 
+                        .export = c("local_kern_smooth"), 
                         .packages = c("robfilter"),
                         .errorhandling = "pass") %dopar% {
       delta <- delta_fold_mat$delta_cand[i]   # bandwidth candidate

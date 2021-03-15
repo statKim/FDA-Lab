@@ -1,3 +1,11 @@
+################################################
+### Simulation for covariance estimation
+### 1. PACE
+### 2. Lin & Wang (2020)
+### 3. Robust method (Huber loss)
+### 4. WRM
+### - For all methods, 5-fold CV are performed.
+################################################
 library(GA)   # persp plot
 library(mvtnorm)
 library(fdapace)   # 1, 2
@@ -14,11 +22,12 @@ source("R/functions.R")
 # list of manual functions and packages
 ftns <- fun2char()
 packages <- c("fdapace","mcfda","synfd")
+ncores <- 9   # number of cores for parallel computing
 
 # model parameters
 kernel <- "gauss"
-bw <- 0.1   # fixed bandwidth
-k2 <- 1.345   # delta in huber function
+# bw <- 0.1   # fixed bandwidth
+# k2 <- 1.345   # delta in huber function
 
 # outlyngness
 out.type <- 5   # 4~6 are available
@@ -57,8 +66,6 @@ while (num.sim < 100) {
   #############################
   ### Covariance estimation
   #############################
-  registerDoRNG(seed)
-  
   skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
   
   ### True covariance
@@ -68,12 +75,16 @@ while (num.sim < 100) {
   
   x.2 <- list(Ly = x$y,
               Lt = x$t)
-  
-  start_time <- Sys.time()
+
+    
   ### Yao, Müller, and Wang (2005)
+  start_time <- Sys.time()
+  registerDoRNG(seed)
   kern <- ifelse(kernel == "epanechnikov", "epan", kernel)
-  optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = kern, verbose = FALSE,
-                userBwMu = bw, userBwCov = bw)
+  # optns <- list(methodXi = 'CE', dataType = 'Sparse', kernel = kern, verbose = FALSE,
+  #               userBwMu = bw, userBwCov = bw)
+  optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, verbose = FALSE,
+                kFoldMuCov = 5, methodBwMu = "CV", methodBwCov = "CV", useBinnedCov = FALSE)
   tryCatch({
     mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
     cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
@@ -90,18 +101,35 @@ while (num.sim < 100) {
     cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
                               Cov = cov.yao.obj$cov)   # transform to the observed grid
   }
-  print("Finish Yao et al.")
   end_time <- Sys.time()
-  print(end_time - start_time)
-  
-  
-  start_time <- Sys.time()
+  print(paste0("Yao et al. : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+
+    
   ### Lin & Wang (2020)
+  start_time <- Sys.time()
+  registerDoRNG(seed)
   tryCatch({
-    # estimate mean by local polynomial method
-    mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", 
-                           kernel = kernel, bw = bw)
-    cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
+    # 5-fold CV (It took very long time when we use CV option in mcfda package.)
+    cv.mu.lin.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "L2", kernel = kernel,
+                                  cv_bw_loss = "L2", ncores = ncores,
+                                  bw = NULL)
+    cv.var.lin.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = cv.mu.lin.obj, kernel = kernel,
+                                  method = "L2",  cv_bw_loss = "L2", ncores = ncores,
+                                  bw = NULL)
+    # estimate mean, variance, covariance
+    mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                           bw = cv.mu.lin.obj$bw)   # It occurs error or very slow.
+    var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                           mu = mu.lin.obj, bw = cv.var.lin.obj$obj$bw)
+    cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
+                           mu = mu.lin.obj, sig2x = var.lin.obj)
+    cov.lin <- predict(cov.lin.obj, work.grid)
+    # # estimate mean by local polynomial method
+    # mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", 
+    #                        kernel = kernel, bw = bw)
+    # cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
   }, error = function(e) { 
     print("Lin cov error")
     print(e)
@@ -111,20 +139,23 @@ while (num.sim < 100) {
     next
   }
   cov.lin <- predict(cov.lin.obj, work.grid)
-  print("Finish Lin & Wang")
   end_time <- Sys.time()
-  print(end_time - start_time)
+  print(paste0("Lin & Wang : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
   
   
-  start_time <- Sys.time()
   ### Huber loss
+  start_time <- Sys.time()
+  registerDoRNG(seed)
   tryCatch({
-    # For computation times, we specified bw_mu.
+    # For delta in Huber function and bandwidth are selected from 5-fold CV
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
-                                 bw = bw, k2 = k2)
+                                 bw = NULL, k2 = NULL)
     # bandwidth are selected from 5-fold CV (almost 3 minutes)
     cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
-                                 mu = mu.huber.obj, bw = bw, k2 = k2)
+                                 mu = mu.huber.obj, 
+                                 bw = NULL, k2 = NULL)
   }, error = function(e) { 
     print("Huber cov error")
     print(e)
@@ -134,18 +165,20 @@ while (num.sim < 100) {
     next
   }
   cov.huber <- predict(cov.huber.obj, work.grid)
-  print("Finish Huber loss")
   end_time <- Sys.time()
-  print(end_time - start_time)
+  print(paste0("Robust (Huber loss) : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
   
   
-  start_time <- Sys.time()
   ### WRM
+  start_time <- Sys.time()
+  registerDoRNG(seed)
   tryCatch({
     mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
-                               bw = bw)
+                               bw = NULL, ncores = ncores)
     cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
-                               mu = mu.wrm.obj, bw = bw)
+                               mu = mu.wrm.obj, bw = NULL, ncores = ncores)
   }, error = function(e) { 
     print("WRM cov error")
     print(e)
@@ -155,9 +188,10 @@ while (num.sim < 100) {
     next
   }
   cov.wrm <- predict(cov.wrm.obj, work.grid)
-  print("Finish WRM")
   end_time <- Sys.time()
-  print(end_time - start_time)
+  print(paste0("WRM : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
   
   
   # if some covariances is a not finite value
@@ -202,7 +236,7 @@ while (num.sim < 100) {
 }
 
 save(list = c("sim.seed","data.list","cov.est"),
-     file = "RData/20210310_outlier_2.RData")
+     file = "RData/20210317_outlier_2.RData")
 
 
 
@@ -211,27 +245,3 @@ save(list = c("sim.seed","data.list","cov.est"),
 
 
 
-system.time({
-  bw_cv_obj <- bw.local_kern_smooth(Lt = x.2$Lt,
-                                    Ly = x.2$Ly, 
-                                    method = "HUBER",
-                                    kernel = "gauss", 
-                                    # deg = 1,
-                                    cv_loss = "L1",
-                                    # K = 5, 
-                                    ncores = 1)
-})
-bw_cv_obj
-
-system.time({
-  delta_cv_obj <- delta.local_kern_smooth(Lt = x.2$Lt,
-                                          Ly = x.2$Ly, 
-                                          method = "HUBER",
-                                          kernel = "gauss", 
-                                          # deg = 1,
-                                          bw = bw_cv_obj$selected_bw,
-                                          cv_loss = "L1",
-                                          # K = 5, 
-                                          ncores = 1)
-})
-delta_cv_obj

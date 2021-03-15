@@ -27,7 +27,7 @@ load_sources()
 meanfunc.rob <- function(Lt, 
                          Ly, 
                          newt = NULL, 
-                         method = c("Huber","WRM","Bisquare"), 
+                         method = c("L2","Huber","WRM","Bisquare"), 
                          bw = NULL,
                          kernel = "epanechnikov",
                          deg = 1, 
@@ -42,7 +42,7 @@ meanfunc.rob <- function(Lt,
                          #                 Loss = "Huber"), 
                          ...) {
   method <- toupper(method)
-  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
+  if (!(method %in% c("L2","HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
@@ -64,7 +64,7 @@ meanfunc.rob <- function(Lt,
   
   cv <- FALSE
   # 5-fold CV for delta in Huber function
-  if (is.null(k2) | ncores > 1) {
+  if ((method %in% c("HUBER","BISQUARE")) && (is.null(k2) | ncores > 1)) {
     print(paste0(cv_K, "-fold CV is performed for delta in Huber function."))
     delta_cv_obj <- delta.local_kern_smooth(Lt = Lt, 
                                             Ly = Ly, 
@@ -224,13 +224,13 @@ varfunc.rob <- function(Lt,
                         Ly,
                         newt = NULL,
                         sig2 = NULL,
-                        method = c("Huber","WRM","Bisquare"),
+                        method = c("L2","Huber","WRM","Bisquare"),
                         mu = NULL,
                         # weig=NULL,
                         ...) {
   
   method <- toupper(method)
-  if (!(method %in% c("HUBER","WRM","BISQUARE"))) {
+  if (!(method %in% c("L2","HUBER","WRM","BISQUARE"))) {
     stop(paste0(method, " is not provided. Check method parameter."))
   }
   
