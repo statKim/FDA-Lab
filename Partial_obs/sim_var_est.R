@@ -236,31 +236,79 @@ ggplot(df, aes(t, y, color = id)) +
 ### Find optimal delta for Huber loss
 ### - k <- 1 / max(abs(y))
 #####################################
+# load("RData/sim3-2_20210204.RData")
+load("RData/sim_20210317.RData")
+data.list <- sim.obj[["Out_2"]]$data.list
+cov.est <- sim.obj[["Out_2"]]$cov.est
+# sim <- 20
+sim <- 1
+model.cov <- 2   # covariance function setting of the paper (1, 2)
+kernel <- "gauss"
+bw <- 0.2
+
+# Get simulation data
+x <- data.list[[sim]]$x
+gr <- data.list[[sim]]$gr
+x.2 <- list(Ly = x$y,
+            Lt = x$t)
+
+### Covariance estimation
+work.grid <- cov.est[[sim]]$work.grid
+cov.true <- cov.est[[sim]]$cov$true
+cov.yao <- cov.est[[sim]]$cov$yao
+cov.lin <- cov.est[[sim]]$cov$lin
+cov.huber <- cov.est[[sim]]$cov$huber
+cov.wrm <- cov.est[[sim]]$cov$wrm
+
+df <- data.frame(t = rep(work.grid, 5),
+                 y = c(diag(cov.true),
+                       diag(cov.yao),
+                       diag(cov.lin),
+                       diag(cov.huber),
+                       diag(cov.wrm)),
+                 method = rep(factor(c("True","Yao","Lin","Huber","WRM"),
+                                     levels = c("True","Yao","Lin","Huber","WRM")),
+                              each = length(work.grid)))
+p1 <- ggplot(df, 
+             aes(t, y, color = method, linetype = method)) +
+  geom_line(size = 1) +
+  # scale_linetype_manual(breaks = c("True", round(k_cand, 4), "Yao", "Lin"),
+  #                       values = c("solid", rep("dashed", 11), rep("solid", 2))) +
+  theme_bw() +
+  theme(legend.position = c(0.8, 0.7),
+        legend.title = element_blank())
+p2 <- p1 + 
+  ylim(0, 5) +
+  theme(legend.position = "none")
+gridExtra::grid.arrange(p1, p2, 
+                        nrow = 1)
+
+bw_fixed_mu <- cov.est[[sim]]$cov.obj$huber$mu$bw
+bw_fixed_var <- cov.est[[sim]]$cov.obj$huber$sig2x$obj$bw
+kernel <- "gauss"
 # k_cand <- c(1 / max(abs(unlist(x.2$Ly))), 1e-4, 0.001, 0.01, 0.1, 0.5, 0.7, 1, 1.345)
 k_cand <- union(1.345,
                 10^seq(-3, 2, length.out = 10) * (1 - 0)/3)
-var_est <- matrix(0, length(gr), length(k_cand)+1)
+var_est <- matrix(0, length(work.grid), length(k_cand)+1)
 var_est[, 1] <- diag(cov.true)
 system.time({
   for (i in 1:length(k_cand)) {
     print(k_cand[i])
     
-    bw_fixed <- 0.1
-    kernel <- "gauss"
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
-                                 bw = bw_fixed, k2 = k_cand[i])
+                                 bw = bw_fixed_mu, k2 = k_cand[i])
     var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
-                                 method = "huber", kernel = kernel, bw = bw_fixed, k2 = k_cand[i])
-    var_est[, i+1] <- predict(var.huber.obj, gr)
+                                 method = "huber", kernel = kernel, bw = bw_fixed_var, k2 = k_cand[i])
+    var_est[, i+1] <- predict(var.huber.obj, work.grid)
   }
 }) 
-df_delta <- data.frame(t = rep(gr, length(k_cand)+3),
+df_delta <- data.frame(t = rep(work.grid, length(k_cand)+3),
                        y = c(as.numeric(var_est),
                              diag(cov.yao),
                              diag(cov.lin)),
                        k_huber = rep(factor(c("True", round(k_cand, 4), "Yao", "Lin"), 
                                             levels = c("True", round(k_cand, 4), "Yao", "Lin")), 
-                                     each = length(gr)))
+                                     each = length(work.grid)))
 p1 <- ggplot(df_delta, 
              aes(t, y, color = k_huber, linetype = k_huber)) +
   geom_line(size = 1) +

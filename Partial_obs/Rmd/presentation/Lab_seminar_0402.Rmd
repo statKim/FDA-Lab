@@ -1,0 +1,56 @@
+---
+title: Robust covariance esimtation for partially observed functional data
+author: Hyunsung Kim
+date: April 2, 2021
+institute: Department of Statistics \newline Chung-Ang University
+fontsize: 9pt
+output:
+  beamer_presentation:
+    theme: "metropolis"
+    fonttheme: "professionalfonts"
+    # slide_level: 2
+    toc: true
+    includes:
+      in_header: preamble.tex
+---
+
+```{r setup, include=FALSE}
+# library(knitr)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
+                      # cache = T,
+                      fig.align = "center", fig.width = 12, fig.height = 6)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+
+# Introduction
+
+## Functional data analysis
+$$
+\bY = \bX \bxi
+$$
+
+## Partially observed functional data
+- Only observed specific interval.
+
+---
+- test the split slides
+
+
+# Robust covariance estimation
+
+## Robust local polynomial smoothing via M-estimation
+
+
+
+## Covaraince estimation
+
+
+
+# Simulation studies
+
+
+
+# References
+

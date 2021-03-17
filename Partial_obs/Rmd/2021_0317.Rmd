@@ -58,376 +58,401 @@ library(gridExtra)
 library(latex2exp)
 # source("R/functions.R")
 source("R/utills.R")
-source("R/simulation_utills.R")
+source("R/sim_utills.R")
+
+load("RData/sim_20210317.RData")
 ```
 
 
-# Implementation of robust smoothing between R vs C++
-|      | Kernel | Replications | Computation Times (secs) | Relative Times |
-| ---- | ------ | ------ | ------ | ------ |
-| R    | gauss | 100 | 290.66 | 179.99 |
-| **C++**  | gauss | 100 | **1.69** | **1.00** |
-| R    | epan | 100 | 17.61 | 30.36 |
-| **C++**  | epan | 100 | **0.58** | **1.00** |
+# Implementation of robust smoothing using R vs C++
+## Benchmark result for computation times between R and C++
+```{r tab_C_vs_R}
+df <- data.frame("Program" = c("R","C++","R","C++"),
+                 "Kernel" = c("gauss","gauss","epan","epan"),
+                 "Replications" = rep(100, 4),
+                 "Computation Times (secs)" = c(290.66,1.69,17.61,0.58),
+                 "Relative Times" = c(179.99,1.00,30.36,1.00))
+knitr::kable(df,
+             col.names = c("","Kernel","Replications","Computation Times (secs)","Relative Times"),
+             digits = 3, 
+             align = "r", 
+             caption = "Table 1. Computation times for implementing robust local polynomial regression for 100 repetitions.") %>%
+  kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+  row_spec(c(2, 4), bold = T)
+```
 
+## Computation time for 5-fold CV
+- **Huber loss (C++)**
+    - delta : 2~3 secs
+    - bandwidth : 2~3 secs
+- **WRM (R)**
+  - bandwidth : 8~10 mins
+
+
+<br>
+
+# Selection of tuning parameters
+
+## Huber loss
+
+### Estimated variance trajectories with different $\delta$ in Huber function
+- 각 행은 각각 outlier 2 모형으로 생성된 1, 21, 84th simulation data
+- 오른쪽 그림은 왼쪽에서 y축 범위를 줄여서 그림
+- Selected $\delta$ from 5-fold CV with $L_1$ loss
+  - $\delta$ CV를 위해 bandwidth는 $0.2 \times \text{(total domain range)}$로 fixed.
+  - 1st : 0.0003
+  - 21th : 0.0043
+  - 84th : 0.0012
+
+```{r fig_var_huber_delta, fig.cap = "Figure 1. Estimated variance trajectories from 5-fold CV(Left) and True(Right). Each rows are from 1, 21, 84th simulation data", fig.height = 12}
+load("RData/20210317_fig_huber.RData")
+gridExtra::grid.arrange(grobs = fig_delta, 
+                        nrow = 3)
+```
+
+### Estimated variance trajectories with different bandwidth
+- $\delta$ in Huber function
+  - Left : 5-fold CV
+  - Right : minimum ISE from candidates of $\delta$
+- Selected bandwidth from 5-fold CV with Huber loss
+  - 1st : 0.026
+  - 21th : 0.333
+  - 84th : 0.2
+  
+```{r fig_var_huber_bw, fig.cap = "Figure 2. Estimated variance trajectories with different bandwidth; $\\delta$ in Huber function is selected from 5-fold CV (Left) and minimum ISE from candidates (Right).", fig.height = 12}
+gridExtra::grid.arrange(grobs = fig_bw, 
+                        nrow = 3)
+```
+
+
+
+## WRM
+### Estimated variance trajectories with different bandwidth
+- Selected bandwidth from 5-fold CV
+  - 1st : 0.2
+  - 21th : 0.333
+  - 84th : 0.2
+  
+```{r fig_var_wrm, fig.cap = "Figure 2. True covariance surface and estimated covariance surfaces.", fig.height = 12}
+# generated된 데이터의 range가 가장 큰 3개의 데이터 select
+data.list <- sim.obj[["Out_2"]]$data.list
+y_range <- sapply(data.list, function(x){
+  return( diff(range(x$x$y)) )
+})
+ind_top3 <- sort(y_range, index.return = T, decreasing = T)$ix[1:3]
+
+load("RData/20210317_fig_wrm.RData")
+fig_list <- list()
+for (i in 1:3) {
+  p1 <- ggplot(df_wrm[[i]], aes(t, y, color = bw, linetype = bw)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2$"), 
+         title = paste0("Outlier 2 - ", ind_top3[i], "th")) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank())
+  p2 <- p1 +
+    ylim(0,5) +
+    labs(title = "")
+  
+  fig_list[[2*(i-1)+1]] <- p1
+  fig_list[[2*i]] <- p2
+}
+gridExtra::grid.arrange(grobs = fig_list,   # mget(): get multiple objects
+                        nrow = 3)
+```
 
 
 
 <br>
 
-<!-- # Variance trajectories between different robustness parameters in Huber function and bandwidths -->
-<!-- - Estimated variance $\hat{\sigma}_X^2$은 median based estimator $\hat{\sigma}_0^2$를 모두 빼준 값임. -->
-<!-- - Huber function의 cutoff parameter $\delta$에 따라 형태가 매우 달라짐. -->
-<!-- - 전체적으로 bandwidth는 smoothness에만 영향을 주고, trajectory의 형태에는 큰 영향을 미치지는 않음. -->
-<!-- - WRM은 Huber loss를 사용한 경우에 비해 under estimate되는 경향이 보임. -->
-
-<!-- ## 1st simulation data -->
-<!-- ```{r data_load_1st, fig.cap = "Figure 1. Sample curves for 1st simulation data.", fig.height = 5} -->
-<!-- ### Load example data -->
-<!-- load("RData/sim3-2_20210204.RData") -->
-<!-- # sim <- 20 -->
-<!-- sim <- 1 -->
-<!-- model.cov <- 2   # covariance function setting of the paper (1, 2) -->
-<!-- kernel <- "gauss" -->
-<!-- bw <- 0.1 -->
-
-<!-- # Get simulation data -->
-<!-- x <- data.list.outlier[[sim]]$x -->
-<!-- gr <- data.list.outlier[[sim]]$gr -->
-<!-- # range(unlist(x$t)) -->
-
-<!-- ### Covariance estimation -->
-<!-- work.grid <- seq(min(gr), max(gr), length.out = 51) -->
-<!-- cov.true <- get_cov_fragm(gr, model = model.cov)   # true covariance -->
-<!-- cov.true <- ConvertSupport(fromGrid = gr, toGrid = work.grid, Cov = cov.true)   # transform to the observed grid -->
-
-<!-- x.2 <- list(Ly = x$y, -->
-<!--             Lt = x$t) -->
-
-<!-- # trajectories of generated data -->
-<!-- df <- data.frame(id = factor(unlist(sapply(1:length(x.2$Lt),  -->
-<!--                                            function(id) {  -->
-<!--                                              rep(id, length(x.2$Lt[[id]]))  -->
-<!--                                            })  -->
-<!--                                     )), -->
-<!--                  t = unlist(x.2$Lt), -->
-<!--                  y = unlist(x.2$Ly)) -->
-<!-- p1 <- ggplot(df, aes(t, y, color = id)) + -->
-<!--   geom_line(size = 1) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$Y(t)$")) + -->
-<!--   theme_bw() + -->
-<!--   # ylim(-10, 10) + -->
-<!--   theme(legend.position = "none") -->
-<!-- p2 <- p1 +  -->
-<!--   ylim(-10, 10) + -->
-<!--   theme(legend.position = "none") -->
-<!-- gridExtra::grid.arrange(p1, p2,  -->
-<!--                         nrow = 1) -->
-<!-- ``` -->
-
-<!-- ### $\delta$ in Huber function -->
-<!-- ```{r huber_delta_1st, fig.cap = "Figure 2. Trajectories of true and estimated variances with different robustness parameter $\\delta$."} -->
-<!-- load("RData/20210310_fig_1st.RData") -->
-<!-- p1 <- ggplot(df_delta,  -->
-<!--              aes(t, y, color = k_huber, linetype = k_huber)) + -->
-<!--   geom_line(size = 1) + -->
-<!--   scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)),  -->
-<!--                                    round(k_cand[-1], 4), "Yao", "Lin"), -->
-<!--                         values = c("solid", rep("dashed", 11), rep("solid", 2))) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$")) + -->
-<!--   theme_bw() + -->
-<!--   theme(legend.position = "bottom", -->
-<!--         legend.title = element_blank()) -->
-<!-- p2 <- p1 +  -->
-<!--   ylim(0, 5) + -->
-<!--   theme(legend.position = "bottom") -->
-<!-- gridExtra::grid.arrange(p1, p2,  -->
-<!--                         nrow = 1) -->
-<!-- ``` -->
-
-<!-- ### Bandwidth for local kernel smoother and WRM with $\delta = 0.0009$ -->
-<!-- ```{r fig_bw_1st, fig.cap = "Figure 3. Trajectories of true and estimated variances with different bandwidths."} -->
-<!-- p1 <- ggplot(df_bw, aes(t, y, color = bw, linetype = bw)) + -->
-<!--   geom_line(size = 1) + -->
-<!--   scale_linetype_manual(breaks = c("True", round(bw_cand, 3)), -->
-<!--                         values = c("solid", rep("dashed", 10))) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "Huber loss") + -->
-<!--   theme_bw() + -->
-<!--   theme(legend.position = "bottom", -->
-<!--         legend.title = element_blank()) -->
-<!-- p2 <- ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) + -->
-<!--   geom_line(size = 1) + -->
-<!--    scale_linetype_manual(breaks = c("True", round(bw_cand, 3)), -->
-<!--                         values = c("solid", rep("dashed", 10))) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "WRM") + -->
-<!--   theme_bw() + -->
-<!--   theme(legend.position = "bottom", -->
-<!--         legend.title = element_blank()) -->
-<!-- gridExtra::grid.arrange(p1, p2,  -->
-<!--                         nrow = 1) -->
-<!-- ``` -->
-
-
-
-<!-- ## 20th simulation data -->
-<!-- ### $\delta$ in Huber function -->
-<!-- ```{r data_load_20th, fig.cap = "Figure 4. Sample curves for 20th simulation data and trajectories of true and estimated variances with different robustness parameter $\\delta$."} -->
-<!-- ### Load example data -->
-<!-- load("RData/sim3-2_20210204.RData") -->
-<!-- sim <- 20 -->
-<!-- # sim <- 1 -->
-<!-- model.cov <- 2   # covariance function setting of the paper (1, 2) -->
-<!-- kernel <- "gauss" -->
-<!-- bw <- 0.1 -->
-
-<!-- # Get simulation data -->
-<!-- x <- data.list.outlier[[sim]]$x -->
-<!-- gr <- data.list.outlier[[sim]]$gr -->
-<!-- # range(unlist(x$t)) -->
-
-<!-- ### Covariance estimation -->
-<!-- work.grid <- seq(min(gr), max(gr), length.out = 51) -->
-<!-- cov.true <- get_cov_fragm(gr, model = model.cov)   # true covariance -->
-<!-- cov.true <- ConvertSupport(fromGrid = gr, toGrid = work.grid, Cov = cov.true)   # transform to the observed grid -->
-
-<!-- x.2 <- list(Ly = x$y, -->
-<!--             Lt = x$t) -->
-
-<!-- # trajectories of generated data -->
-<!-- df <- data.frame(id = factor(unlist(sapply(1:length(x.2$Lt),  -->
-<!--                                            function(id) {  -->
-<!--                                              rep(id, length(x.2$Lt[[id]]))  -->
-<!--                                            })  -->
-<!--                                     )), -->
-<!--                  t = unlist(x.2$Lt), -->
-<!--                  y = unlist(x.2$Ly)) -->
-<!-- p1 <- ggplot(df, aes(t, y, color = id)) + -->
-<!--   geom_line(size = 1) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$Y(t)$")) + -->
-<!--   theme_bw() + -->
-<!--   # ylim(-10, 10) + -->
-<!--   theme(legend.position = "none") -->
-
-<!-- load("RData/20210310_fig_20th.RData") -->
-<!-- p2 <- ggplot(df_delta,  -->
-<!--              aes(t, y, color = k_huber, linetype = k_huber)) + -->
-<!--   geom_line(size = 1) + -->
-<!--   scale_linetype_manual(breaks = c("True", paste0("Naive: ", round(k_cand[1], 4)),  -->
-<!--                                    round(k_cand[-1], 4), "Yao", "Lin"), -->
-<!--                         values = c("solid", rep("dashed", 11), rep("solid", 2))) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$")) + -->
-<!--   ylim(0, 5) + -->
-<!--   theme_bw() + -->
-<!--   theme(legend.position = "bottom", -->
-<!--         legend.title = element_blank()) -->
-<!-- gridExtra::grid.arrange(p1, p2,  -->
-<!--                         nrow = 1) -->
-<!-- ``` -->
-
-
-<!-- ### Bandwidth for local kernel smoother and WRM with $\delta = 2.5809$ -->
-<!-- ```{r fig_bw_20th, fig.cap = "Figure 5. Trajectories of true and estimated variances with different bandwidths."} -->
-<!-- p1 <- ggplot(df_bw, aes(t, y, color = bw, linetype = bw)) + -->
-<!--   geom_line(size = 1) + -->
-<!--   scale_linetype_manual(breaks = c("True", round(bw_cand, 3)), -->
-<!--                         values = c("solid", rep("dashed", 10))) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "Huber loss") + -->
-<!--   theme_bw() + -->
-<!--   theme(legend.position = "bottom", -->
-<!--         legend.title = element_blank()) -->
-<!-- p2 <- ggplot(df_bw_wrm, aes(t, y, color = bw, linetype = bw)) + -->
-<!--   geom_line(size = 1) + -->
-<!--    scale_linetype_manual(breaks = c("True", round(bw_cand, 3)), -->
-<!--                         values = c("solid", rep("dashed", 10))) + -->
-<!--   labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = "WRM") + -->
-<!--   theme_bw() + -->
-<!--   theme(legend.position = "bottom", -->
-<!--         legend.title = element_blank()) -->
-<!-- gridExtra::grid.arrange(p1, p2,  -->
-<!--                         nrow = 1) -->
-<!-- ``` -->
-
-
-
-
-<!-- <br> -->
-
-<!-- # Results for fixed $\delta = 1.345$ and bandwidth = 0.1 with outlier 2 -->
-<!-- ## Covariance estimation -->
-
-<!-- ```{r fig_cov_surf, fig.cap = "Figure 6. True covariance surface and estimated covariance surfaces.", fig.height = 6, fig.width = 8} -->
-<!-- par(mfrow = c(4, 4), -->
-<!--     mar = c(2, 2, 2, 2)) -->
-<!-- load("RData/20210310_outlier_2.RData") -->
-<!-- for (sim in 1:4) { -->
-<!--   if (sim == 1) { -->
-<!--     title <- TRUE -->
-<!--   } else { -->
-<!--     title <- FALSE -->
-<!--   } -->
-<!--   plot_cov_surf(cov.est, sim, title = title, lab = paste0("Simulation ", sim)) -->
-<!-- } -->
-<!-- ``` -->
-
-
-
-<!-- ```{r tab_cov_rmise} -->
-<!-- ############################# -->
-<!-- ### Calculate RMISE with outliers -->
-<!-- ############################# -->
-<!-- cname <- c("Yao (2005)","Lin (2020)","Huber","WRM") -->
-<!-- # res.mat <- matrix(NA, 4, 9) -->
-<!-- res.mat <- matrix(NA, 1, 9) -->
-<!-- colnames(res.mat) <- c("$N$", cname, cname) -->
-<!-- # row.names(res.mat) <- c("Outlier X", -->
-<!-- #                         paste0("Outlier ", 1:3)) -->
-<!-- row.names(res.mat) <- "Outlier 2" -->
-<!-- res.mat2 <- res.mat -->
-
-<!-- for (k in 1:1) { -->
-<!--   num.sim <- length(cov.est)   # number of simulations -->
-
-<!--   ### variance -->
-<!--   ise.var <- summary_ise(data.list, cov.est, method = "var") -->
-<!--   ### covariance -->
-<!--   ise.cov <- summary_ise(data.list, cov.est, method = "cov") -->
-
-<!--   # res.mat[k+1, ] <- c(num.sim, -->
-<!--   #                     sqrt(rowMeans(ise.var)), -->
-<!--   #                     sqrt(rowMeans(ise.cov))) -->
-<!--   res.mat[k, ] <- c(num.sim, -->
-<!--                       paste0(round(sqrt(rowMeans(ise.var)), 2), -->
-<!--                              "(", -->
-<!--                              round(apply(ise.var, 1, sd), 2), -->
-<!--                              ")"), -->
-<!--                       paste0(round(sqrt(rowMeans(ise.cov)), 2), -->
-<!--                              "(", -->
-<!--                              round(apply(ise.cov, 1, sd), 2), -->
-<!--                              ")")) -->
-
-
-<!--   ### Intrapolation parts (D_0) -->
-<!--   ise.intra <- summary_ise(data.list, cov.est, method = "intra") -->
-<!--   ### Extrapolation parts (S_0 \ D_0) -->
-<!--   ise.extra <- summary_ise(data.list, cov.est, method = "extra") -->
-
-<!--   # res.mat2[k+1, ] <- c(num.sim, -->
-<!--   #                      rowMeans(ise.intra), -->
-<!--   #                      rowMeans(ise.extra)) -->
-<!--   res.mat2[k, ] <- c(num.sim, -->
-<!--                       paste0(round(rowMeans(ise.intra), 2), -->
-<!--                              "(", -->
-<!--                              round(apply(ise.intra, 1, sd), 2), -->
-<!--                              ")"), -->
-<!--                       paste0(round(rowMeans(ise.extra), 2), -->
-<!--                              "(", -->
-<!--                              round(apply(ise.extra, 1, sd), 2), -->
-<!--                              ")")) -->
-
-<!-- } -->
-
-<!-- knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 1. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation.") %>% -->
-<!--     kable_styling("striped", full_width = FALSE, font_size = 14) %>% -->
-<!--     add_header_above(c(" " = 1, " " = 1, "$\\hat{\\sigma}_X^2$" = 4, "$\\hat{\\mathbf{C}}$" = 4)) -->
-
-
-<!-- knitr::kable(res.mat2, digits = 3, align = "r", caption = "Table 2. Average MISE (standard error) of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts.") %>% -->
-<!--     kable_styling("striped", full_width = FALSE, font_size = 14) %>% -->
-<!--     add_header_above(c(" " = 1, " " = 1, "$\\mathcal{D}_0$" = 4, "$\\mathcal{S}_0 \\backslash \\mathcal{D}_0$" = 4)) -->
-<!-- ``` -->
-
-
-
-<!-- <br> -->
-
-<!-- ## PCA -->
-
-<!-- ### Estimated first 3 eigenfunctions -->
-<!-- ```{r fig_eig, fig.cap = "Figure 3. Estimated first 3 eigenfunctions for 1st simulation data.", fig.height = 12, fig.width = 15} -->
-<!-- p <- list() -->
-
-<!-- for (sim in 1:4) { -->
-<!--   p <- c(p, -->
-<!--          ggplot_eig(cov.est, sim, main = paste0("Simulation ", sim))) -->
-<!-- } -->
-
-<!-- grid.arrange(grobs = p,   # mget(): get multiple objects -->
-<!--              nrow = 4) -->
-<!-- ``` -->
-
-
-<!-- ### MISE for first 3 eigenfunctions -->
-<!-- ```{r tab_eig_rmise} -->
-<!-- # Parallel computing setting -->
-<!-- ncores <- detectCores() - 3 -->
-<!-- cl <- makeCluster(ncores) -->
-<!-- registerDoParallel(cl) -->
-
-<!-- res <- list() -->
-
-<!-- ### Eigen analysis -->
-<!-- num.sim <- length(cov.est) -->
-<!-- res[[1]] <- sim_eigen_result(cov.est, num.sim, seed = 1000) -->
-
-<!-- stopCluster(cl) -->
-
-<!-- ### Calculate ISE for 1~3 eigenfunctions -->
-<!-- cname <- c("Yao (2005)","Lin (2020)","Huber","WRM") -->
-<!-- # res.mat <- matrix(NA, 4, 5) -->
-<!-- res.mat <- matrix(NA, 1, 5) -->
-<!-- colnames(res.mat) <- c("$N$", cname) -->
-<!-- row.names(res.mat) <- "Outlier 2" -->
-<!-- # row.names(res.mat) <- c("Outlier X", -->
-<!-- #                         paste0("Outlier ", 1:3)) -->
-
-<!-- for (j in 1:1) { -->
-<!--   pca.est <- res[[j]] -->
-<!--   num.sim <- length(pca.est) -->
-<!--   ise <- matrix(NA, num.sim, 4) -->
-
-<!--   for (i in 1:num.sim) { -->
-<!--     work.grid <- pca.est[[i]]$work.grid -->
-
-<!--     eig.true <- pca.est[[i]]$true -->
-<!--     eig.yao <- pca.est[[i]]$yao -->
-<!--     eig.lin <- pca.est[[i]]$lin -->
-<!--     eig.huber <- pca.est[[i]]$huber -->
-<!--     eig.wrm <- pca.est[[i]]$wrm -->
-
-<!--     # K <- length(which(eig.true$PVE < 0.99)) -->
-<!--     K <- 3 -->
-
-<!--     # calculate ISE for k eigenfunctions -->
-<!--     ise_eig <- matrix(NA, K, 4) -->
-<!--     for (k in 1:K) { -->
-<!--       ise_eig[k, ] <- c( -->
-<!--         get_ise(eig.true$phi[, k], eig.yao$phi[, k], work.grid), -->
-<!--         get_ise(eig.true$phi[, k], eig.lin$phi[, k], work.grid), -->
-<!--         get_ise(eig.true$phi[, k], eig.huber$phi[, k], work.grid), -->
-<!--         get_ise(eig.true$phi[, k], eig.wrm$phi[, k], work.grid) -->
-<!--       ) -->
-<!--     } -->
-
-<!--     ise[i, ] <- colSums(ise_eig) -->
-<!--   } -->
-
-<!--   res.mat[j, ] <- c( -->
-<!--     num.sim, -->
-<!--     paste0(round(sqrt(colMeans(ise)), 2), -->
-<!--            "(", -->
-<!--            round(apply(ise, 2, sd), 2), -->
-<!--            ")") -->
-<!--   ) -->
-<!-- } -->
-
-
-<!-- knitr::kable(res.mat, digits = 3, align = "r", caption = "Table 2. Average MISE (standard error) of first 3 eigenfunctions.") %>% -->
-<!-- kable_styling("striped", full_width = FALSE, font_size = 14) -->
-<!-- ``` -->
-
-
-
-
-
-
-
+# Results from 100 Monte-Carlo simulations
+## Covariance estimation
+
+```{r tab_cov_rmise}
+#############################
+### Calculate RMISE with outliers
+#############################
+cname <- c("Yao (2005)","Lin (2020)","Huber","WRM")
+# res.mat <- matrix(NA, 4, 8)
+res.mat <- matrix(NA, 2, 8)
+colnames(res.mat) <- c(cname, cname)
+# row.names(res.mat) <- c("Outlier X",
+#                         paste0("Outlier ", 1:3))
+row.names(res.mat) <- c("Outlier X","Outlier 2")
+res.mat2 <- res.mat
+num.sim <- 100   # number of simulations
+
+for (i in 1:2) {
+  if (i == 2) {   # Outlier 2
+    i <- 3
+  }
+  data.list <- sim.obj[[i]]$data.list
+  cov.est <- sim.obj[[i]]$cov.est
+  
+  if (i == 3) {   # Outlier 2
+    i <- 2
+  }
+  
+  ### variance
+  ise.var <- summary_ise(data.list, cov.est, method = "var")
+  ### covariance
+  ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+
+  res.mat[i, ] <- c(paste0(round(sqrt(rowMeans(ise.var)), 2),
+                           "<br>(",
+                           round(apply(ise.var, 1, sd), 2),
+                           ")"),
+                    paste0(round(sqrt(rowMeans(ise.cov)), 2),
+                           "<br>(",
+                           round(apply(ise.cov, 1, sd), 2),
+                           ")"))
+
+
+  ### Intrapolation parts (D_0)
+  ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+  ### Extrapolation parts (S_0 \ D_0)
+  ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+
+  res.mat2[i, ] <- c(paste0(round(rowMeans(ise.intra), 2),
+                            "<br>(",
+                            round(apply(ise.intra, 1, sd), 2),
+                            ")"),
+                     paste0(round(rowMeans(ise.extra), 2),
+                            "<br>(",
+                            round(apply(ise.extra, 1, sd), 2),
+                            ")"))
+
+}
+
+knitr::kable(res.mat, 
+             digits = 3, 
+             align = "r", 
+             escape = FALSE,
+             caption = "Table 2. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and covariances($\\hat{\\mathbf{C}}$) estimation from 100 monte carlo simulations.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1, "$\\hat{\\sigma}_X^2$" = 4, "$\\hat{\\mathbf{C}}$" = 4))
+
+
+knitr::kable(res.mat2, 
+             digits = 3, 
+             align = "r", 
+             escape = FALSE,
+             caption = "Table 3. Average MISE (standard error) of covariance estimation between intrapolation($\\mathcal{D}_0$) and extrapolation($\\mathcal{S}_0 \\backslash \\mathcal{D}_0$) parts from 100 monte carlo simulations.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1, "$\\mathcal{D}_0$" = 4, "$\\mathcal{S}_0 \\backslash \\mathcal{D}_0$" = 4))
+```
+
+
+## Without noise variances
+```{r tab_var_noise_TF}
+#############################
+### Calculate RMISE with outliers
+#############################
+# res.mat <- matrix(NA, 4, 8)
+res.mat <- matrix(NA, 2, 4)
+colnames(res.mat) <- rep(c("Huber","WRM"), 2)
+# row.names(res.mat) <- c("Outlier X",
+#                         paste0("Outlier ", 1:3))
+row.names(res.mat) <- c("Outlier X","Outlier 2")
+num.sim <- 100   # number of simulations
+
+for (i in 1:2) {
+  if (i == 2) {   # Outlier 2
+    i <- 3
+  }
+  data.list <- sim.obj[[i]]$data.list
+  cov.est <- sim.obj[[i]]$cov.est
+  
+  if (i == 3) {   # Outlier 2
+    i <- 2
+  }
+
+  ### variance of Huber and WRM
+  ise.var <- summary_ise(data.list, cov.est, method = "var")[3:4, ]
+  ### de-noised variance
+  ise.var.denoised <- sapply(cov.est, function(x) {
+    ise <- c(get_ise(diag(x$cov$true), 
+                     diag(x$cov$huber) + x$cov.obj$huber$sig2x$sig2, 
+                     x$work.grid),
+             get_ise(diag(x$cov$true), 
+                     diag(x$cov$wrm) + x$cov.obj$wrm$sig2x$sig2, 
+                     x$work.grid))
+    return(ise)
+  })
+
+  res.mat[i, ] <- c(paste0(round(sqrt(rowMeans(ise.var)), 2),
+                           "<br>(",
+                           round(apply(ise.var, 1, sd), 2),
+                           ")"),
+                    paste0(round(sqrt(rowMeans(ise.var.denoised)), 2),
+                           "<br>(",
+                           round(apply(ise.var.denoised, 1, sd), 2),
+                           ")"))
+}
+
+knitr::kable(res.mat,
+             digits = 3,
+             align = "r",
+             escape = FALSE,
+             caption = "Table 4. Average RMISE (standard error) of variances($\\hat{\\sigma}_X^2$) and de-noised variances($\\hat{\\sigma}_X^2 + \\hat{\\sigma}_0^2$) from 100 monte carlo simulations.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1, "$\\hat{\\sigma}_X^2$" = 2, "$\\hat{\\sigma}_X^2 + \\hat{\\sigma}_0^2$" = 2))
+```
+
+
+
+```{r}
+# generated된 데이터의 range가 가장 큰 3개의 데이터 select
+data.list <- sim.obj[["Out_2"]]$data.list
+y_range <- sapply(data.list, function(x){
+  return( diff(range(x$x$y)) )
+})
+ind_top3 <- sort(y_range, index.return = T, decreasing = T)$ix[1:3]
+
+
+fig_var <- list()   # variance trajectories
+fig_pca <- list()   # pca results
+
+for (i in 1:2) {
+  if (i == 2) {   # Outlier 2
+    i <- 3
+  }
+  data.list <- sim.obj[[i]]$data.list
+  cov.est <- sim.obj[[i]]$cov.est
+  
+  if (i == 1) {
+    fig_var <- c(fig_var, 
+                 ggplot_var(cov.est, 1, main = "Outlier X - 1st")) 
+    fig_pca <- c(fig_pca,
+                 ggplot_eig(cov.est, 1, main = "Outlier X - 1st"))
+  } else {
+    for (j in 1:length(ind_top3)) {
+      fig_var <- c(fig_var, 
+                   ggplot_var(cov.est, j, main = paste0("Outlier 2 - ", ind_top3[j], "th"))) 
+      fig_pca <- c(fig_pca,
+                   ggplot_eig(cov.est, j, main = paste0("Outlier 2 - ", ind_top3[j], "th")))
+    }
+  }
+}
+```
+
+
+## Esimated variance trajectories
+
+```{r fig_est_var, fig.cap = "Figure 3. Estimated variance trajectories for simulation data.", fig.height = 15}
+gridExtra::grid.arrange(grobs = fig_var, 
+                        nrow = 4)
+```
+
+```{r fig_cov_surf, fig.cap = "Figure 4. True covariance surface and estimated covariance surfaces.", fig.height = 6, fig.width = 8}
+par(mfrow = c(4, 4),
+    mar = c(2, 2, 2, 2))
+
+for (i in 1:2) {
+  if (i == 2) {   # Outlier 2
+    i <- 3
+  }
+  data.list <- sim.obj[[i]]$data.list
+  cov.est <- sim.obj[[i]]$cov.est
+  
+  if (i == 1) {
+    plot_cov_surf(cov.est, j, title = TRUE, lab = "Outlier X - 1st")
+  } else {
+    for (j in 1:length(ind_top3)) {
+      plot_cov_surf(cov.est, j, title = FALSE, lab = paste0("Outlier 2 - ", ind_top3[j], "th"))
+    }
+  }
+}
+```
+
+<br>
+
+## PCA
+
+### MISE for first 3 eigenfunctions
+```{r tab_eig_rmise}
+# Parallel computing setting
+ncores <- detectCores() - 3
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+
+res <- list()
+
+### Eigen analysis
+for (i in 1:2) {
+  if (i == 2) {   # Outlier 2
+    i <- 3
+  }
+  data.list <- sim.obj[[i]]$data.list
+  cov.est <- sim.obj[[i]]$cov.est
+  num.sim <- length(cov.est)   # number of simulations
+  
+  if (i == 3) {   # Outlier 2
+    i <- 2
+  }
+  
+  res[[i]] <- sim_eigen_result(cov.est, num.sim, seed = 1000)  
+}
+stopCluster(cl)
+
+
+### Calculate ISE for 1~3 eigenfunctions
+cname <- c("Yao (2005)","Lin (2020)","Huber","WRM")
+# res.mat <- matrix(NA, 4, 5)
+res.mat <- matrix(NA, 2, 4)
+colnames(res.mat) <- cname
+row.names(res.mat) <- c("Outlier X","Outlier 2")
+# row.names(res.mat) <- c("Outlier X",
+#                         paste0("Outlier ", 1:3))
+K <- 3   # consider first 3 eigenfunctions
+
+for (i in 1:2) {
+  pca.est <- res[[i]]
+  num.sim <- length(pca.est)
+  ise <- matrix(NA, num.sim, 4)
+
+  for (sim in 1:num.sim) {
+    work.grid <- pca.est[[sim]]$work.grid
+    eig.true <- pca.est[[sim]]$true
+    eig.yao <- pca.est[[sim]]$yao
+    eig.lin <- pca.est[[sim]]$lin
+    eig.huber <- pca.est[[sim]]$huber
+    eig.wrm <- pca.est[[sim]]$wrm
+
+
+    # calculate ISE for k eigenfunctions
+    ise_eig <- matrix(NA, K, 4)
+    for (k in 1:K) {
+      ise_eig[k, ] <- c(
+        get_ise(eig.true$phi[, k], eig.yao$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.lin$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.huber$phi[, k], work.grid),
+        get_ise(eig.true$phi[, k], eig.wrm$phi[, k], work.grid)
+      )
+    }
+
+    ise[sim, ] <- colSums(ise_eig)
+  }
+
+  res.mat[i, ] <- paste0(round(sqrt(colMeans(ise)), 2),
+                         "<br> (",
+                         round(apply(ise, 2, sd), 2),
+                         ")")
+}
+
+
+knitr::kable(res.mat,
+             digits = 3, 
+             align = "r", 
+             escape = FALSE,
+             caption = "Table 5. Average MISE (standard error) of first 3 eigenfunctions from 100 monte carlo simulations.") %>%
+  kable_styling("striped", full_width = FALSE, font_size = 14)
+```
+
+
+### Estimated first 3 eigenfunctions
+```{r fig_eig, fig.cap = "Figure 5. Estimated first 3 eigenfunctions for simulation data.", fig.height = 12, fig.width = 15}
+gridExtra::grid.arrange(grobs = fig_pca,   # mget(): get multiple objects
+                        nrow = 4)
+```

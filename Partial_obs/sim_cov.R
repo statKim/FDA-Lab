@@ -31,7 +31,7 @@ kernel <- "gauss"
 
 # outlyngness
 out.type <- 5   # 4~6 are available
-out.prop <- 0.2   # proportion of outliers
+out.prop <- 0.2   # proportion of outliers (0 or 0.2)
 
 # simulation result
 data.list <- list()
@@ -233,10 +233,32 @@ while (num.sim < 100) {
   data.list[[num.sim]] <- list(x = x,
                                gr = gr)
   cov.est[[num.sim]] <- out
+  
+  
+  # save results
+  if (num.sim %% 5 == 0 && num.sim > 1) {
+    sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
+                               "data.list" = data.list,
+                               "cov.est" = cov.est)
+    save(list = c("sim.obj"),
+         file = "RData/sim_20210317.RData")
+  }
 }
 
-save(list = c("sim.seed","data.list","cov.est"),
-     file = "RData/20210317_outlier_2.RData")
+# sim.obj <- list("Out_X" = NULL,
+#                 "Out_1" = NULL,
+#                 "Out_2" = NULL,
+#                 "Out_3" = NULL)
+sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
+                           "data.list" = data.list,
+                           "cov.est" = cov.est)
+# sim.obj[["Out_2"]] <- list("sim.seed" = sim.seed,
+#                            "data.list" = data.list,
+#                            "cov.est" = cov.est)
+save(list = c("sim.obj"),
+     file = "RData/sim_20210317.RData")
+# save(list = c("sim.seed","data.list","cov.est"),
+#      file = "RData/20210317_outlier_2.RData")
 
 
 

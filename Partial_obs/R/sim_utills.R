@@ -1,6 +1,9 @@
 ##########################################
 ### Simulation summary functions
 ##########################################
+source("R/sim_Delaigle(2020).R")
+source("R/sim_Lin_Wang(2020).R")
+
 
 ### Summary the ISE for simulations
 summary_ise <- function(data.list, cov.est, method = "var") {
@@ -162,7 +165,7 @@ ggplot_var <- function(cov.est, sim, main = "Outlier 1") {
   )
   
   # figure of all methods
-  fig[[1]] <- ggplot(df, aes(x, y, group = method, color = method)) +
+  fig[[1]] <- ggplot(df, aes(x, y, group = method, color = method, linetype = method)) +
     geom_line(size = 1) +
     labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = main) +
     geom_hline(yintercept = 0, size = 0.8) +
@@ -170,7 +173,9 @@ ggplot_var <- function(cov.est, sim, main = "Outlier 1") {
     theme(legend.title = element_blank(),
           legend.position = "bottom")
   
-  fig[[2]] <- fig[[1]] + ylim(0, 5)
+  fig[[2]] <- fig[[1]] + 
+    ylim(0, 5) +
+    labs(title = "")
   # # figure of true and a proposed method
   # fig[[2]] <- df %>% 
   #   # filter(method %in% c("True","Huber")) %>% 
@@ -279,8 +284,9 @@ ggplot_eig <- function(cov.est, sim, main = "Outlier 1") {
               eig.lin$phi[, i],
               eig.huber$phi[, i],
               eig.wrm$phi[, i]),
-      method = rep(c("True","Yao","Lin","Huber","WRM"), 
-                   each = length(work.grid))
+      method = factor(rep(c("True","Yao","Lin","Huber","WRM"),
+                          each = length(work.grid)),
+                      levels = c("True","Yao","Lin","Huber","WRM"))
       # work.grid = rep(work.grid, 4),
       # phi = c(eig.true$phi[, i],
       #         eig.yao$phi[, i],
@@ -290,10 +296,10 @@ ggplot_eig <- function(cov.est, sim, main = "Outlier 1") {
       #              each = length(work.grid))
     )
     fig[[i]] <- ggplot(data = fig.data, 
-                             mapping = aes(work.grid, phi, color = method)) +
+                             mapping = aes(work.grid, phi, color = method, linetype = method)) +
       geom_line(size = 1) +
       labs(x = TeX("$t$"), y = TeX(paste0("$\\phi_", i, "(t)$")), title = p_title) +
-      scale_color_discrete(breaks = c("True","Yao","Lin","Huber","WRM")) +
+      # scale_color_discrete(breaks = c("True","Yao","Lin","Huber","WRM")) +
       theme_bw() +
       theme(legend.title = element_blank(),
             legend.position = "bottom")
