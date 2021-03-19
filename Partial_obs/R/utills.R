@@ -179,8 +179,91 @@ check_eigen_sign <- function(eig_vec, target) {
 }
 
 
-### Get PC scores via conditional expectation
-get_CE_score <- function() {
+
+### PCA for functional snippets via conditional expectation
+# Lt
+# Ly
+# mu : mean function estimated at work.grid
+# cov : covariance function estimated at work.grid
+# sig2 : noise variance
+# work.grid
+# K : number of PCs. If K is NULL, K is selected by PVE.
+# PVE : proportion of variance explained
+PCA_CE <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99) {
+  n <- length(Lt)   # number of observations
   
+  # eigen analysis
+  eig.obj <- get_eigen(cov, work.grid)
+  
+  # noise variance
+  if (is.null(sig2)) {
+    sig2 <- 0
+  }
+  
+  # number of PCs
+  if (is.null(K)){
+    K <- which(eig.obj$PVE > PVE)[1]
+    PVE <- eig.obj$PVE[K]   # PVE
+  }
+  
+  # estimate PC scores via conditional expectation
+  PC_score <- sapply(1:n, function(i) {
+    xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid)
+    return(xi)
+  })
+  
+  res <- list(
+    lambda = eig.obj$lambda[1:K],
+    eig.fun = eig.obj$phi[, 1:K],
+    pc.score = t(PC_score),
+    K = K,
+    PVE = PVE,
+    work.grid = work.grid,
+    eig.obj = eig.obj,
+    mu = mu,
+    cov = cov,
+    sig2 = sig2
+  )
+  
+  return(res)
 }
 
+
+### Get PC scores via conditional expectation
+get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
+  phi <- eig.obj$phi[, 1:K]
+  lambda <- eig.obj$lambda[1:K]
+  Sigma_y <- cov + diag(sig2, nrow = nrow(cov))
+  # Sigma_Y <- fpca.yao$smoothedCov
+  # Sigma_Y <- eig.yao$phi %*% diag(eig.yao$lambda) %*% t(eig.yao$phi)
+  
+  
+  # # convert phi and fittedCov to obsGrid.
+  # mu <- ConvertSupport(work.grid, obs_grid, mu = mu)
+  # phi <- ConvertSupport(work.grid, obs_grid, phi = eig.yao$phi)[, 1:k]
+  # Sigma_Y <- ConvertSupport(work.grid, obs_grid,
+  #                           Cov = fpca.yao$fittedCov + diag(cov.yao.obj$sigma2, nrow = length(work.grid)))
+  
+  # get subsets for conditional expectation
+  mu_y_i <- approx(work.grid, mu, t)$y
+  phi_y_i <- apply(phi, 2, function(eigvec){ 
+    return(approx(work.grid, eigvec, t)$y)
+  })
+  Sigma_y_i <- matrix(pracma::interp2(work.grid,
+                                      work.grid,
+                                      Sigma_y,
+                                      as.numeric(as.vector(sapply(t, function(x){
+                                        return(rep(x, length(t)))
+                                      })
+                                      )),
+                                      rep(t, length(t))),
+                      length(t),
+                      length(t))
+  
+  # obtain PC score via conditional expectation
+  lamda_phi <- diag(lambda) %*% t(phi_y_i)
+  Sigma_y_i_mu <- solve(Sigma_y_i, y - mu_y_i)
+  xi <- lamda_phi %*% Sigma_y_i_mu
+  
+  return(as.numeric(xi))
+}
