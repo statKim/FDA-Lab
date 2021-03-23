@@ -73,7 +73,8 @@ sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51) {
   x[!x.obs] <- NA
   
   x <- list(Ly = apply(x, 1, function(y){ y[!is.na(y)] }),
-            Lt = apply(x.obs, 1, function(y){ gr[y] }))
+            Lt = apply(x.obs, 1, function(y){ gr[y] }),
+            x.full = x.full)
   
   
   # no outliers
@@ -110,7 +111,8 @@ sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51) {
         err.out <- rmvc(1, mu, Sigma)   # cauchy
       }
       
-      x_i <- rmvn(1, mu, Sigma) * 2 + err.out
+      # x_i <- rmvn(1, mu, Sigma) * 2 + err.out
+      x_i <- err.out
       x$Ly[[k]] <- as.numeric(x_i)
     }
   } else {
@@ -120,9 +122,18 @@ sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51) {
   return(x)
 }
 
-# generate simulated data
-set.seed(1234)
-x.2 <- sim.kraus(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51)
+
+
+#################################
+### Completion for missing parts
+#################################
+### generate simulated data
+# set.seed(1234)
+# set.seed(2)
+# set.seed(3)
+set.seed(10)
+n.grid <- 51
+x.2 <- sim.kraus(n = 100, out.prop = 0.2, out.type = 4, len.grid = n.grid)
 df <- data.frame(
   id = factor(unlist(sapply(1:length(x.2$Lt), 
                             function(id) { 
@@ -146,16 +157,12 @@ x[1, ]
 dim(x)
 
 
-
-
-#############################
-### Covariance estimation
-#############################
-
 # test for fixed parameters
 system.time({
-  bw <- 0.1
-  kern <- "gauss"
+  # bw <- 0.1
+  # kern <- "gauss"
+  bw <- 0.2
+  kern <- "epan"
   optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, verbose = FALSE,
                 userBwMu = bw, userBwCov = bw)
   mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
@@ -165,7 +172,8 @@ system.time({
 # 0.94    0.00    0.94 
 
 system.time({
-  kernel <- "gauss"
+  # kernel <- "gauss"
+  kernel <- "epanechnikov"
   # estimate mean, variance, covariance
   mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
                          bw = bw)   # It occurs error or very slow.
@@ -192,20 +200,44 @@ system.time({
 # user  system elapsed 
 # 4.89    0.02    4.91 
 
+# system.time({
+#   # For delta in Huber function and bandwidth are selected from 5-fold CV
+#   mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel, 
+#                              bw = bw, k2 = 1.345)
+#   # bandwidth are selected from 5-fold CV (almost 3 minutes)
+#   cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel, 
+#                              mu = mu.huber.obj, 
+#                              bw = bw, k2 = 1.345)
+# })
+# # user  system elapsed 
+# # 286.64    0.01  286.82 gauss
+# user  system elapsed 
+# 41.69    0.14   41.82 epan
 
 ### Curve reconstruction via PCA
 # PACE by fdapace
 system.time({
-  optns <- list(methodXi = "CE", dataType = "Sparse", FVEthreshold = 0.99,
-                kernel = "gauss", verbose = FALSE, userRho = 10)
+  optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, FVEthreshold = 0.99,
+                verbose = FALSE, userRho = 10, userBwMu = bw, userBwCov = bw)
   fpca.yao <- FPCA(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)  
 })
 
 # PACE by myself
-work.grid <- cov.yao.obj$workGrid
-cov.yao <- cov.yao.obj$cov
-pc.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.yao.obj$mu, cov.yao, 
-                 sig2 = cov.yao.obj$sigma2, work.grid, K = NULL)
+# work.grid <- cov.yao.obj$workGrid
+# cov.yao <- cov.yao.obj$cov
+work.grid <- seq(0, 1, length.out = n.grid)
+mu.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
+                         mu = mu.yao.obj$mu)
+cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
+                          Cov = cov.yao.obj$cov)
+pca.yao.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.yao, cov.yao, 
+                      sig2 = cov.yao.obj$sigma2, work.grid, K = NULL)
+
+# Lin
+mu.lin <- predict(mu.lin.obj, work.grid)
+cov.lin <- predict(cov.lin.obj, work.grid)
+pca.lin.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.lin, cov.lin, 
+                      sig2 = cov.lin.obj$sig2e, work.grid, K = NULL)
 
 # Huber
 mu.huber <- predict(mu.huber.obj, work.grid)
@@ -213,26 +245,118 @@ cov.huber <- predict(cov.huber.obj, work.grid)
 pca.huber.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.huber, cov.huber, 
                         sig2 = cov.huber.obj$sig2e, work.grid, K = NULL)
 
+# # WRM - 535.63 secs(guass) / 75.33 (epan)
+# system.time({
+#   mu.wrm <- predict(mu.wrm.obj, work.grid)
+#   cov.wrm <- predict(cov.wrm.obj, work.grid)
+#   pca.wrm.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.wrm, cov.wrm, 
+#                         sig2 = cov.wrm.obj$sig2e, work.grid, K = NULL)
+# })
 
-# reconstruction for missing parts
+
+### reconstruction for missing parts
 na_ind <- which(is.na(x[1, ]))   # missing periods
 
+# K <- 3
+# pred_yao <- fpca.yao$mu + fpca.yao$phi[, 1:K] %*% matrix(fpca.yao$xiEst[1, 1:K],
+#                                                          ncol = 1)
+# # pred_yao <- ConvertSupport(fpca.yao$workGrid, work.grid, mu = pred_yao)
+# pred_yao_2 <- mu.yao + matrix(pca.yao.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.yao.obj$eig.fun[, 1:K])
+# pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.lin.obj$eig.fun[, 1:K])
+# pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.huber.obj$eig.fun[, 1:K])
+# # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.wrm.obj$eig.fun[, 1:K])
 pred_yao <- fpca.yao$mu + fpca.yao$phi %*% matrix(fpca.yao$xiEst[1, ],
-                                               ncol = 1)
-pred_yao_2 <- mu + matrix(pc.obj$pc.score[1, ], nrow = 1) %*% t(pc.obj$eig.fun)
+                                                  ncol = 1)
+# pred_yao <- ConvertSupport(fpca.yao$workGrid, work.grid, mu = pred_yao)
+pred_yao_2 <- mu.yao + matrix(pca.yao.obj$pc.score[1, ], nrow = 1) %*% t(pca.yao.obj$eig.fun)
+pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[1, ], nrow = 1) %*% t(pca.lin.obj$eig.fun)
 pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[1, ], nrow = 1) %*% t(pca.huber.obj$eig.fun)
+# pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
 pred.kraus <- pred.missfd(x[1, ], x)
 
 plot(work.grid, x[1, ], type = "l")
-lines(work.grid[na_ind], pred_yao[na_ind], col = 2)
-lines(work.grid[na_ind], pred_yao_2[na_ind], col = 3)
+lines(work.grid[na_ind], pred_yao_2[na_ind], col = 2)
+lines(work.grid[na_ind], pred_lin[na_ind], col = 3)
 lines(work.grid[na_ind], pred_huber[na_ind], col = 4)
-lines(work.grid, pred.kraus, col = 5)
+# lines(work.grid, pred.kraus, col = 5)
+# lines(work.grid[na_ind], pred_yao[na_ind], col = 6)
+# legend("topright", 
+#        c("Yao","Lin","Huber","Kraus","Yao-fdapace"),
+#        col = 2:6,
+#        lty = rep(1, 5))
+lines(work.grid[na_ind], pred_wrm[na_ind], col = 5)
+lines(work.grid, pred.kraus, col = 6)
+lines(work.grid[na_ind], pred_yao[na_ind], col = 7)
 legend("topright", 
-       c("Yao","Yao2","Huber","Kraus"),
-       col = 2:5,
-       lty = rep(1, 4))
+       c("Yao","Lin","Huber","WRM","Kraus","Yao-fdapace"),
+       col = 2:7,
+       lty = rep(1, 6))
+lines(work.grid[is.na(x[1, ])], x.2$x.full[1, is.na(x[1, ])], col = 1)
 
+get_ise(pred_yao_2[na_ind],
+        x.2$x.full[1, is.na(x[1, ])],
+        work.grid[is.na(x[1, ])])
+get_ise(pred_lin[na_ind],
+        x.2$x.full[1, is.na(x[1, ])],
+        work.grid[is.na(x[1, ])])
+get_ise(pred_huber[na_ind],
+        x.2$x.full[1, is.na(x[1, ])],
+        work.grid[is.na(x[1, ])])
+get_ise(pred_wrm[na_ind],
+        x.2$x.full[1, is.na(x[1, ])],
+        work.grid[is.na(x[1, ])])
+get_ise(pred.kraus[na_ind],
+        x.2$x.full[1, is.na(x[1, ])],
+        work.grid[is.na(x[1, ])])
+
+cov.true <- cov(x.2$x.full)
+pca.true.obj <- get_eigen(cov.true, work.grid)
+pca.true.obj$phi
+
+i <- 1
+plot(work.grid, pca.true.obj$phi[, i], type = "l", ylim = c(-2, 2))
+lines(work.grid, pca.yao.obj$eig.fun[, i], col = 2)
+lines(work.grid, pca.lin.obj$eig.fun[, i], col = 3)
+lines(work.grid, pca.huber.obj$eig.fun[, i], col = 4)
+lines(work.grid, pca.wrm.obj$eig.fun[, i], col = 5)
+legend("topright", 
+       c("Yao","Lin","Huber","WRM","Kraus"),
+       col = 2:5,
+       lty = rep(1, 5))
+
+
+
+pca.yao.obj$eig.obj$PVE
+pca.lin.obj$eig.obj$PVE
+pca.huber.obj$eig.obj$PVE
+pca.wrm.obj$eig.obj$PVE
+
+eig <- eigen(cov.huber, symmetric = T)
+cumsum(eig$values) / sum(eig$values)
+pca.huber.obj$eig.obj$lambda
+cumsum(pca.huber.obj$eig.obj$lambda) / sum(pca.huber.obj$eig.obj$lambda)
+
+par(mfrow = c(2, 2),
+    mar = c(2, 2, 2, 2))
+persp3D(work.grid, work.grid, cov.yao, 
+        theta = -70, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)")
+persp3D(work.grid, work.grid, cov.lin, 
+        theta = -70, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)")
+persp3D(work.grid, work.grid, cov.huber, 
+        theta = -70, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)")
+persp3D(work.grid, work.grid, cov.wrm, 
+        theta = -70, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)")
+
+plot(pca.huber.obj$eig.obj$lambda[1:10], type = "o", ylim = c(0, 0.5))
+pca.huber.obj$eig.obj$PVE
+
+persp3D(work.grid, work.grid, cov(x.2$x.full), 
+        theta = -70, phi = 30, expand = 1,
+        xlab = "s", ylab = "t", zlab = "C(s,t)")
 
 
 
@@ -307,7 +431,7 @@ print(paste0("Lin & Wang : ",
              " secs"))
 
 
-### Huber loss
+### Huber loss - 276.323 secs"
 start_time <- Sys.time()
 registerDoRNG(seed)
 tryCatch({

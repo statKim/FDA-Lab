@@ -55,9 +55,9 @@ while (num.sim < 100) {
   
   # generate curve with no outliers
   x <- fun.fragm(n = n, model = model.cov, out.prop = out.prop, out.type = out.type)
-  gr <- sort(unique(unlist(x$t)))   # observed grid
+  gr <- sort(unique(unlist(x$Lt)))   # observed grid
   
-  if ( !identical(range(unlist(x$t)), c(0, 1)) ) {
+  if ( !identical(range(unlist(x$Lt)), c(0, 1)) ) {
     warning("Data does not have range [0,1]. Pass this seed.")
     next
   }
@@ -73,8 +73,8 @@ while (num.sim < 100) {
   cov.true <- get_cov_fragm(gr, model = model.cov)   # true covariance
   cov.true <- ConvertSupport(fromGrid = gr, toGrid = work.grid, Cov = cov.true)   # transform to the observed grid
   
-  x.2 <- list(Ly = x$y,
-              Lt = x$t)
+  # x.2 <- list(Ly = x$y,
+  #             Lt = x$t)
 
     
   ### Yao, Müller, and Wang (2005)
@@ -86,8 +86,8 @@ while (num.sim < 100) {
   optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, verbose = FALSE,
                 kFoldMuCov = 5, methodBwMu = "CV", methodBwCov = "CV", useBinnedCov = FALSE)
   tryCatch({
-    mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
-    cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
+    mu.yao.obj <- GetMeanCurve(Ly = x$Ly, Lt = x$Lt, optns = optns)
+    cov.yao.obj <- GetCovSurface(Ly = x$Ly, Lt = x$Lt, optns = optns)
   }, error = function(e) { 
     print("Yao cov error")
     print(e)
@@ -112,24 +112,24 @@ while (num.sim < 100) {
   registerDoRNG(seed)
   tryCatch({
     # 5-fold CV (It took very long time when we use CV option in mcfda package.)
-    cv.mu.lin.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "L2", kernel = kernel,
+    cv.mu.lin.obj <- meanfunc.rob(x$Lt, x$Ly, method = "L2", kernel = kernel,
                                   cv_bw_loss = "L2", ncores = ncores,
                                   bw = NULL)
-    cv.var.lin.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = cv.mu.lin.obj, kernel = kernel,
+    cv.var.lin.obj <- varfunc.rob(x$Lt, x$Ly, mu = cv.mu.lin.obj, kernel = kernel,
                                   method = "L2",  cv_bw_loss = "L2", ncores = ncores,
                                   bw = NULL)
     # estimate mean, variance, covariance
-    mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+    mu.lin.obj <- meanfunc(x$Lt, x$Ly, method = "PACE", kernel = kernel,
                            bw = cv.mu.lin.obj$bw)   # It occurs error or very slow.
-    var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+    var.lin.obj <- varfunc(x$Lt, x$Ly, method = "PACE", kernel = kernel,
                            mu = mu.lin.obj, bw = cv.var.lin.obj$obj$bw)
-    cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
+    cov.lin.obj <- covfunc(x$Lt, x$Ly, method = "SP",
                            mu = mu.lin.obj, sig2x = var.lin.obj)
     cov.lin <- predict(cov.lin.obj, work.grid)
     # # estimate mean by local polynomial method
-    # mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", 
+    # mu.lin.obj <- meanfunc(x$Lt, x$Ly, method = "PACE", 
     #                        kernel = kernel, bw = bw)
-    # cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, mu = mu.lin.obj, method = "SP")
+    # cov.lin.obj <- covfunc(x$Lt, x$Ly, mu = mu.lin.obj, method = "SP")
   }, error = function(e) { 
     print("Lin cov error")
     print(e)
@@ -150,10 +150,10 @@ while (num.sim < 100) {
   registerDoRNG(seed)
   tryCatch({
     # For delta in Huber function and bandwidth are selected from 5-fold CV
-    mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
+    mu.huber.obj <- meanfunc.rob(x$Lt, x$Ly, method = "huber", kernel = kernel, 
                                  bw = NULL, k2 = NULL)
     # bandwidth are selected from 5-fold CV (almost 3 minutes)
-    cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
+    cov.huber.obj <- covfunc.rob(x$Lt, x$Ly, method = "huber", kernel = kernel, 
                                  mu = mu.huber.obj, 
                                  bw = NULL, k2 = NULL)
   }, error = function(e) { 
@@ -175,9 +175,9 @@ while (num.sim < 100) {
   start_time <- Sys.time()
   registerDoRNG(seed)
   tryCatch({
-    mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
+    mu.wrm.obj <- meanfunc.rob(x$Lt, x$Ly, method = "WRM", kernel = kernel, 
                                bw = NULL, ncores = ncores)
-    cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "WRM", kernel = kernel, 
+    cov.wrm.obj <- covfunc.rob(x$Lt, x$Ly, method = "WRM", kernel = kernel, 
                                mu = mu.wrm.obj, bw = NULL, ncores = ncores)
   }, error = function(e) { 
     print("WRM cov error")
@@ -237,7 +237,7 @@ while (num.sim < 100) {
   
   # save results
   if (num.sim %% 5 == 0 && num.sim > 1) {
-    sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
+    sim.obj[["Out_2"]] <- list("sim.seed" = sim.seed,
                                "data.list" = data.list,
                                "cov.est" = cov.est)
     save(list = c("sim.obj"),
@@ -245,16 +245,16 @@ while (num.sim < 100) {
   }
 }
 
-# sim.obj <- list("Out_X" = NULL,
-#                 "Out_1" = NULL,
-#                 "Out_2" = NULL,
-#                 "Out_3" = NULL)
-sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
-                           "data.list" = data.list,
-                           "cov.est" = cov.est)
-# sim.obj[["Out_2"]] <- list("sim.seed" = sim.seed,
+sim.obj <- list("Out_X" = NULL,
+                "Out_1" = NULL,
+                "Out_2" = NULL,
+                "Out_3" = NULL)
+# sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
 #                            "data.list" = data.list,
 #                            "cov.est" = cov.est)
+sim.obj[["Out_2"]] <- list("sim.seed" = sim.seed,
+                           "data.list" = data.list,
+                           "cov.est" = cov.est)
 save(list = c("sim.obj"),
      file = "RData/sim_20210317.RData")
 # save(list = c("sim.seed","data.list","cov.est"),
@@ -262,8 +262,83 @@ save(list = c("sim.obj"),
 
 
 
+### sample trajectories
+i <- 100
+x <- data.list[[i]]$x
+df <- data.frame(
+  id = factor(unlist(sapply(1:length(x$Lt), 
+                            function(id) { 
+                              rep(id, length(x$Lt[[id]])) 
+                            }) 
+  )),
+  y = unlist(x$Ly),
+  t = unlist(x$Lt)
+)
+ggplot(df, aes(t, y, color = id)) +
+  geom_line() +
+  theme_bw() +
+  ylim(-10, 10) +
+  theme(legend.position = "none")
+
+
+### variance
+ise.var <- summary_ise(data.list, cov.est, method = "var")
+sqrt(rowMeans(ise.var))
+apply(ise.var, 1, sd)
+
+### covariance
+ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+sqrt(rowMeans(ise.cov))
+apply(ise.cov, 1, sd)
+
+### Intrapolation parts (D_0)
+ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+rowMeans(ise.intra)
+apply(ise.intra, 1, sd)
+
+### Extrapolation parts (S_0 \ D_0)
+ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+rowMeans(ise.extra)
+apply(ise.extra, 1, sd)
 
 
 
+### Eigen analysis
+# Parallel computing setting
+ncores <- detectCores() - 3
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
 
+num.sim <- length(cov.est)   # number of simulations
+pca.est <- sim_eigen_result(cov.est, num.sim, seed = 1000)  
+
+stopCluster(cl)
+
+# Calculate ISE for 1~3 eigenfunctions
+ise <- matrix(NA, num.sim, 4)
+for (sim in 1:num.sim) {
+  work.grid <- pca.est[[sim]]$work.grid
+  eig.true <- pca.est[[sim]]$true
+  eig.yao <- pca.est[[sim]]$yao
+  eig.lin <- pca.est[[sim]]$lin
+  eig.huber <- pca.est[[sim]]$huber
+  eig.wrm <- pca.est[[sim]]$wrm
+  
+  
+  # calculate ISE for k eigenfunctions
+  ise_eig <- matrix(NA, K, 4)
+  for (k in 1:K) {
+    ise_eig[k, ] <- c(
+      get_ise(eig.true$phi[, k], eig.yao$phi[, k], work.grid),
+      get_ise(eig.true$phi[, k], eig.lin$phi[, k], work.grid),
+      get_ise(eig.true$phi[, k], eig.huber$phi[, k], work.grid),
+      get_ise(eig.true$phi[, k], eig.wrm$phi[, k], work.grid)
+    )
+  }
+  
+  ise[sim, ] <- colSums(ise_eig)
+}
+
+sqrt(colMeans(ise))
+apply(ise, 2, sd)
 

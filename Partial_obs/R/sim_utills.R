@@ -37,7 +37,7 @@ summary_ise <- function(data.list, cov.est, method = "var") {
   } else if (method %in% c("intra","extra")) {   ## validation for Delaigle(2020)
     ise.cov <- mapply(function(x, y) {
       cov.list <- x$cov
-      ind <- get_design_index(y$x$t)
+      ind <- get_design_index(y$x$Lt)
       num_method <- length(cov.list) - 1
       ise <- numeric(num_method)
       

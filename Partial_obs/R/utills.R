@@ -207,7 +207,9 @@ PCA_CE <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
   }
   
   # estimate PC scores via conditional expectation
+  # obs.grid <- sort(unique(unlist(Lt)))
   PC_score <- sapply(1:n, function(i) {
+    # xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid, obs.grid)
     xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid)
     return(xi)
   })
@@ -239,23 +241,32 @@ get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
   
   
   # # convert phi and fittedCov to obsGrid.
-  # mu <- ConvertSupport(work.grid, obs_grid, mu = mu)
-  # phi <- ConvertSupport(work.grid, obs_grid, phi = eig.yao$phi)[, 1:k]
-  # Sigma_Y <- ConvertSupport(work.grid, obs_grid,
-  #                           Cov = fpca.yao$fittedCov + diag(cov.yao.obj$sigma2, nrow = length(work.grid)))
+  # mu <- ConvertSupport(work.grid, obs.grid, mu = mu)
+  # phi <- ConvertSupport(work.grid, obs.grid, phi = phi)
+  # Sigma_Y <- ConvertSupport(work.grid, obs.grid,
+  #                           Cov = Sigma_y)
+  # # get subsets at each observed grid for conditional expectation
+  # mu_y_i <- approx(obs.grid, mu, t)$y
+  # phi_y_i <- apply(phi, 2, function(eigvec){ 
+  #   return(approx(obs.grid, eigvec, t)$y)
+  # })
+  # Sigma_y_i <- matrix(pracma::interp2(obs.grid,
+  #                                     obs.grid,
+  #                                     Sigma_y,
+  #                                     rep(t, each = length(t)),
+  #                                     rep(t, length(t))),
+  #                     length(t),
+  #                     length(t))
   
-  # get subsets for conditional expectation
+  # get subsets at each observed grid for conditional expectation
   mu_y_i <- approx(work.grid, mu, t)$y
-  phi_y_i <- apply(phi, 2, function(eigvec){ 
+  phi_y_i <- apply(phi, 2, function(eigvec){
     return(approx(work.grid, eigvec, t)$y)
   })
   Sigma_y_i <- matrix(pracma::interp2(work.grid,
                                       work.grid,
                                       Sigma_y,
-                                      as.numeric(as.vector(sapply(t, function(x){
-                                        return(rep(x, length(t)))
-                                      })
-                                      )),
+                                      rep(t, each = length(t)),
                                       rep(t, length(t))),
                       length(t),
                       length(t))
@@ -267,3 +278,25 @@ get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
   
   return(as.numeric(xi))
 }
+
+
+### Get PC scores using numerical integration
+get_IN_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
+  phi <- eig.obj$phi[, 1:K]
+  lambda <- eig.obj$lambda[1:K]
+  Sigma_y <- cov + diag(sig2, nrow = nrow(cov))
+  
+  # get subsets at each observed grid for numerical integration
+  mu_y_i <- approx(work.grid, mu, t)$y
+  phi_y_i <- apply(phi, 2, function(eigvec){
+    return(approx(work.grid, eigvec, t)$y)
+  })
+  
+  # obtain PC score using numerical integration
+  h <- (y - mu_y_i) %*% phi_y_i
+  xi <- trapzRcpp(t, h)
+  
+  return(as.numeric(xi))
+}
+
+

@@ -325,7 +325,7 @@ gridExtra::grid.arrange(p1, p2,
 
 # Compare CV results and true optimal delta
 var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, mu = mu.huber.obj,  
-                             method = "huber", kernel = kernel, bw = bw_fixed, k2 = NULL)
+                             method = "huber", kernel = kernel, bw = bw_fixed_var, k2 = NULL)
 ise_var <- df_delta %>% 
   group_by(k_huber) %>% 
   summarise(ise = get_ise(y, diag(cov.true), gr))

@@ -1,0 +1,123 @@
+---
+title: "Robust PCA for functional snippets"
+author: "Hyunsung Kim"
+date: '2021-03-23'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", fig.width = 12, fig.height = 6
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+# library(GA)   # persp plot
+# library(mvtnorm)
+# library(fdapace)   # 1, 2
+# library(mcfda)   # 7
+# library(synfd)   # 7
+# library(doParallel)   # parallel computing
+# library(doRNG)   # set.seed for foreach
+# library(MASS)   # huber, rlm
+# library(kableExtra)
+# library(tidyverse)
+# library(gridExtra)
+# library(latex2exp)
+# # source("R/functions.R")
+# source("R/utills.R")
+# source("R/sim_utills.R")
+```
+
+
+# Simulations for Kraus (2015) setting
+- 51 time points에서 관측된 100개 curve generate
+- Kraus 세팅에서는 200 time points에서 200개 curve generate이지만 model fitting 시간이 너무 길어져 축소시켜서 확인
+- bandwidth, cut-off for Huber function은 fixed하여 계산
+- PC score는 conditional expectation 기반의 BLUP를 사용하여 계산함 (Yao et al. (2005))
+- 1st curve에 대한 completion을 확인
+
+
+## Case 1
+```{r case1, fig.cap = "Completion for a 1st curve with the number of PCs selected by PVE > 0.99 (Left), and using 4 PCs (Right)", fig.show = "hold", out.width = "50%"}
+path <- "../figure/"
+include_graphics(
+  paste0(path,
+         c("comp1.png",
+           "comp1_4PCs.png"))
+)
+```
+
+
+## Case 2
+```{r case2, fig.cap = "Completion for a 1st curve with the number of PCs selected by PVE > 0.99 (Left), and using 3 PCs (Right)", fig.show = "hold", out.width = "50%"}
+include_graphics(
+  paste0(path,
+         c("comp2.png",
+           "comp2_3PCs.png"))
+)
+```
+
+
+## Case 3
+```{r case3, fig.cap = "Completion for a 1st curve with the number of PCs selected by PVE > 0.99 (Left), and using 2 PCs (Right)", fig.show = "hold", out.width = "50%"}
+include_graphics(
+  paste0(path,
+         c("comp3.png",
+           "comp3_2PCs.png"))
+)
+```
+
+
+## Case 4
+```{r case4, fig.cap = "Completion for a 1st curve with the number of PCs selected by PVE > 0.99 (Left), and using 3 PCs (Right)", fig.show = "hold", out.width = "50%"}
+include_graphics(
+  paste0(path,
+         c("comp4.png",
+           "comp4_3PCs.png"))
+)
+```
+
+
+
+<br>
+
+# Problems
+- Proportion of variance explained가 빠르게 1에 가까워지지 않음
+  - Yao et al.(2005)의 경우, PC 3~4개 정도면 PVE가 0.99를 넘지만, robust 방법은 20개를 넘어야 0.99를 넘는 경우가 종종 있었음
+- Correlation structure
+  - Covariance의 off-diagonal term 추정을 위해 matern correlation을 현재 사용하고 있는데, 이는 구조가 positive 값만 가지도록 되어있는 structure를 가지고 있음.

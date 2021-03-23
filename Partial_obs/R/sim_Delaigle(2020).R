@@ -30,8 +30,8 @@ fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
                       len.frag = c(0.1, 0.3), frag = TRUE) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
-  x <- list(t = list(),
-            y = list())
+  x <- list(Lt = list(),
+            Ly = list())
   
   # generate dense curves (if frag = FALSE)
   if (frag == FALSE) {
@@ -39,8 +39,8 @@ fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
     cov_sim <- get_cov_fragm(gr, model = model)
     
     y <- rmvnorm(n, rep(0, m), cov_sim)
-    x$y <- lapply(1:n, function(i) { y[i, ] })
-    x$t <- lapply(1:n, function(i) { gr })
+    x$Ly <- lapply(1:n, function(i) { y[i, ] })
+    x$Lt <- lapply(1:n, function(i) { gr })
     
   # generate functional fragments (if frag = TRUE; Default option)
   } else if (frag == TRUE) {
@@ -68,8 +68,8 @@ fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
         }
       }
       
-      x$y[[n_i]] <- rmvnorm(1, rep(0, m), cov_sim)
-      x$t[[n_i]] <- t
+      x$Ly[[n_i]] <- rmvnorm(1, rep(0, m), cov_sim)
+      x$Lt[[n_i]] <- t
     }
   }
   
@@ -85,7 +85,7 @@ fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
     d <- 0.3
     sigma.exp <- 1
     for (k in (n-n.outlier+1):n) {
-      t <- x$t[[k]]
+      t <- x$Lt[[k]]
       m <- length(t)   # length of time points
       tmp.mat <- matrix(NA, m, m)
       for (j in 1:m){
@@ -107,7 +107,11 @@ fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
         err.out <- rmvc(1, mu, Sigma)   # cauchy
       }
       
-      x$y[[k]] <- rmvn(1, mu, Sigma) * 2 + err.out
+      # x$Ly[[k]] <- rmvn(1, mu, Sigma) * 2 + err.out
+      
+      # x_i <- rmvn(1, mu, Sigma) * 2 + err.out
+      x_i <- err.out
+      x$Ly[[k]] <- as.numeric(x_i)
     }
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 4~6."))

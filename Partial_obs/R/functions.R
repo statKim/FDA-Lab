@@ -202,20 +202,6 @@ predict.meanfunc.rob <- function(meanfunc.obj, newt) {
 }
 
 
-#' #' estimate the window width of snippets
-#' #' @export
-#' estimate.delta <- function(Lt) {
-#'   if(is.list(Lt)) {
-#'     tmp <- lapply(Lt, function(v) { max(v) - min(v) })
-#'     return( max(unlist(tmp)) )
-#'   } else if (is.vector(Lt)) {
-#'     return( max(Lt)-min(Lt) )
-#'   } else {
-#'     stop('unsupported type of Lt')
-#'   }
-#' }
-
-
 
 #########################################################
 ### Robust variance estimation for functional snippets
