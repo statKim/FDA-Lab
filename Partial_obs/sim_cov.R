@@ -30,7 +30,7 @@ kernel <- "gauss"
 # k2 <- 1.345   # delta in huber function
 
 # outlyngness
-out.type <- 5   # 4~6 are available
+out.type <- 4   # 4~6 are available
 out.prop <- 0.2   # proportion of outliers (0 or 0.2)
 
 # simulation result
@@ -40,6 +40,10 @@ num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, 100)   # collection of seed with no error occurs
 
+# sim.obj <- list("Out_X" = NULL,
+#                 "Out_1" = NULL,
+#                 "Out_2" = NULL,
+#                 "Out_3" = NULL)
 
 # repeat until 100 simulations are obtained
 while (num.sim < 100) {
@@ -237,26 +241,22 @@ while (num.sim < 100) {
   
   # save results
   if (num.sim %% 5 == 0 && num.sim > 1) {
-    sim.obj[["Out_2"]] <- list("sim.seed" = sim.seed,
+    sim.obj[["Out_1"]] <- list("sim.seed" = sim.seed,
                                "data.list" = data.list,
                                "cov.est" = cov.est)
     save(list = c("sim.obj"),
-         file = "RData/sim_20210317.RData")
+         file = "RData/sim_20210323.RData")
   }
 }
 
-sim.obj <- list("Out_X" = NULL,
-                "Out_1" = NULL,
-                "Out_2" = NULL,
-                "Out_3" = NULL)
 # sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
 #                            "data.list" = data.list,
 #                            "cov.est" = cov.est)
-sim.obj[["Out_2"]] <- list("sim.seed" = sim.seed,
+sim.obj[["Out_1"]] <- list("sim.seed" = sim.seed,
                            "data.list" = data.list,
                            "cov.est" = cov.est)
 save(list = c("sim.obj"),
-     file = "RData/sim_20210317.RData")
+     file = "RData/sim_20210323.RData")
 # save(list = c("sim.seed","data.list","cov.est"),
 #      file = "RData/20210317_outlier_2.RData")
 
@@ -315,6 +315,7 @@ pca.est <- sim_eigen_result(cov.est, num.sim, seed = 1000)
 stopCluster(cl)
 
 # Calculate ISE for 1~3 eigenfunctions
+K <- 3
 ise <- matrix(NA, num.sim, 4)
 for (sim in 1:num.sim) {
   work.grid <- pca.est[[sim]]$work.grid
