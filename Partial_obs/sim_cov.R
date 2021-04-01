@@ -30,7 +30,7 @@ kernel <- "gauss"
 # k2 <- 1.345   # delta in huber function
 
 # outlyngness
-out.type <- 4   # 4~6 are available
+out.type <- 6   # 4~6 are available
 out.prop <- 0.2   # proportion of outliers (0 or 0.2)
 
 # simulation result
@@ -241,7 +241,7 @@ while (num.sim < 100) {
   
   # save results
   if (num.sim %% 5 == 0 && num.sim > 1) {
-    sim.obj[["Out_1"]] <- list("sim.seed" = sim.seed,
+    sim.obj[["Out_3"]] <- list("sim.seed" = sim.seed,
                                "data.list" = data.list,
                                "cov.est" = cov.est)
     save(list = c("sim.obj"),
@@ -252,7 +252,7 @@ while (num.sim < 100) {
 # sim.obj[["Out_X"]] <- list("sim.seed" = sim.seed,
 #                            "data.list" = data.list,
 #                            "cov.est" = cov.est)
-sim.obj[["Out_1"]] <- list("sim.seed" = sim.seed,
+sim.obj[["Out_3"]] <- list("sim.seed" = sim.seed,
                            "data.list" = data.list,
                            "cov.est" = cov.est)
 save(list = c("sim.obj"),

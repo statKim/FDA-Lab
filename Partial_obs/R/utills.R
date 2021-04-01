@@ -34,9 +34,11 @@ load_sources <- function() {
   }
   
   path <- "src/"
-  fname <- "IRLS.cpp"
-  cat(paste0(fname, "\n"))
-  sourceCpp(paste0(path, fname))
+  flist <- c("IRLS.cpp", "WRM.cpp")
+  for (fname in flist) {
+    cat(paste0(fname, "\n"))
+    sourceCpp(paste0(path, fname))
+  }
 }
 
 

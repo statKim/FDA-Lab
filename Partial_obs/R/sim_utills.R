@@ -168,7 +168,7 @@ ggplot_var <- function(cov.est, sim, main = "Outlier 1") {
   fig[[1]] <- ggplot(df, aes(x, y, group = method, color = method, linetype = method)) +
     geom_line(size = 1) +
     labs(x = TeX("$t$"), y = TeX("$\\sigma_X^2(t)$"), title = main) +
-    geom_hline(yintercept = 0, size = 0.8) +
+    # geom_hline(yintercept = 0, size = 0.8) +
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.position = "bottom")
@@ -206,7 +206,7 @@ plot_cov_surf <- function(cov.est, sim, title = TRUE, lab = "Outlier 1") {
   
   if (isTRUE(title)) {
     # main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin + Huber loss")
-    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Lin + Huber loss","WRM")
+    main <- c("True","Yao et al. (2005)","Lin & Wang (2020)","Huber Loss","WRM")
   } else {
     main <- c("","","","")
   }
@@ -214,16 +214,16 @@ plot_cov_surf <- function(cov.est, sim, title = TRUE, lab = "Outlier 1") {
   ### Covariance surface
   # par(mfrow = c(1, 3),
   #     mar = c(0, 2, 7, 2))
-  # persp3D(work.grid, work.grid, cov.list$true, 
-  #         theta = -70, phi = 30, expand = 1,
-  #         main = main[1], 
-  #         xlab = "s", ylab = "t", zlab = "C(s,t)")
-  # mtext(lab, side = 2)
+  persp3D(work.grid, work.grid, cov.list$true,
+          theta = -70, phi = 30, expand = 1,
+          main = main[1],
+          xlab = "s", ylab = "t", zlab = "C(s,t)")
+  mtext(lab, side = 2)
   persp3D(work.grid, work.grid, cov.list$yao, 
           theta = -70, phi = 30, expand = 1,
           main = main[2], 
           xlab = "s", ylab = "t", zlab = "C(s,t)")
-  mtext(lab, side = 2)
+  # mtext(lab, side = 2)
   persp3D(work.grid, work.grid, cov.list$lin, 
           theta = -70, phi = 30, expand = 1,
           main = main[3],

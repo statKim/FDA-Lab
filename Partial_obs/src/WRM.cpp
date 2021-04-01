@@ -90,6 +90,12 @@ NumericVector wrm_fit(NumericVector xdat,
     x_sub = xdat[ind_sub];
     arg_1 = (ydat[i] - y_sub) / (xdat[i] - x_sub);
     arg_2 = weight_vec[ind_sub];
+    
+    // ind_sub = ind[ind != i];
+    // std::cout << ind_sub.length() << "\n";
+    // ind_sub = ind[ind != i & xdat != xdat[i]];
+    // std::cout << ind_sub.length() << "\n";
+    
     sm[i] = (weighted_quantile_top_cpp(arg_1, arg_2, 0.5) + weighted_quantile_cpp(arg_1, arg_2, 0.5)) / 2;
   }
   
@@ -150,21 +156,21 @@ List wrm_smooth_cpp(NumericVector x,
                       _["kernel"] = kernel);
 }
 
-
-/*** R
-x <- faithful$w
-y <- faithful$e
-h <- 4
-xgrid <- seq(min(faithful$w), max(faithful$w), length.out = 100)
-kernel <- "epanechnikov"
-weights = get_kernel(x, xgrid[i], h, kernel);
-wrm_fit(x, y, xgrid[1], weights)
-# set.seed(123)
-# dat <- rnorm(100, 10)
-# gr <- seq(0, 1, length.out = 100)
-# weights <- dat / sum(dat)
-# p <- 0.5
-# wrm_smooth_cpp(x = gr, y = dat, h = p, gr, "epanechnikov")$mu
-# wrm.smooth(gr, dat, p, gr, 2)$level
-*/
+// 
+// /*** R
+// x <- faithful$w
+// y <- faithful$e
+// h <- 4
+// xgrid <- seq(min(faithful$w), max(faithful$w), length.out = 100)
+// kernel <- "epanechnikov"
+// weights = get_kernel(x, xgrid[i], h, kernel);
+// wrm_fit(x, y, xgrid[1], weights)
+// # set.seed(123)
+// # dat <- rnorm(100, 10)
+// # gr <- seq(0, 1, length.out = 100)
+// # weights <- dat / sum(dat)
+// # p <- 0.5
+// # wrm_smooth_cpp(x = gr, y = dat, h = p, gr, "epanechnikov")$mu
+// # wrm.smooth(gr, dat, p, gr, 2)$level
+// */
 

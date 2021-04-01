@@ -72,17 +72,26 @@ local_kern_smooth <- function(Lt, Ly, newt = NULL, method = c("L2","HUBER","WRM"
       return(beta[1, ])
     })
   } else if (method == "WRM") {   # robfilter package
+    # robfilter
     if (kernel == "epanechnikov") {
       kern <- 2
     } else if (kernel == "gauss") {
       kern <- 3
     }
-    wrm.obj <- wrm.smooth(Lt, 
+    wrm.obj <- wrm.smooth(Lt,
                           Ly,
                           h = bw,
                           xgrid = newt,
                           weight = kern)
     mu_hat <- wrm.obj$level
+    
+    # # C++
+    # wrm.obj <- wrm_smooth(x = Lt, 
+    #                       y = Ly,
+    #                       h = bw,
+    #                       xgrid = newt,
+    #                       kernel = kernel)
+    # mu_hat <- wrm.obj$mu
   }
   
   return( as.numeric(mu_hat) )
@@ -114,6 +123,10 @@ bw.local_kern_smooth <- function(Lt, Ly, method = "HUBER", kernel = "epanechniko
     a <- min(unlist(Lt))
     b <- max(unlist(Lt))
     bw_cand <- 10^seq(-2, 0, length.out = 10) * (b - a)/3
+    
+    if (kernel == "epanechnikov") {
+      bw_cand <- 10^seq(-1, 0, length.out = 10) * (b - a)/3
+    }
   }
   
   # get index for each folds
