@@ -134,6 +134,12 @@ inline Rcpp::List IRLScpp(const Eigen::VectorXd Y,
   for (int i = 0; i < maxit; i++) {
     beta_hat = beta.row(i);
     Y_hat = X * beta_hat;
+    
+    // update scale estimator
+    resid = Rcpp::wrap(Y - Y_hat);
+    resid_med = abs(resid - median(resid));
+    s = median(resid_med) * 1.4826;  // re-scaled MAD by MAD*1.4826
+    
     tmp = (Y - Y_hat).array() / s;
     
     // psi function of Huber loss
@@ -249,29 +255,29 @@ inline Eigen::VectorXd locpolysmooth(Eigen::VectorXd Lt,
 
 // 
 // /*** R
-// set.seed(1000)
-// newt <- seq(0, 1, length.out = 51)
-// Lt <- sample(newt, 100, replace = T)
-// Ly <- rnorm(100)
-// # locpolysmooth(Lt = Lt,
-// #               Ly = Ly,
-// #               newt = newt)
+// # set.seed(1000)
+// # newt <- seq(0, 1, length.out = 51)
+// # Lt <- sample(newt, 100, replace = T)
+// # Ly <- rnorm(100)
+// # # locpolysmooth(Lt = Lt,
+// # #               Ly = Ly,
+// # #               newt = newt)
+// # 
+// # local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER",
+// #                   bw = bw, kernel = "gauss", k2 = 1.345)
+// # local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER",
+// #                       bw = bw, kernel = "gauss", k2 = 1.345)
+// # local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER",
+// #                   bw = bw, kernel = "epanechnikov", k2 = 1.345)
+// # local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER",
+// #                       bw = bw, kernel = "epanechnikov", k2 = 1.345)
 // 
-// local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER", 
-//                   bw = bw, kernel = "gauss", k2 = 1.345)
-// local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER", 
-//                       bw = bw, kernel = "gauss", k2 = 1.345)
-// local_kern_smooth(Lt, Ly, newt = newt, method = "HUBER",
-//                   bw = bw, kernel = "epanechnikov", k2 = 1.345)
-// local_kern_smooth_cpp(Lt, Ly, newt = newt, method = "HUBER",
-//                       bw = bw, kernel = "epanechnikov", k2 = 1.345)
-// 
-// # library(MASS)
-// # IRLScpp(Y = stackloss$stack.loss,
-// #         X = as.matrix(stackloss[, 1:3]),
-// #         weight_ = NULL)
-// # IRLS(Y = stackloss$stack.loss,
-// #      X = stackloss[, 1:3],
-// #      method = "huber")
+// library(MASS)
+// IRLScpp(Y = stackloss$stack.loss,
+//         X = as.matrix(stackloss[, 1:3]),
+//         weight_ = NULL)
+// IRLS(Y = stackloss$stack.loss,
+//      X = stackloss[, 1:3],
+//      method = "huber")
 // */
 
