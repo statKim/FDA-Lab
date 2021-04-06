@@ -43,6 +43,7 @@ simul.fd <- function(n = 200, grid = seq(0,1,len=200),
   return(x)
 }
 
+
 norm.randcoef = function(n) rnorm(n,0,1)
 unif.randcoef = function(n) runif(n,-1,1)*sqrt(3)
 t5.randcoef = function(n) rt(n,5)/sqrt(5/3)
@@ -57,14 +58,19 @@ simul.obs <- function(n = 100, grid = seq(0, 1, len = 200), d = 1.4, f = .2) {
   out
 }
 
-n <- 100   # number of curves
-model.cov <- 2   # covariance function setting of the paper (1, 2)
-
-# generate curve with no outliers
-x <- sim.kraus(n = n, out.prop = out.prop, out.type = out.type, len.grid = 51)
-cov.true <- cov(x$x.full)
-sum(which(cov.true <= 0))
-sum(which(cov.true > 0))
+# n <- 100   # number of curves
+# model.cov <- 2   # covariance function setting of the paper (1, 2)
+# 
+# # generate curve with no outliers
+# x <- sim.kraus(n = n, out.prop = 0.2, out.type = 4, model.cov = 2, len.grid = 51)
+# cov.true <- cov(x$x.full)
+# length(which(cov.true <= 0)) / length(cov.true)
+# matplot(t(x$x.full), type = "l")
+# 
+# par(mfrow = c(1, 2))
+# plot(gr, diag(cov.true), type = "l")
+# persp3D(gr, gr, cov.true,
+#         theta = -70, phi = 30, expand = 1)
 
 
 #############################
@@ -100,13 +106,19 @@ sum(which(cov.true > 0))
 ### Generate partially observed functional data with outliers from Kraus(2015) setting
 # out.type : same as "fun.snipp" in "sim_Lin_Wang(2020).R" but just 4~6 are available
 # len.grid : length of grids for each curves
-sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51) {
-  ## generate random functional data and missing periods
-  gr <- seq(0, 1, length.out = len.grid)
-  
+sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51, model.cov = 2) {
   # generate fully observed functions
-  x.full <- simul.fd(n = n, grid = gr)   # row : # of curves
-  cov.true <- cov(x.full)   # true covariance
+  x <- fun.fragm(n = n, model = model.cov, frag = FALSE,
+                 out.type = out.type, out.prop = out.prop)
+  gr <- sort(unique(unlist(x$Lt)))   # observed grid
+  x.full <- t(sapply(x$Ly, cbind))
+
+  # ## generate random functional data and missing periods
+  # gr <- seq(0, 1, length.out = len.grid)
+  # 
+  # # generate fully observed functions
+  # x.full <- simul.fd(n = n, grid = gr)   # row : # of curves
+  # cov.true <- cov(x.full)   # true covariance
   
   # generate observation periods
   # curve 1 will be missing on (.4,.7), other curves on random subsets

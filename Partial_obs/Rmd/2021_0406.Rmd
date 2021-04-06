@@ -1,0 +1,132 @@
+---
+title: "Robust PCA for functional snippets"
+author: "Hyunsung Kim"
+date: '2021-04-06'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", fig.width = 12, fig.height = 6
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+# library(GA)   # persp plot
+# library(mvtnorm)
+# library(fdapace)   # 1, 2
+# library(mcfda)   # 7
+# library(synfd)   # 7
+# library(doParallel)   # parallel computing
+# library(doRNG)   # set.seed for foreach
+# library(MASS)   # huber, rlm
+# library(kableExtra)
+# library(tidyverse)
+# library(gridExtra)
+# library(latex2exp)
+# # source("R/functions.R")
+# source("R/utills.R")
+# source("R/sim_utills.R")
+```
+
+
+# Simulation setting
+- True covariance를 알고 있는 Delaigle (2020) setting을 Kraus (2015) setting과 비슷한 형태로 만들어서 simulation
+- 51 time points에서 관측된 100개 curve generate
+- 5-fold CV는 Huber 케이스에서만 시행 (다른 방법들은 fixed하여 사용)
+- PC score는 conditional expectation 기반의 BLUP를 사용하여 계산함 (Yao et al. (2005))
+
+
+# Method for the continuous completion
+> Kneip, A., & Liebl, D. (2020). On the optimal reconstruction of partially observed functional data. *Annals of Statistics*, 48(3), 1692-1717.
+
+- 양 끝에서만 끊기는 경우를 가정 (중간에 끊기는 경우는 제외)
+- Curve alignment (registration)를 적용하여 끊기는 부분과 reconstruction 부분을 continuous하게 연결
+- 사실상 단순한 평행이동을 통해 continuous하게 연결
+- Let a discretized curve $Y_O(t)$ is observed until $t_m$, and $Y_M(t)$ is the missing parts of $Y_O(t)$.
+- Then aligned reconstruction $\widehat Y_{M_{align}}(t)$ is
+  $$
+    \widehat Y_{M_{align}}(t) = \widehat Y_M(t) - \widehat Y_M(t_{m+1}) + Y_O(t_m), ~~ t = t_{m+1}, t_{m+2}, \dots.
+  $$
+```{r comp_Kneip, fig.cap = "", fig.show = "hold", out.width = "100%"}
+path <- "../figure/2021_0406/"
+include_graphics(
+  paste0(path,
+         "Kneip(2020).png")
+)
+```
+
+
+# Outlier X
+## Estimated eigenfunctions
+```{r eig_outX, fig.cap = "Estimated first 3 eigenfunctions.", fig.show = "hold", out.width = "100%"}
+include_graphics(
+  paste0(path,
+         "eig_outX.png")
+)
+```
+
+## Completion for 5 curves
+```{r comp_outX, fig.cap = "Completion for a curve with the number of PCs selected by PVE > 0.99 (Left), and reconstruction for a whole domain (Right)", fig.show = "hold", out.width = "100%"}
+include_graphics(
+  paste0(path,
+         "comp_", 1:6, "_outX.png")
+)
+```
+
+
+
+# Outlier 2
+
+## Estimated eigenfunctions
+```{r eig, fig.cap = "Estimated first 3 eigenfunctions.", fig.show = "hold", out.width = "100%"}
+include_graphics(
+  paste0(path,
+         "eig.png")
+)
+```
+
+## Completion for 5 curves
+```{r comp, fig.cap = "Completion for a curve with the number of PCs selected by PVE > 0.99 (Left), and reconstruction for a whole domain (Right)", fig.show = "hold", out.width = "100%"}
+include_graphics(
+  paste0(path,
+         "comp_", 1:5, ".png")
+)
+```
+
+
+

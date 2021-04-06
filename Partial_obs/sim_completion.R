@@ -186,7 +186,8 @@ pca.huber.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.huber, cov.huber,
 
 
 ### reconstruction for missing parts
-na_ind <- which(is.na(x[1, ]))   # missing periods
+ind <- 65
+na_ind <- which(is.na(x[ind, ]))   # missing periods
 
 # K <- 3
 # pred_yao <- fpca.yao$mu + fpca.yao$phi[, 1:K] %*% matrix(fpca.yao$xiEst[1, 1:K],
@@ -196,16 +197,16 @@ na_ind <- which(is.na(x[1, ]))   # missing periods
 # pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.lin.obj$eig.fun[, 1:K])
 # pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.huber.obj$eig.fun[, 1:K])
 # # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.wrm.obj$eig.fun[, 1:K])
-pred_yao <- fpca.yao$mu + fpca.yao$phi %*% matrix(fpca.yao$xiEst[1, ],
+pred_yao <- fpca.yao$mu + fpca.yao$phi %*% matrix(fpca.yao$xiEst[ind, ],
                                                   ncol = 1)
 # pred_yao <- ConvertSupport(fpca.yao$workGrid, work.grid, mu = pred_yao)
-pred_yao_2 <- mu.yao + matrix(pca.yao.obj$pc.score[1, ], nrow = 1) %*% t(pca.yao.obj$eig.fun)
-pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[1, ], nrow = 1) %*% t(pca.lin.obj$eig.fun)
-pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[1, ], nrow = 1) %*% t(pca.huber.obj$eig.fun)
+pred_yao_2 <- mu.yao + matrix(pca.yao.obj$pc.score[ind, ], nrow = 1) %*% t(pca.yao.obj$eig.fun)
+pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[ind, ], nrow = 1) %*% t(pca.lin.obj$eig.fun)
+pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[ind, ], nrow = 1) %*% t(pca.huber.obj$eig.fun)
 # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
-pred.kraus <- pred.missfd(x[1, ], x)
+pred.kraus <- pred.missfd(x[ind, ], x)
 
-plot(work.grid, x[1, ], type = "l")
+plot(work.grid, x[ind, ], type = "l")
 lines(work.grid[na_ind], pred_yao_2[na_ind], col = 2)
 lines(work.grid[na_ind], pred_lin[na_ind], col = 3)
 lines(work.grid[na_ind], pred_huber[na_ind], col = 4)
@@ -218,11 +219,40 @@ lines(work.grid[na_ind], pred_huber[na_ind], col = 4)
 lines(work.grid[na_ind], pred_wrm[na_ind], col = 5)
 lines(work.grid, pred.kraus, col = 6)
 lines(work.grid[na_ind], pred_yao[na_ind], col = 7)
-legend("topright", 
+legend("bottomleft", 
        c("Yao","Lin","Huber","WRM","Kraus","Yao-fdapace"),
        col = 2:7,
        lty = rep(1, 6))
-lines(work.grid[is.na(x[1, ])], x.2$x.full[1, is.na(x[1, ])], col = 1)
+lines(work.grid[is.na(x[ind, ])], x.2$x.full[ind, is.na(x[ind, ])], col = 1)
+
+# curve registration
+x_obs <- na.omit(x[ind, ])
+pred_huber_aligned <- pred_huber[na_ind] - pred_huber[na_ind][1] + x_obs[length(x_obs)]
+lines(work.grid[na_ind], pred_huber_aligned, col = 8)
+
+df_pred <- cbind(
+  x.2$x.full[ind, ],
+  c(x_obs, pred_yao[na_ind]),
+  c(x_obs, pred_yao_2[na_ind]),
+  c(x_obs, pred_lin[na_ind]),
+  c(x_obs, pred_huber[na_ind]),
+  # pred.kraus,
+  c(x_obs, pred_huber_aligned)
+)
+matplot(work.grid, df_pred, type = "l")
+matplot(work.grid, df_pred, type = "l", 
+        xlim = c(0.7, 1), ylim = c(-0.7, 0.4))
+legend("bottomleft", 
+       c("True","Yao","Yao-fdapace","Lin","Huber","Huber-algined"),
+       col = 1:6,
+       lty = rep(1, 6))
+
+# number of negative correlation
+cov.true <- cov(x.2$x.full)
+length(which(cov.true <= 0)) / length(cov.true)
+
+
+
 
 get_ise(pred_yao_2[na_ind],
         x.2$x.full[1, is.na(x[1, ])],
@@ -772,4 +802,249 @@ par(mfrow = c(2, 3))
 plot_cov_surf(cov.est, 1, title = TRUE, lab = "")
 
 cov.est[[1]]$cov.obj$huber$sig2x$obj$y
+
+
+
+
+
+######################################
+### Completion using Delaigle setting
+######################################
+### generate simulated data
+# set.seed(1234)
+# set.seed(2)
+# set.seed(3)
+set.seed(10)
+
+# n.grid <- 51
+# x.2 <- sim.kraus(n = 100, out.prop = 0.2, out.type = 4, len.grid = n.grid)
+x.2 <- sim.kraus(n = n, out.prop = 0, out.type = 4, model.cov = 2, len.grid = 51)
+
+df <- data.frame(
+  id = factor(unlist(sapply(1:length(x.2$Lt), 
+                            function(id) { 
+                              rep(id, length(x.2$Lt[[id]])) 
+                            }) 
+  )),
+  y = unlist(x.2$Ly),
+  t = unlist(x.2$Lt)
+)
+ggplot(df, aes(t, y, color = id)) +
+  geom_line() +
+  theme_bw() +
+  # ylim(-10, 10) +
+  theme(legend.position = "none")
+
+x <- df %>% 
+  spread(key = "t", value = "y")
+x <- x[, -1] %>% 
+  as.matrix
+x[1, ]
+dim(x)
+
+
+# test for fixed parameters
+system.time({
+  # bw <- 0.1
+  # kern <- "gauss"
+  bw <- 0.2
+  kern <- "epan"
+  optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, verbose = FALSE,
+                userBwMu = bw, userBwCov = bw)
+  mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
+  cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
+})
+# user  system elapsed 
+# 0.94    0.00    0.94 
+
+system.time({
+  # kernel <- "gauss"
+  kernel <- "epanechnikov"
+  # estimate mean, variance, covariance
+  mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                         bw = bw)   # It occurs error or very slow.
+  print("mean finish")
+  var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                         mu = mu.lin.obj, bw = bw)
+  print("var finish")
+  cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
+                         mu = mu.lin.obj, sig2x = var.lin.obj)
+  print("cov finish")
+})
+# user  system elapsed 
+# 41.45    0.01   41.47 
+
+system.time({
+  # For delta in Huber function and bandwidth are selected from 5-fold CV
+  mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
+                               bw = bw, k2 = NULL)
+  # bandwidth are selected from 5-fold CV (almost 3 minutes)
+  cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
+                               mu = mu.huber.obj, 
+                               bw = bw, k2 = NULL)
+})
+# user  system elapsed 
+# 4.89    0.02    4.91 
+
+# system.time({
+#   # For delta in Huber function and bandwidth are selected from 5-fold CV
+#   mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
+#                              bw = bw, k2 = 1.345)
+#   # bandwidth are selected from 5-fold CV (almost 3 minutes)
+#   cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
+#                              mu = mu.huber.obj,
+#                              bw = bw, k2 = 1.345)
+# })
+# # user  system elapsed
+# # 286.64    0.01  286.82 gauss
+# # user  system elapsed 
+# # 41.69    0.14   41.82 epan
+
+### Curve reconstruction via PCA
+pve <- 0.99
+
+# PACE by myself
+# work.grid <- cov.yao.obj$workGrid
+# cov.yao <- cov.yao.obj$cov
+work.grid <- seq(0, 1, length.out = n.grid)
+mu.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
+                         mu = mu.yao.obj$mu)
+cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
+                          Cov = cov.yao.obj$cov)
+pca.yao.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.yao, cov.yao, PVE = pve,
+                      sig2 = cov.yao.obj$sigma2, work.grid, K = NULL)
+
+# Lin
+mu.lin <- predict(mu.lin.obj, work.grid)
+cov.lin <- predict(cov.lin.obj, work.grid)
+pca.lin.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.lin, cov.lin, PVE = pve,
+                      sig2 = cov.lin.obj$sig2e, work.grid, K = NULL)
+
+# Huber
+mu.huber <- predict(mu.huber.obj, work.grid)
+cov.huber <- predict(cov.huber.obj, work.grid)
+pca.huber.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
+                        sig2 = cov.huber.obj$sig2e, work.grid, K = NULL)
+
+# # WRM - 535.63 secs(guass) / 75.33 (epan)
+# system.time({
+#   mu.wrm <- predict(mu.wrm.obj, work.grid)
+#   cov.wrm <- predict(cov.wrm.obj, work.grid)
+#   pca.wrm.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.wrm, cov.wrm, 
+#                         sig2 = cov.wrm.obj$sig2e, work.grid, K = NULL)
+# })
+
+
+### reconstruction for missing parts
+cbind(apply(x, 1, function(x){ sum(is.na(x)) }),
+      apply(x, 1, function(x){ is.na(x[51]) }))
+ind <- 92   # 15, 33, 59, 66, 72, 92
+na_ind <- which(is.na(x[ind, ]))   # missing periods
+
+# K <- 3
+# pred_yao <- mu.yao + matrix(pca.yao.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.yao.obj$eig.fun[, 1:K])
+# pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.lin.obj$eig.fun[, 1:K])
+# pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.huber.obj$eig.fun[, 1:K])
+# # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.wrm.obj$eig.fun[, 1:K])
+pred_yao <- mu.yao + matrix(pca.yao.obj$pc.score[ind, ], nrow = 1) %*% t(pca.yao.obj$eig.fun) %>% 
+  as.numeric()
+pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[ind, ], nrow = 1) %*% t(pca.lin.obj$eig.fun) %>% 
+  as.numeric()
+pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[ind, ], nrow = 1) %*% t(pca.huber.obj$eig.fun) %>% 
+  as.numeric()
+# pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
+pred.kraus <- pred.missfd(x[ind, ], x)
+
+# curve registration
+x_obs <- na.omit(x[ind, ])
+pred_huber_aligned <- pred_huber[na_ind] - pred_huber[na_ind][1] + x_obs[length(x_obs)]
+# lines(work.grid[na_ind], pred_huber_aligned, col = 8)
+
+par(mfrow = c(1, 2))
+df_pred <- cbind(
+  x.2$x.full[ind, ],
+  c(x_obs, pred_yao[na_ind]),
+  c(x_obs, pred_lin[na_ind]),
+  c(x_obs, pred_huber[na_ind]),
+  pred.kraus,
+  c(x_obs, pred_huber_aligned)
+)
+matplot(work.grid, df_pred, type = "l",
+        xlab = "", ylab = "")
+lines(work.grid, x.2$x.full[ind, ])
+abline(v = work.grid[na_ind[1]-1], lty = 2, lwd = 2)
+# matplot(work.grid, df_pred, type = "l", 
+#         xlim = c(0.5, 1), ylim = c(-2, 1.5))
+legend("topleft", 
+       c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
+       col = 1:6,
+       lty = rep(1, 7))
+
+df <- cbind(
+  x.2$x.full[ind, ],
+  pred_yao,
+  pred_lin,
+  pred_huber
+)
+matplot(work.grid, df, type = "l",
+        xlab = "", ylab = "")
+abline(v = work.grid[na_ind[1]-1], lty = 2, lwd = 2)
+legend("topleft", 
+       c("True","Yao","Lin","Huber"),
+       col = 1:4,
+       lty = rep(1, 4))
+
+
+# number of negative correlation
+cov.true <- cov(x.2$x.full)
+length(which(cov.true <= 0)) / length(cov.true)
+
+par(mfrow = c(2, 2))
+persp3D(gr, gr, cov.true,
+        theta = -70, phi = 30, expand = 1)
+persp3D(gr, gr, cov.yao,
+        theta = -70, phi = 30, expand = 1)
+persp3D(gr, gr, cov.lin,
+        theta = -70, phi = 30, expand = 1)
+persp3D(gr, gr, cov.huber,
+        theta = -70, phi = 30, expand = 1)
+
+
+# eigen analysis
+cov.true <-  get_cov_fragm(work.grid, model = model.cov)
+eig.true <- get_eigen(cov = cov.true, grid = work.grid)
+eig.yao <- get_eigen(cov = cov.yao, grid = work.grid)
+eig.lin <- get_eigen(cov = cov.lin, grid = work.grid)
+eig.huber <- get_eigen(cov = cov.huber, grid = work.grid)
+# eig.wrm <- get_eigen(cov = cov.wrm, grid = work.grid)
+
+# change eigen direction(sign) for first K eigenvectors
+K <- 3
+eig.yao$phi[, 1:K] <- check_eigen_sign(eig.yao$phi[, 1:K], eig.true$phi[, 1:K])
+eig.lin$phi[, 1:K] <- check_eigen_sign(eig.lin$phi[, 1:K], eig.true$phi[, 1:K])
+eig.huber$phi[, 1:K] <- check_eigen_sign(eig.huber$phi[, 1:K], eig.true$phi[, 1:K])
+# eig.wrm$phi[, 1:K] <- check_eigen_sign(eig.wrm$phi[, 1:K], eig.true$phi[, 1:K])
+
+# fitst 3 eigenfunctions
+fig <- list()
+for (i in 1:K) {
+  fig.data <- data.frame(
+    work.grid = rep(work.grid, 4),
+    phi = c(eig.true$phi[, i],
+            eig.yao$phi[, i],
+            eig.lin$phi[, i],
+            eig.huber$phi[, i]),
+    method = factor(rep(c("True","Yao","Lin","Huber"),
+                        each = length(work.grid)),
+                    levels = c("True","Yao","Lin","Huber"))
+  )
+  fig[[i]] <- ggplot(data = fig.data, 
+                     mapping = aes(work.grid, phi, color = method, linetype = method)) +
+    geom_line(size = 1) +
+    labs(x = TeX("$t$"), y = TeX(paste0("$\\phi_", i, "(t)$"))) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom")
+}
+gridExtra::grid.arrange(grobs = fig, nrow = 1)
 
