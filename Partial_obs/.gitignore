@@ -1,2 +1,2 @@
-﻿RData/
-img/
+﻿*.RData
+*.eps
