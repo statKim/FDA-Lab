@@ -226,10 +226,6 @@ varfunc.rob <- function(Lt,
     stop("Lt and Ly must be list type.")
   }
   
-  if (is.null(sig2)) {
-    sig2 <- sigma2.rob(Lt, Ly)
-  }
-  
   if (is.null(mu)) {
     mu <- meanfunc.rob(Lt, Ly, method = method)
   }
@@ -246,6 +242,12 @@ varfunc.rob <- function(Lt,
       return( (Ly[[i]] - mui)^2 )
     }
   })
+
+  # obtain noise variance  
+  if (is.null(sig2)) {
+    h.sig2 <- select.sig2.bw(Lt, Ly, ss)
+    sig2 <- sigma2.rob(Lt, Ly, h = h.sig2)
+  }
   
   R <- list(obj = meanfunc.rob(Lt, ss, method = method, ...),
             sig2 = sig2)
@@ -333,14 +335,15 @@ covfunc.rob.huber <- function(Lt,
   
   print("Finish mean estimation!")
   
-  if (is.null(sig2e)) {
-    sig2e <- sigma2.rob(Lt, Ly)
-  }
+  # if (is.null(sig2e)) {
+  #   sig2e <- sigma2.rob(Lt, Ly)
+  # }
   
   if(is.null(sig2x)) {
     # sig2x <- varfunc(Lt,Ly,mu=mu,sig2=sig2e)
     sig2x <- varfunc.rob(Lt, Ly, mu = mu, sig2 = sig2e, kernel = kernel, 
                          method = method, ...)   # Huber option
+    sig2e <- sig2x$sig2   # noise variance
   }
   var.hat <- predict(sig2x, unlist(Lt))   #  TOO SLOW => Need to improve speed
   
@@ -417,11 +420,12 @@ sigma2.rob <- function(t, y, h = NULL) {
     
     t.min <- min(unlist(t))
     t.max <- max(unlist(t))
-    if (is.null(h)) {
+    if (is.null(h)) {   # Not recommended
       h <- select.sig2.bw(t,y)
     } else if (2*h >= t.max-t.min) {
       stop('h is too large')
     }
+    
     
     A0A1 <- sapply(1:n, function(i){
       tobs <- t[[i]]
@@ -454,4 +458,74 @@ sigma2.rob <- function(t, y, h = NULL) {
   } 
   
   return(sig2)
+}
+
+
+select.sig2.bw <- function(Lt, Ly, ss = NULL) {
+  n <- length(Lt)
+  
+  t.min <- min(unlist(Lt))
+  t.max <- max(unlist(Lt))
+  
+  delta <- max(sapply(Lt,function(ts){max(ts)-min(ts)}))
+  m <- mean(sapply(Lt,function(ts){length(ts)}))
+  M <- n * m^2
+  #h <- delta * (M^(-1/5)) / 7
+  
+  # mu.hat <- predict(meanfunc(Lt,Ly),Ly)
+  mu.hat <- predict(meanfunc(Lt, Ly), Lt)
+  tmp <- lapply(1:length(Lt),function(i){
+    rr <- Ly[[i]] - mu.hat[[i]]
+    rr^2
+  })
+  
+  # calculate sum of squares - Not recommended (Already it was calculated once!)
+  if (is.null(ss)) {
+    # mu.hat <- predict(meanfunc(Lt,Ly),Ly)
+    mu.hat <- predict(meanfunc(Lt, Ly), Lt)
+    tmp <- lapply(1:length(Lt),function(i){
+      rr <- Ly[[i]] - mu.hat[[i]]
+      rr^2
+    })
+  }
+  
+  vn <- sqrt(mean(unlist(ss)))
+  
+  h <- 0.29 * delta * vn * (M^(-1/5))
+  
+  max.it <- 1000
+  it <- 0
+  while(it < max.it) # h0 two small
+  {
+    it <- it + 1
+    
+    cnt <- sapply(1:n,function(i){
+      tobs <- Lt[[i]]
+      y <- Ly[[i]]
+      m <- length(tobs)
+      v1 <- 0
+      
+      if(m < 2) return(0)
+      for(j in 1:m)
+      {
+        for(k in 1:m)
+        {
+          if( (k!=j) && abs(tobs[j]-tobs[k])<h )
+          {
+            v1 <- v1 + 1
+          }
+        }
+      }
+      return(v1)
+    })
+    
+    cnt <- sum(cnt)
+    if(cnt >= min(50,0.1*n*m*(m-1))) break
+    else
+    {
+      h <- h*1.01
+    }
+  }
+  
+  return(h)
 }
