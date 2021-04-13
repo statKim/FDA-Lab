@@ -245,7 +245,7 @@ varfunc.rob <- function(Lt,
 
   # obtain noise variance  
   if (is.null(sig2)) {
-    h.sig2 <- select.sig2.bw(Lt, Ly, ss)
+    h.sig2 <- select.sig2.rob.bw(Lt, Ly, ss)
     sig2 <- sigma2.rob(Lt, Ly, h = h.sig2)
   }
   
@@ -331,23 +331,48 @@ covfunc.rob.huber <- function(Lt,
   if (is.null(mu)) {
     mu <- meanfunc.rob(Lt, Ly, kernel = kernel, method = method)   # Huber option
   }
-  mu.hat <- predict(mu, unlist(Lt))   #  TOO SLOW => Need to improve speed
+  # mu.hat <- predict(mu, unlist(Lt))   #  TOO SLOW => Need to improve speed
+  n <- length(Lt)
+  gr <- sort(unique(unlist(Lt)))
+  mu.hat.unique <- predict(mu, gr)
+  mu.hat <- lapply(1:n, function(i) {
+    ind <- match(Lt[[i]], gr)
+    if (length(ind) == length(Lt[[i]])) {
+      return(mu.hat.unique[ind])
+    } else {
+      mui <- predict(mu, Lt[[i]])
+      return(mui)
+    }
+  })
+  mu.hat <- unlist(mu.hat)
   
-  print("Finish mean estimation!")
+  cat("Finish mean estimation! \n")
   
   # if (is.null(sig2e)) {
   #   sig2e <- sigma2.rob(Lt, Ly)
   # }
   
-  if(is.null(sig2x)) {
+  if (is.null(sig2x)) {
     # sig2x <- varfunc(Lt,Ly,mu=mu,sig2=sig2e)
     sig2x <- varfunc.rob(Lt, Ly, mu = mu, sig2 = sig2e, kernel = kernel, 
                          method = method, ...)   # Huber option
-    sig2e <- sig2x$sig2   # noise variance
   }
-  var.hat <- predict(sig2x, unlist(Lt))   #  TOO SLOW => Need to improve speed
+  sig2e <- sig2x$sig2   # noise variance
   
-  print("Finish variance estimation!")
+  # var.hat <- predict(sig2x, unlist(Lt))   #  TOO SLOW => Need to improve speed
+  var.hat.unique <- predict(sig2x, gr)
+  var.hat <- lapply(1:n, function(i) {
+    ind <- match(Lt[[i]], gr)
+    if (length(ind) == length(Lt[[i]])) {
+      return(var.hat.unique[ind])
+    } else {
+      vari <- predict(sig2x, Lt[[i]])
+      return(vari)
+    }
+  })
+  var.hat <- unlist(var.hat)
+  
+  cat("Finish variance estimation! \n")
   
   if (is.null(domain)) {
     t.vec <- unlist(Lt)
@@ -381,7 +406,7 @@ covfunc.rob.huber <- function(Lt,
   if (!is.null(newt)) {
     rslt$fitted <- predict(rslt, newt)
   }
-  print("Finish covariance estimation!")
+  cat("Finish covariance estimation! \n")
   
   return(rslt)
 }
@@ -435,9 +460,9 @@ sigma2.rob <- function(t, y, h = NULL) {
       A1 <- 0
       B <- 0
       
-      for(j in 1:m) {
-        for(k in 1:m) {
-          if( (k!=j) && abs(tobs[j]-tobs[k])<h ) {
+      for (j in 1:m) {
+        for (k in 1:m) {
+          if ( (k!=j) && (abs(tobs[j]-tobs[k]) < h) ) {
             A0 <- A0 + (y[j]^2 + y[k]^2)/2
             A1 <- A1 + y[j]*y[k]
             B <- B + 1
@@ -461,23 +486,16 @@ sigma2.rob <- function(t, y, h = NULL) {
 }
 
 
-select.sig2.bw <- function(Lt, Ly, ss = NULL) {
+select.sig2.rob.bw <- function(Lt, Ly, ss = NULL) {
   n <- length(Lt)
   
   t.min <- min(unlist(Lt))
   t.max <- max(unlist(Lt))
   
-  delta <- max(sapply(Lt,function(ts){max(ts)-min(ts)}))
-  m <- mean(sapply(Lt,function(ts){length(ts)}))
+  delta <- max(sapply(Lt, function(ts){ max(ts)-min(ts) }))
+  m <- mean(sapply(Lt, length))
   M <- n * m^2
   #h <- delta * (M^(-1/5)) / 7
-  
-  # mu.hat <- predict(meanfunc(Lt,Ly),Ly)
-  mu.hat <- predict(meanfunc(Lt, Ly), Lt)
-  tmp <- lapply(1:length(Lt),function(i){
-    rr <- Ly[[i]] - mu.hat[[i]]
-    rr^2
-  })
   
   # calculate sum of squares - Not recommended (Already it was calculated once!)
   if (is.null(ss)) {
@@ -495,23 +513,22 @@ select.sig2.bw <- function(Lt, Ly, ss = NULL) {
   
   max.it <- 1000
   it <- 0
-  while(it < max.it) # h0 two small
-  {
+  while (it < max.it) {  # h0 two small
     it <- it + 1
+    # print(paste(it, ":"))
     
-    cnt <- sapply(1:n,function(i){
+    cnt <- sapply(1:n, function(i) {
       tobs <- Lt[[i]]
-      y <- Ly[[i]]
+      # y <- Ly[[i]]
       m <- length(tobs)
       v1 <- 0
       
-      if(m < 2) return(0)
-      for(j in 1:m)
-      {
-        for(k in 1:m)
-        {
-          if( (k!=j) && abs(tobs[j]-tobs[k])<h )
-          {
+      if (m < 2) {
+        return(0)
+      } 
+      for (j in 1:m) {
+        for (k in 1:m) {
+          if ( (k!=j) && (abs(tobs[j]-tobs[k]) < h) ) {
             v1 <- v1 + 1
           }
         }
@@ -520,9 +537,9 @@ select.sig2.bw <- function(Lt, Ly, ss = NULL) {
     })
     
     cnt <- sum(cnt)
-    if(cnt >= min(50,0.1*n*m*(m-1))) break
-    else
-    {
+    if (cnt >= min(50, 0.1*n*m*(m-1))) {
+      break
+    } else {
       h <- h*1.01
     }
   }

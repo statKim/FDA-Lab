@@ -181,6 +181,31 @@ check_eigen_sign <- function(eig_vec, target) {
 }
 
 
+list2rbind <- function(x) {
+  if (!is.list(x)) {
+    stop("Input data is not list type.")
+  }
+  
+  x_is_numeric <- sapply(x, is.numeric)
+  if (FALSE %in% x_is_numeric) {
+    stop("At least one object in list is not numeric type.")
+  }
+  
+  # x_dim <- sapply(x, dim)
+  # x_dim_uniq <- apply(x_dim, 1, unique)
+  # if (length(x_dim_uniq) != 2) {
+  #   stop("The dimension of matrix for each list is not same.")
+  # }
+  
+  M <- length(x)
+  A <- x[[1]]
+  for (m in 2:M) { 
+    A <- rbind(A, 
+               x[[m]])
+  }
+  return(A)
+}
+
 
 ### PCA for functional snippets via conditional expectation
 # Lt
@@ -208,18 +233,36 @@ PCA_CE <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
     PVE <- eig.obj$PVE[K]   # PVE
   }
   
-  # estimate PC scores via conditional expectation
+  ## estimate PC scores via conditional expectation
+  # - for loop is as fast as sapply!
+  PC_score <- matrix(NA, n, K)
+  
+  # complete curves - calculate matrix multiplication
+  ind_complete <- sapply(Lt, function(t) { identical(work.grid, t) })
+  complete_curves <- list2rbind(Ly[ind_complete])   # combine complete curves
+  PC_score[ind_complete, ] <- get_CE_score(work.grid, complete_curves, 
+                                           mu, cov, 
+                                           sig2, eig.obj, K, work.grid)
+  
+  # snippets or partially observed curves - calculate individually
+  ind_snippet <- (1:n)[!ind_complete]
+  for (i in ind_snippet) {
+    PC_score[i, ] <- get_CE_score(Lt[[i]], Ly[[i]], 
+                                  mu, cov, 
+                                  sig2, eig.obj, K, work.grid)
+  }
   # obs.grid <- sort(unique(unlist(Lt)))
-  PC_score <- sapply(1:n, function(i) {
-    # xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid, obs.grid)
-    xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid)
-    return(xi)
-  })
+  # PC_score <- sapply(1:n, function(i) {
+  #   # xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid, obs.grid)
+  #   xi <- get_CE_score(Lt[[i]], Ly[[i]], mu, cov, sig2, eig.obj, K, work.grid)
+  #   return(xi)
+  # })
   
   res <- list(
     lambda = eig.obj$lambda[1:K],
     eig.fun = eig.obj$phi[, 1:K],
-    pc.score = t(PC_score),
+    pc.score = PC_score,
+    # pc.score = t(PC_score),
     K = K,
     PVE = PVE,
     work.grid = work.grid,
@@ -234,6 +277,9 @@ PCA_CE <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
 
 
 ### Get PC scores via conditional expectation
+# - t: observed time points
+# - y: matrix => fully observed curves
+# - y: vector => snippets or partially observed curve
 get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
   phi <- eig.obj$phi[, 1:K]
   lambda <- eig.obj$lambda[1:K]
@@ -260,18 +306,39 @@ get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
   #                     length(t),
   #                     length(t))
   
+  # get CE scores via matrix multiplication for fully observed curves
+  if (is.matrix(y)) {
+    n <- nrow(y)   # number of complete curves
+    
+    # obtain PC score via conditional expectation
+    y_mu <- y - matrix(rep(mu, n),
+                       nrow = n,
+                       byrow = TRUE)
+    lamda_phi <- diag(lambda) %*% t(phi)
+    Sigma_y_mu <- solve(Sigma_y, t(y_mu))
+    xi <- lamda_phi %*% Sigma_y_mu
+    
+    return( t(xi) )
+  }
+  
   # get subsets at each observed grid for conditional expectation
-  mu_y_i <- approx(work.grid, mu, t)$y
-  phi_y_i <- apply(phi, 2, function(eigvec){
-    return(approx(work.grid, eigvec, t)$y)
-  })
-  Sigma_y_i <- matrix(pracma::interp2(work.grid,
-                                      work.grid,
-                                      Sigma_y,
-                                      rep(t, each = length(t)),
-                                      rep(t, length(t))),
-                      length(t),
-                      length(t))
+  if (!identical(work.grid, t)) {
+    mu_y_i <- approx(work.grid, mu, t)$y
+    phi_y_i <- apply(phi, 2, function(eigvec){
+      return(approx(work.grid, eigvec, t)$y)
+    })
+    Sigma_y_i <- matrix(pracma::interp2(work.grid,
+                                        work.grid,
+                                        Sigma_y,
+                                        rep(t, each = length(t)),
+                                        rep(t, length(t))),
+                        length(t),
+                        length(t))
+  } else {
+    mu_y_i <- mu
+    phi_y_i <- phi
+    Sigma_y_i <- Sigma_y
+  }
   
   # obtain PC score via conditional expectation
   lamda_phi <- diag(lambda) %*% t(phi_y_i)
