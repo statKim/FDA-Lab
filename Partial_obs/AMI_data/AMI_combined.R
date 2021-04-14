@@ -39,7 +39,7 @@ for (name in flist) {
   colnames(tmp) <- c("yyyymm","ID",df$time)
   tmp <- tmp %>% 
     dplyr::select(-c("yyyymm")) %>% 
-    gather(key = Time, value = Demand, -ID) %>% 
+    gather(key = Time, value = Consumption, -ID) %>% 
     tibble
   
   if (name == flist[1]) {

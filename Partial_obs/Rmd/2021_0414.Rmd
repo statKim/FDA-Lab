@@ -1,0 +1,165 @@
+---
+title: "Robust PCA for functional snippets"
+author: "Hyunsung Kim"
+date: '2021-04-14'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", fig.width = 12, fig.height = 6
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+
+# Preprocessing for AMI data
+- $n = 1000$ 가구의 2012.01 ~ 2014.11 까지의 시간별 데이터로 다음의 2단계를 거쳐 preprocessing.
+  - 일별 평균 데이터 (`na.rm = TRUE`) 로 변환 (**1038 time points**).
+  - 3일별 평균 데이터 (`na.rm = FALSE`) 로 변환 (**346 time points**).
+- `-`값을 가지는 극단적으로 잘못 측정된 데이터가 존재하나, 모두 포함한 상태에서 진행.
+- 312개 curve가 missing value를 포함.
+
+<br>
+
+# Clustering for AMI data
+- 다음의 방법을 통해 covariance estimate 후, FPCA 적용 (**4 PCs** 사용).
+  - Yao et al. (2005)
+  - Huber loss
+- 위로부터 얻은 FPC score를 사용하여 $k$-means clustering 적용.
+- 우선 결과 확인을 위해 fixed parameter 사용 ($h = 0.2, \delta = 1.345$).
+- **4개 clusters**를 가정.
+
+
+## Clustering results
+```{r PC1vsPC2, fig.cap = "Figure 1. Scatter of first FPC versus second FPC from $k$-means clustering. Right is the figure except for one extreme value on Left.", fig.show = "hold", out.width = "60%"}
+path <- "../figure/2021_0414/"
+include_graphics(
+  paste0(path,
+         "pc1_pc2.png")
+)
+```
+
+```{r traj_cluster, fig.cap = "Figure 2. 1000 AMI trajectories between 4 clusters.", fig.show = "hold", out.width = "60%"}
+include_graphics(
+  paste0(path,
+         "traj_cluster.png")
+)
+```
+
+```{r traj_cluster_each, fig.cap = "Figure 3. AMI trajectories for each cluster. Parenthesis indicates the number of missing curves and total curves on each cluster.", fig.show = "hold", out.width = "100%"}
+include_graphics(
+  paste0(path,
+         "traj_cluster_each.png")
+)
+```
+
+
+<br>
+
+## Clustering for different number of groups
+```{r cluster_2to5, fig.cap = "Figure 4. Averaged AMI trajectories for 2 ~ 5 clusters. Parenthesis indicates the number of curves on each cluster.", fig.show = "hold", out.width = "100%"}
+include_graphics(
+  paste0(path,
+         "cluster_2to5.png")
+)
+```
+
+
+```{r tab1}
+load("../RData/20210413_cluster_test.RData")
+library(kableExtra)
+library(tidyverse)
+
+# number of curves having missing for each clusters
+K <- 4
+fpc.yao <- pca.yao.obj$pc.score[, 1:K]
+fpc.huber <- pca.huber.obj$pc.score[, 1:K]
+
+n_group <- 5
+df <- data.frame(matrix(NA, n_group, 4*2 + 1))
+colnames(df) <- c("Cluster",
+                  rep(c("Yao","Huber"), 4))
+df$Cluster <- 1:5
+num_missing <- 0
+
+for (n_clust in 2:5) {
+  set.seed(1000)
+  kmeans.yao.obj <- kmeans(x = fpc.yao, centers = n_clust)
+  kmeans.yao <- kmeans.yao.obj$cluster
+  cl.yao <- order(table(kmeans.yao), decreasing = T)
+
+  set.seed(1000)
+  kmeans.huber.obj <- kmeans(x = fpc.huber, centers = n_clust)
+  kmeans.huber <- kmeans.huber.obj$cluster
+  cl.huber <- order(table(kmeans.huber), decreasing = T)
+
+  for (i in 1:n_group) {
+    ind <- which(kmeans.yao == cl.yao[i])
+    y <- AMI_3day[ind, ]
+    num_NA <- ind[apply(y, 1, function(row) { sum(is.na(row)) }) > num_missing]
+    df[i, (n_clust-2)*2+2] <- paste(length(num_NA), "/", length(ind))
+    # df[i, 1] <- paste0(length(ind), " (", length(num_NA), ")")
+
+    ind <- which(kmeans.huber == cl.huber[i])
+    y <- AMI_3day[ind, ]
+    num_NA <- ind[apply(y, 1, function(row) { sum(is.na(row)) }) > num_missing]
+    df[i, (n_clust-2)*2+3] <- paste(length(num_NA), "/", length(ind))
+    # df[i, 2] <- paste0(length(ind), " (", length(num_NA), ")")
+  }
+}
+
+knitr::kable(df,
+             # digits = 3,
+             align = "c",
+             escape = FALSE,
+             caption = "Table 1. The number of curves assigned to each cluster for different number of groups (# of missing curves / # of total curves).") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "2 Clusters" = 2,
+                       "3 Clusters" = 2,
+                       "4 Clusters" = 2,
+                       "5 Clusters" = 2))
+```
+
+
+<br>
+
+# Problems
+- Time-consuming
+  - 방법론 자체가 연산이 오래 걸림에도 불구하고 AMI 자료의 차원이 큰 편임 (Covariance estimation, PCA).
+  - 실제 계산을 위해서 51 ~ 101개의 time points로 pre-smoothing을 거쳐 줄이고 시작하는 방법도 있으나, AMI data가 spike가 매우 많은 데이터이기 때문에, covariance estimate 전에 smoothing을 하는 것은 좋지 않을 것으로 보임.
+- kCFC를 missing curve에 적용해보려 했으나, 메모리 부족 문제가 발생했고, 100개 curve에 적용하였을 때는 오래 걸려 결과 확인 못함.
