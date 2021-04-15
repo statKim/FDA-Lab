@@ -132,14 +132,17 @@ get_outlier <- function(n, model = 5) {
 
 
 ### Generate functional snippets with outliers => fun.snipp
-sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1) {
+sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1, 
+                         delta = 0.25, m = 5, 
+                         process = synfd::gaussian.process(synfd::matern),
+                         regular.grid = TRUE, grid.length = 51) {
   n.outlier <- ceiling(n*out.prop)   # number of outliers
   
   # set up mean and cov functions and synthesize data functional dataset
   mu <- function(s) { 2*(s^2)*cos(2*pi*s) }
   sig <- NULL   # measurement error; To use this option, set "snr = NULL"
   snr <- 2
-  delta <- 0.25   # domain
+  # delta <- 0.25   # domain
   
   if (!(out.type %in% 1:6)) {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~6."))
@@ -150,9 +153,59 @@ sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1) {
     n <- n - n.outlier
   }
   
-  # generate functional snippets without outliers
-  x <- synfd::irreg.fd(mu = mu, X = synfd::gaussian.process(synfd::matern), 
-                       n = n, m = 5, sig = sig, snr = snr, delta = delta)
+  # generate functional snippets having regular grids without outliers
+  if (regular.grid == TRUE) {
+    tmp <- reg.fd(mu = mu, X = process,
+                  n = n, m = grid.length, sig = sig, snr = snr)
+    gr <- tmp$t
+    x.full <- tmp$y
+    
+    incomp_prop <- runif(1, 0.7, 0.9)   # proportion of incomplete curves
+    incomp_curve <- sample(1:n, ceiling(n*incomp_prop))   # index of incomplete curves
+    
+    Ly <- list()
+    Lt <- list()
+    for (i in 1:n) {
+      if (i %in% incomp_curve) {
+        # partially observed curves
+        
+        # from Delaigle(2020) setting
+        a_l <- 0.2
+        b_l <- 0.8
+        l_i <- runif(1, a_l, b_l)
+        M_i <- runif(1, a_l/2, 1-a_l/2)
+        A_i <- max(0, M_i-l_i/2)
+        B_i <- min(1, M_i+l_i/2)
+        
+        obs_ind <- which((gr >= A_i) & (gr <= B_i))
+        
+        Lt[[i]]  <- gr[obs_ind]
+        Ly[[i]] <- x.full[i, obs_ind]
+      } else {
+        # complete curves
+        Lt[[i]]  <- gr
+        Ly[[i]] <- x.full[i, ]
+      }
+    }
+    
+    x <- list(Lt = Lt,
+              Ly = Ly,
+              x.full = x.full)
+    
+    # t_length <- sapply(x$t, length)
+    # t_min <- sapply(x$t, min)
+    # 
+    # for (i in 1:length(t_min)) {
+    #   ind <- which.min(abs(t_min[i] - gr))   # find the closed value
+    #   x$t[[i]] <- gr[ind:(ind+t_length[i]-1)]
+    # }
+  } else {
+    # generate functional snippets without outliers
+    x <- synfd::irreg.fd(mu = mu, X = process, 
+                         n = n, m = m, sig = sig, snr = snr, delta = delta)
+    x <- list(Lt = x$t,
+              Ly = x$y)
+  }
   
   # no outliers
   if (out.prop == 0) {
@@ -172,8 +225,8 @@ sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1) {
     x.outlier <- synfd::irreg.fd(mu = mu.outlier, X = wiener.process(),
                                  n = n.outlier, m = 5, sig = sig, snr = snr, delta = delta)
     
-    x <- list(t = c(x$t, x.outlier$t),
-              y = c(x$y, x.outlier$y),
+    x <- list(t = c(x$Lt, x.outlier$Lt),
+              y = c(x$Ly, x.outlier$Ly),
               optns = list(mu = mu,
                            mu.outlier = mu.outlier))
     
@@ -181,7 +234,7 @@ sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1) {
     d <- 0.3
     sigma.exp <- 1
     for (k in (n-n.outlier+1):n) {
-      t <- x$t[[k]]
+      t <- x$Lt[[k]]
       m <- length(t)   # length of time points
       tmp.mat <- matrix(NA, m, m)
       for (j in 1:m){
@@ -202,11 +255,12 @@ sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1) {
         err.out <- rmvc(1, mu(t), Sigma)   # cauchy
       }
       
-      x$y[[k]] <- rmvn(1, mu(t), Sigma) * 2 + err.out
+      # x$y[[k]] <- rmvn(1, mu(t), Sigma) * 2 + err.out
+      x$Ly[[k]] <- as.numeric(err.out)
     }
   }
-  x$optns <- list(mu = mu,
-                  mu.outlier = mu.outlier)
+  # x$optns <- list(mu = mu,
+  #                 mu.outlier = mu.outlier)
   
   return(x)
 }

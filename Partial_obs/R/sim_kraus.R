@@ -105,16 +105,17 @@ simul.obs <- function(n = 100, grid = seq(0, 1, len = 200), d = 1.4, f = .2) {
 
 ### Generate partially observed functional data with outliers from Kraus(2015) setting
 # out.type : same as "fun.snipp" in "sim_Lin_Wang(2020).R" but just 4~6 are available
-# len.grid : length of grids for each curves
-sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, len.grid = 51, model.cov = 2) {
+# grid.length : length of grids for each curves
+sim.kraus <- function(n = 100, out.prop = 0.2, out.type = 4, 
+                      grid.length = 51, model.cov = 2) {
   # generate fully observed functions
-  x <- fun.fragm(n = n, model = model.cov, frag = FALSE,
-                 out.type = out.type, out.prop = out.prop)
+  x <- sim_delaigle(n = n, model = model.cov, frag = FALSE,
+                    out.type = out.type, out.prop = out.prop)
   gr <- sort(unique(unlist(x$Lt)))   # observed grid
   x.full <- t(sapply(x$Ly, cbind))
 
   # ## generate random functional data and missing periods
-  # gr <- seq(0, 1, length.out = len.grid)
+  # gr <- seq(0, 1, length.out = grid.length)
   # 
   # # generate fully observed functions
   # x.full <- simul.fd(n = n, grid = gr)   # row : # of curves
