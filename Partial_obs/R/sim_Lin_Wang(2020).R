@@ -131,8 +131,8 @@ get_outlier <- function(n, model = 5) {
 # matplot(grid, t(train.cont), type = "l", col = 1, lty = 1)
 
 
-### Generate functional snippets with outliers
-fun.snipp <- function(n = 100, out.prop = 0.2, out.type = 1) {
+### Generate functional snippets with outliers => fun.snipp
+sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1) {
   n.outlier <- ceiling(n*out.prop)   # number of outliers
   
   # set up mean and cov functions and synthesize data functional dataset

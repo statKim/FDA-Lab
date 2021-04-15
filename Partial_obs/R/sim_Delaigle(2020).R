@@ -21,13 +21,13 @@ get_K <- function(s, t, model = 1) {
 }
 
 
-### Generate functional fragments with outliers
+### Generate functional fragments with outliers => fun.fragm
 # model = 1~2 avaliable (In the paper, 1~4 models are shown)
 # out.type : same as "fun.snipp" in "sim_Lin_Wang(2020).R" but just 4~6 are available
 # len.frag : length of domain for each curves
 # frag : generate functional fragments (If frag = FALSE, dense curves are generated.)
-fun.fragm <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
-                      len.frag = c(0.1, 0.3), frag = TRUE) {
+sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
+                         len.frag = c(0.1, 0.3), frag = TRUE) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
   x <- list(Lt = list(),
