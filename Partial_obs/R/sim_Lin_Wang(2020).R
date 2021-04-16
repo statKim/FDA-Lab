@@ -132,7 +132,8 @@ get_outlier <- function(n, model = 5) {
 
 
 ### Generate functional snippets with outliers => fun.snipp
-sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1, 
+# out.type = 4~6 are supported only.
+sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 4, 
                          delta = 0.25, m = 5, 
                          process = synfd::gaussian.process(synfd::matern),
                          regular.grid = TRUE, grid.length = 51) {
@@ -214,22 +215,23 @@ sim_lin_wang <- function(n = 100, out.prop = 0.2, out.type = 1,
   
   # add outlier curves
   if (out.type %in% 1:3) {
-    if (out.type == 1) {
-      mu.outlier <- function(s) { -2*(s^2)*cos(2*pi*s) }   # outlier 1
-    } else if (out.type == 2) {
-      mu.outlier <- function(s) { -3*sin(4*pi*s) }   # oulier 2
-    } else {
-      mu.outlier <- function(s) { 2*((s-0.2)^2)*cos(2*pi*(s-0.2)) }   # outlier 3
-    }
-    
-    x.outlier <- synfd::irreg.fd(mu = mu.outlier, X = wiener.process(),
-                                 n = n.outlier, m = 5, sig = sig, snr = snr, delta = delta)
-    
-    x <- list(t = c(x$Lt, x.outlier$Lt),
-              y = c(x$Ly, x.outlier$Ly),
-              optns = list(mu = mu,
-                           mu.outlier = mu.outlier))
-    
+    # if (out.type == 1) {
+    #   mu.outlier <- function(s) { -2*(s^2)*cos(2*pi*s) }   # outlier 1
+    # } else if (out.type == 2) {
+    #   mu.outlier <- function(s) { -3*sin(4*pi*s) }   # oulier 2
+    # } else {
+    #   mu.outlier <- function(s) { 2*((s-0.2)^2)*cos(2*pi*(s-0.2)) }   # outlier 3
+    # }
+    # 
+    # x.outlier <- synfd::irreg.fd(mu = mu.outlier, X = wiener.process(),
+    #                              n = n.outlier, m = 5, sig = sig, snr = snr, delta = delta)
+    # x.outlier <- list(Lt = lapply(x.outlier$t, as.numeric),
+    #                   Ly = lapply(x.outlier$y, as.numeric))
+    # 
+    # x <- list(Lt = c(x$Lt, x.outlier$Lt),
+    #           Ly = c(x$Ly, x.outlier$Ly),
+    #           optns = list(mu = mu,
+    #                        mu.outlier = mu.outlier))
   } else if (out.type %in% 4:6) {
     d <- 0.3
     sigma.exp <- 1

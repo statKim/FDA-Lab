@@ -216,7 +216,7 @@ list2rbind <- function(x) {
 # work.grid
 # K : number of PCs. If K is NULL, K is selected by PVE.
 # PVE : proportion of variance explained
-PCA_CE <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99) {
+funPCA <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99) {
   n <- length(Lt)   # number of observations
   
   # eigen analysis
@@ -272,7 +272,96 @@ PCA_CE <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
     sig2 = sig2
   )
   
+  class(res) <- "funPCA"
+  
   return(res)
+}
+
+
+### Reconstruction via functional PCA
+# newdata should be a list containing Lt and Ly.
+predict.funPCA <- function(funPCA.obj, newdata = NULL, K = NULL) {
+  if (is.null(K)) {
+    K <- funPCA.obj$K
+  }
+  if (K > funPCA.obj$K) {
+    stop(paste0("Selected number of PCs from funPCA object is less than K."))
+  }
+  
+  if (is.null(newdata)) {
+    pc.score <- funPCA.obj$pc.score[, 1:K]
+    n <- nrow(pc.score)
+  } else {
+    Lt <- newdata$Lt
+    Ly <- newdata$Ly
+    n <- length(Lt)
+    
+    pc.score <- matrix(NA, n, K)
+    for (i in 1:n) {
+      pc.score[i, ] <- get_CE_score(Lt[[i]], Ly[[i]], 
+                                    funPCA.obj$mu, funPCA.obj$cov, funPCA.obj$sig2, 
+                                    funPCA.obj$eig.obj, K, funPCA.obj$work.grid)
+    }
+  }
+  
+  mu <- matrix(rep(funPCA.obj$mu, n),
+               nrow = n, byrow = TRUE)
+  eig.fun <- funPCA.obj$eig.fun[, 1:K]
+  pred <- mu + pc.score %*% t(eig.fun)   # reconstructed curves
+  
+  return(pred)
+}
+
+
+### Obtain reconstructed curve for missing parts and simple curve registration
+# x : a vector containing a partially observed curve (NA for not observed grids)
+# pred : a vector containing a reconstructed curve for whole grid points
+# grid : a vector containing grid points (if NULL, it uses equally spaced grids between (0, 1))
+# align : If TRUE, a simple curve registration are performed for missing parts.
+pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE) {
+  num_grid <- length(x)
+  if (is.null(grid)) {
+    grid <- seq(0, 1, length.out = num_grid)
+  }
+  
+  pred_missing <- rep(NA, num_grid)   # leave only missing parts
+  obs_range <- range(which(!is.na(x)))   # index range of observed periods
+  
+  if ((obs_range[1] > 1) & (obs_range[2] < num_grid)) {
+    # start and end
+    A_i <- obs_range[1] - 1
+    B_i <- obs_range[2] + 1
+    
+    if (align == TRUE) {
+      pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
+      pred_missing[B_i:num_grid] <- pred[B_i:num_grid] - pred[B_i] + x[B_i - 1] 
+    } else {
+      pred_missing[1:A_i] <- pred[1:A_i]
+      pred_missing[B_i:num_grid] <- pred[B_i:num_grid]
+    }
+  } else if ((obs_range[1] > 1) | (obs_range[2] < num_grid)) {
+    if (obs_range[1] > 1) {
+      # start periods
+      A_i <- obs_range[1] - 1
+      
+      if (align == TRUE) {
+        pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
+      } else {
+        pred_missing[1:A_i] <- pred[1:A_i]
+      }
+    } else if (obs_range[2] < num_grid) {
+      # end periods
+      B_i <- obs_range[2] + 1
+      
+      if (align == TRUE) {
+        pred_missing[B_i:num_grid] <- pred[B_i:num_grid] - pred[B_i] + x[B_i - 1] 
+      } else {
+        pred_missing[B_i:num_grid] <- pred[B_i:num_grid]
+      }
+    }
+  }
+  
+  return(pred_missing)
 }
 
 

@@ -272,6 +272,10 @@ predict.varfunc.rob <- function(R, newt) {
   res <- res - R$sig2
   res[res < 0] <- 0
   
+  if (sum(res) == 0) {
+    warning("All estimated variances are 0.")
+  }
+  
   return(res)
 }
 
@@ -436,9 +440,9 @@ predict.covfunc.rob <- function(covobj, newt) {
 
 
 
-#########################################################
+##############################################################
 ### Robust noise variance estimation for functional snippets
-#########################################################
+##############################################################
 sigma2.rob <- function(t, y, h = NULL) {
   if (is.list(y)) {   # irregular data
     n <- length(t)

@@ -42,6 +42,7 @@ length(which(cov(x$x.full) < 0))
 
 ### simulation data test
 set.seed(1000)
+n <- 10
 x <- sim_lin_wang(n = n, out.prop = 0, out.type = 4,
                   process = kl.process(domain = c(0, 1),
                                        eigen.values = 1/(2^(1:4)),
@@ -62,11 +63,11 @@ length(which(cov(x$x.full) < 0))
 # set.seed(1234)
 # set.seed(2)
 # set.seed(3)
-set.seed(10)
-
+# set.seed(10)
+set.seed(1000)
 n <- 100
 n.grid <- 51
-x.2 <- sim_lin_wang(n = n, out.prop = 0, out.type = 4, 
+x.2 <- sim_lin_wang(n = n, out.prop = 0.2, out.type = 3, 
                     process = kl.process(domain = c(0, 1),
                                          eigen.values = 1/(2^(1:4)),
                                          eigen.functions = c("FOURIER"),
@@ -87,12 +88,11 @@ ggplot(df, aes(t, y, color = id)) +
   # ylim(-10, 10) +
   theme(legend.position = "none")
 
+# spread data
 x <- df %>% 
   spread(key = "t", value = "y")
 x <- x[, -1] %>% 
   as.matrix
-x[1, ]
-dim(x)
 
 
 # test for fixed parameters
@@ -129,13 +129,14 @@ system.time({
 system.time({
   # For delta in Huber function and bandwidth are selected from 5-fold CV
   mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
-                               bw = bw, k2 = NULL)
+                               bw = bw, k2 = 1.345)
   # bandwidth are selected from 5-fold CV (almost 3 minutes)
   cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
                                mu = mu.huber.obj, 
-                               bw = bw, k2 = NULL)
+                               bw = bw, k2 = 1.345)
 })
 # user  system elapsed 
+# 1.44    0.00    1.44
 # 59.39    0.00   59.39    # 5-fold CV
 
 # system.time({
@@ -163,19 +164,19 @@ mu.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
                          mu = mu.yao.obj$mu)
 cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
                           Cov = cov.yao.obj$cov)
-pca.yao.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.yao, cov.yao, PVE = pve,
+pca.yao.obj <- funPCA(x.2$Lt, x.2$Ly, mu.yao, cov.yao, PVE = pve,
                       sig2 = cov.yao.obj$sigma2, work.grid, K = NULL)
 
 # Lin
 mu.lin <- predict(mu.lin.obj, work.grid)
 cov.lin <- predict(cov.lin.obj, work.grid)
-pca.lin.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.lin, cov.lin, PVE = pve,
+pca.lin.obj <- funPCA(x.2$Lt, x.2$Ly, mu.lin, cov.lin, PVE = pve,
                       sig2 = cov.lin.obj$sig2e, work.grid, K = NULL)
 
 # Huber
 mu.huber <- predict(mu.huber.obj, work.grid)
 cov.huber <- predict(cov.huber.obj, work.grid)
-pca.huber.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
+pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
                         sig2 = cov.huber.obj$sig2e, work.grid, K = NULL)
 
 # # WRM - 535.63 secs(guass) / 75.33 (epan)
@@ -188,80 +189,30 @@ pca.huber.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
 
 
 ### reconstruction for missing parts
-cbind(apply(x, 1, function(x){ sum(is.na(x)) }),
-      apply(x, 1, function(x){ is.na(x[51]) }))
+apply(x, 1, function(x){ sum(is.na(x)) })
 ind <- 1   # 15, 33, 59, 66, 72, 92
 
-# K <- 3
-# pred_yao <- mu.yao + matrix(pca.yao.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.yao.obj$eig.fun[, 1:K])
-# pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.lin.obj$eig.fun[, 1:K])
-# pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.huber.obj$eig.fun[, 1:K])
-# # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, 1:K], nrow = 1) %*% t(pca.wrm.obj$eig.fun[, 1:K])
-pred_yao <- mu.yao + matrix(pca.yao.obj$pc.score[ind, ], nrow = 1) %*% t(pca.yao.obj$eig.fun) %>% 
-  as.numeric()
-pred_lin <- mu.lin + matrix(pca.lin.obj$pc.score[ind, ], nrow = 1) %*% t(pca.lin.obj$eig.fun) %>% 
-  as.numeric()
-pred_huber <- mu.huber + matrix(pca.huber.obj$pc.score[ind, ], nrow = 1) %*% t(pca.huber.obj$eig.fun) %>% 
-  as.numeric()
+pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+pred_lin <- predict(pca.lin.obj, K = NULL)[ind, ]
+pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
 # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
 pred.kraus <- pred.missfd(x[ind, ], x)
 
-### curve registration
-x_obs <- na.omit(x[ind, ])
-
-
-na_ind <- which(is.na(x[ind, ]))   # missing periods
-pred_huber_aligned <- rep(NA, n.grid)
-completion_ind <- is.na(x[ind, ])
-obs_range <- range(gr[!completion_ind], na.rm = T)
-
-# start and end
-A_i <- na_ind[which(diff(na_ind) > 1)]
-B_i <- na_ind[which(diff(na_ind) > 1)+1]
-
-pred_huber_aligned[1:A_i] <- pred_huber[1:A_i] - pred_huber[A_i] + x[ind, A_i+1]
-pred_huber_aligned[B_i:n.grid] <- pred_huber[B_i:n.grid] - pred_huber[B_i] + x[ind, B_i-1]
-
-# end
-obs_range[1] == 0
-
-# start
-obs_range[2] == 1
-
-
-pred_huber_aligned <- pred_huber[na_ind] - pred_huber[na_ind][1] + x_obs[length(x_obs)]
-# lines(work.grid[na_ind], pred_huber_aligned, col = 8)
-
-# par(mfrow = c(1, 2))
-# df_pred <- cbind(
-#   x.2$x.full[ind, ],
-#   c(x_obs, pred_yao[na_ind]),
-#   c(x_obs, pred_lin[na_ind]),
-#   c(x_obs, pred_huber[na_ind]),
-#   pred.kraus,
-#   c(x_obs, pred_huber_aligned)
-# )
 par(mfrow = c(1, 2))
-df_pred <- cbind(
-  x.2$x.full[ind, ],
-  matrix(NA, 51, 5)
-)
-df_pred[completion_ind, 2] <- pred_yao[completion_ind]
-df_pred[completion_ind, 3] <- pred_lin[completion_ind]
-df_pred[completion_ind, 4] <- pred_huber[completion_ind]
-df_pred[, 5] <- pred.kraus
-df_pred[completion_ind, 6] <- pred_huber_aligned
-
-matplot(work.grid, df_pred, type = "l",
-        xlab = "", ylab = "")
-lines(work.grid, x.2$x.full[ind, ])
-abline(v = obs_range, lty = 2, lwd = 2)
-# matplot(work.grid, df_pred, type = "l", 
-#         xlim = c(0.5, 1), ylim = c(-2, 1.5))
-legend("topleft", 
-       c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
-       col = 1:6,
-       lty = rep(1, 7))
+df <- cbind(x.2$x.full[ind, ],
+            pred_missing_curve(x[ind, ], pred_yao),
+            pred_missing_curve(x[ind, ], pred_lin),
+            pred_missing_curve(x[ind, ], pred_huber),
+            pred.kraus,
+            pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
+matplot(work.grid, df, type = "l",
+        xlab = "", ylab = "", main = "Completion for missing parts")
+abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
+       lty = 2, lwd = 2)
+# legend("topleft", 
+#        c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
+#        col = 1:6,
+#        lty = rep(1, 7))
 
 df <- cbind(
   x.2$x.full[ind, ],
@@ -270,7 +221,7 @@ df <- cbind(
   pred_huber
 )
 matplot(work.grid, df, type = "l",
-        xlab = "", ylab = "")
+        xlab = "", ylab = "", main = "Reconstruction")
 abline(v = work.grid[na_ind[1]-1], lty = 2, lwd = 2)
 legend("topleft", 
        c("True","Yao","Lin","Huber"),
