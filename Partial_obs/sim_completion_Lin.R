@@ -64,15 +64,16 @@ length(which(cov(x$x.full) < 0))
 # set.seed(2)
 # set.seed(3)
 # set.seed(10)
-set.seed(1000)
+set.seed(1)
 n <- 100
 n.grid <- 51
-x.2 <- sim_lin_wang(n = n, out.prop = 0.2, out.type = 3, 
-                    process = kl.process(domain = c(0, 1),
-                                         eigen.values = 1/(2^(1:4)),
-                                         eigen.functions = c("FOURIER"),
-                                         distribution = c("EXPONENTIAL")),
-                    regular.grid = TRUE, grid.length = n.grid) 
+# x.2 <- sim_lin_wang(n = n, out.prop = 0.2, out.type = 6, 
+#                     process = kl.process(domain = c(0, 1),
+#                                          eigen.values = 1/(2^(1:5)),
+#                                          eigen.functions = c("FOURIER"),
+#                                          distribution = c("EXPONENTIAL")),
+#                     regular.grid = TRUE, grid.length = n.grid) 
+x.2 <- sim.kraus(n = 100, out.prop = 0.2, out.type = 4, grid.length = n.grid)
 df <- data.frame(
   id = factor(unlist(sapply(1:length(x.2$Lt), 
                             function(id) { 
@@ -82,17 +83,19 @@ df <- data.frame(
   y = unlist(x.2$Ly),
   t = unlist(x.2$Lt)
 )
-ggplot(df, aes(t, y, color = id)) +
-  geom_line() +
-  theme_bw() +
-  # ylim(-10, 10) +
-  theme(legend.position = "none")
+# ggplot(df, aes(t, y, color = id)) +
+#   geom_line() +
+#   theme_bw() +
+#   # ylim(-10, 10) +
+#   theme(legend.position = "none")
 
 # spread data
 x <- df %>% 
   spread(key = "t", value = "y")
 x <- x[, -1] %>% 
   as.matrix
+matplot(t(x), type = "l")
+
 
 
 # test for fixed parameters
@@ -155,6 +158,7 @@ system.time({
   
 ### Curve reconstruction via PCA
 pve <- 0.99
+K <- 5   # fixed number of PCs
 
 # PACE by myself
 # work.grid <- cov.yao.obj$workGrid
@@ -165,19 +169,19 @@ mu.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
 cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
                           Cov = cov.yao.obj$cov)
 pca.yao.obj <- funPCA(x.2$Lt, x.2$Ly, mu.yao, cov.yao, PVE = pve,
-                      sig2 = cov.yao.obj$sigma2, work.grid, K = NULL)
+                      sig2 = cov.yao.obj$sigma2, work.grid, K = K)
 
 # Lin
 mu.lin <- predict(mu.lin.obj, work.grid)
 cov.lin <- predict(cov.lin.obj, work.grid)
 pca.lin.obj <- funPCA(x.2$Lt, x.2$Ly, mu.lin, cov.lin, PVE = pve,
-                      sig2 = cov.lin.obj$sig2e, work.grid, K = NULL)
+                      sig2 = cov.lin.obj$sig2e, work.grid, K = K)
 
 # Huber
 mu.huber <- predict(mu.huber.obj, work.grid)
 cov.huber <- predict(cov.huber.obj, work.grid)
 pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
-                        sig2 = cov.huber.obj$sig2e, work.grid, K = NULL)
+                        sig2 = cov.huber.obj$sig2e, work.grid, K = K)
 
 # # WRM - 535.63 secs(guass) / 75.33 (epan)
 # system.time({
@@ -189,44 +193,51 @@ pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
 
 
 ### reconstruction for missing parts
-apply(x, 1, function(x){ sum(is.na(x)) })
-ind <- 1   # 15, 33, 59, 66, 72, 92
+which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10)
+which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10 &
+        apply(x, 1, function(x){ is.na(x[51]) | is.na(x[1]) }) > 0)
+
+ind <- 80
 
 pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
 pred_lin <- predict(pca.lin.obj, K = NULL)[ind, ]
 pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
 # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
-pred.kraus <- pred.missfd(x[ind, ], x)
+pred_kraus <- pred.missfd(x[ind, ], x)
 
 par(mfrow = c(1, 2))
 df <- cbind(x.2$x.full[ind, ],
             pred_missing_curve(x[ind, ], pred_yao),
             pred_missing_curve(x[ind, ], pred_lin),
             pred_missing_curve(x[ind, ], pred_huber),
-            pred.kraus,
+            pred_kraus,
             pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
 matplot(work.grid, df, type = "l",
         xlab = "", ylab = "", main = "Completion for missing parts")
 abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
        lty = 2, lwd = 2)
-# legend("topleft", 
-#        c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
-#        col = 1:6,
-#        lty = rep(1, 7))
+legend("topleft",
+       c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
+       col = 1:6,
+       lty = rep(1, 7))
 
 df <- cbind(
   x.2$x.full[ind, ],
   pred_yao,
   pred_lin,
-  pred_huber
+  pred_huber,
+  pred_kraus
 )
 matplot(work.grid, df, type = "l",
         xlab = "", ylab = "", main = "Reconstruction")
-abline(v = work.grid[na_ind[1]-1], lty = 2, lwd = 2)
+abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
+       lty = 2, lwd = 2)
 legend("topleft", 
-       c("True","Yao","Lin","Huber"),
-       col = 1:4,
-       lty = rep(1, 4))
+       c("True","Yao","Lin","Huber","Kraus"),
+       col = 1:5,
+       lty = rep(1, 5))
+
+which(!is.na(x[ind, ]))
 
 
 # number of negative correlation

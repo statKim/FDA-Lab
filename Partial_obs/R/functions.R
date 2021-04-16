@@ -505,7 +505,7 @@ select.sig2.rob.bw <- function(Lt, Ly, ss = NULL) {
   if (is.null(ss)) {
     # mu.hat <- predict(meanfunc(Lt,Ly),Ly)
     mu.hat <- predict(meanfunc(Lt, Ly), Lt)
-    tmp <- lapply(1:length(Lt),function(i){
+    ss <- lapply(1:length(Lt),function(i){
       rr <- Ly[[i]] - mu.hat[[i]]
       rr^2
     })

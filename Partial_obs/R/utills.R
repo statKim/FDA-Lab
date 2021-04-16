@@ -325,41 +325,64 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE) {
   }
   
   pred_missing <- rep(NA, num_grid)   # leave only missing parts
-  obs_range <- range(which(!is.na(x)))   # index range of observed periods
   
-  if ((obs_range[1] > 1) & (obs_range[2] < num_grid)) {
-    # start and end
-    A_i <- obs_range[1] - 1
-    B_i <- obs_range[2] + 1
+  # Wheter missing is outer only or is in the middle
+  is_snippets <- (max( diff( which(!is.na(x)) ) ) == 1)
+  
+  # is_snippets == TRUE, missing is outer side.
+  # is_snippets == FALSE, missing is in middle.
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x)))   # index range of observed periods
     
-    if (align == TRUE) {
-      pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
-      pred_missing[B_i:num_grid] <- pred[B_i:num_grid] - pred[B_i] + x[B_i - 1] 
-    } else {
-      pred_missing[1:A_i] <- pred[1:A_i]
-      pred_missing[B_i:num_grid] <- pred[B_i:num_grid]
-    }
-  } else if ((obs_range[1] > 1) | (obs_range[2] < num_grid)) {
-    if (obs_range[1] > 1) {
-      # start periods
+    if ((obs_range[1] > 1) & (obs_range[2] < num_grid)) {
+      # start and end
       A_i <- obs_range[1] - 1
-      
-      if (align == TRUE) {
-        pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
-      } else {
-        pred_missing[1:A_i] <- pred[1:A_i]
-      }
-    } else if (obs_range[2] < num_grid) {
-      # end periods
       B_i <- obs_range[2] + 1
       
       if (align == TRUE) {
+        pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
         pred_missing[B_i:num_grid] <- pred[B_i:num_grid] - pred[B_i] + x[B_i - 1] 
       } else {
+        pred_missing[1:A_i] <- pred[1:A_i]
         pred_missing[B_i:num_grid] <- pred[B_i:num_grid]
       }
+    } else if ((obs_range[1] > 1) | (obs_range[2] < num_grid)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        A_i <- obs_range[1] - 1
+        
+        if (align == TRUE) {
+          pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
+        } else {
+          pred_missing[1:A_i] <- pred[1:A_i]
+        }
+      } else if (obs_range[2] < num_grid) {
+        # end periods
+        B_i <- obs_range[2] + 1
+        
+        if (align == TRUE) {
+          pred_missing[B_i:num_grid] <- pred[B_i:num_grid] - pred[B_i] + x[B_i - 1] 
+        } else {
+          pred_missing[B_i:num_grid] <- pred[B_i:num_grid]
+        }
+      }
+    }
+  } else {
+    # missing is in the middle.
+    na_range <- range(which(is.na(x)))
+    A_i <- na_range[1]
+    B_i <- na_range[2]
+    
+    if (align == TRUE) {
+      # linear transform is performed
+      slope <- (x[B_i+1] - x[A_i-1]) / (pred[B_i+1] - pred[A_i-1])
+      intercept <- x[A_i-1] - slope * pred[A_i-1]
+      pred_missing[A_i:B_i] <- slope*pred[A_i:B_i] + intercept
+    } else {
+      pred_missing[A_i:B_i] <- pred[A_i:B_i]
     }
   }
+  
   
   return(pred_missing)
 }
