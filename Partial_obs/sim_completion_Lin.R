@@ -18,7 +18,12 @@ library(MASS)   # huber, rlm
 library(latex2exp)
 library(tidyverse)
 library(robfilter)
-source("R/functions.R")
+# source("R/functions.R")
+library(robfpca)
+source("R/utills.R")
+source("R/sim_Delaigle(2020).R")
+source("R/sim_Lin_Wang(2020).R")
+source("R/sim_kraus.R")
 source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 
@@ -60,11 +65,11 @@ length(which(cov(x$x.full) < 0))
 
 
 ### generate simulated data
-# set.seed(1234)
+set.seed(1234)
 # set.seed(2)
 # set.seed(3)
 # set.seed(10)
-set.seed(1)
+# set.seed(1)
 n <- 100
 n.grid <- 51
 # x.2 <- sim_lin_wang(n = n, out.prop = 0.2, out.type = 6, 
@@ -192,55 +197,9 @@ pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, mu.huber, cov.huber, PVE = pve,
 # })
 
 
-### reconstruction for missing parts
-which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10)
-which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10 &
-        apply(x, 1, function(x){ is.na(x[51]) | is.na(x[1]) }) > 0)
-
-ind <- 80
-
-pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
-pred_lin <- predict(pca.lin.obj, K = NULL)[ind, ]
-pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
-# pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
-pred_kraus <- pred.missfd(x[ind, ], x)
-
-par(mfrow = c(1, 2))
-df <- cbind(x.2$x.full[ind, ],
-            pred_missing_curve(x[ind, ], pred_yao),
-            pred_missing_curve(x[ind, ], pred_lin),
-            pred_missing_curve(x[ind, ], pred_huber),
-            pred_kraus,
-            pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
-matplot(work.grid, df, type = "l",
-        xlab = "", ylab = "", main = "Completion for missing parts")
-abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
-       lty = 2, lwd = 2)
-legend("topleft",
-       c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
-       col = 1:6,
-       lty = rep(1, 7))
-
-df <- cbind(
-  x.2$x.full[ind, ],
-  pred_yao,
-  pred_lin,
-  pred_huber,
-  pred_kraus
-)
-matplot(work.grid, df, type = "l",
-        xlab = "", ylab = "", main = "Reconstruction")
-abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
-       lty = 2, lwd = 2)
-legend("topleft", 
-       c("True","Yao","Lin","Huber","Kraus"),
-       col = 1:5,
-       lty = rep(1, 5))
-
-
 
 par(mfrow = c(2, 3))
-cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10)
+cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
 cand <- cand[cand <= 80]   # exclude outlier curves
 # par(mfrow = c(1, 3))
 # cand <- c(25, 70, 80)
@@ -273,9 +232,8 @@ for (ind in cand) {
     obs_range <- range(which(is.na(x[ind, ])))
     # include last observed point
     obs_range <- c(obs_range[1] - 1,
-                   obs_range[2] + 1  )
+                   obs_range[2] + 1)
   }
-    
   
   df <- cbind(x.2$x.full[ind, ],
               pred_missing_curve(x[ind, ], pred_yao),
@@ -283,16 +241,91 @@ for (ind in cand) {
               pred_missing_curve(x[ind, ], pred_huber),
               pred_kraus,
               pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
-  matplot(work.grid, df, type = "l",
+  matplot(work.grid, df, type = "l", lwd = c(1,1,1,2,1,2),
           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
+  grid()
   # legend("topleft",
   #        c("True","Yao","Lin","Huber","Kraus","align 1","align 2"),
   #        col = 1:6,
   #        lty = 1:7)
 }
 par(mfrow = c(1, 1))
+
+
+
+
+### reconstruction for missing parts
+which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10)
+which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10 &
+        apply(x, 1, function(x){ is.na(x[51]) | is.na(x[1]) }) > 0)
+
+ind <- 37
+
+pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+pred_lin <- predict(pca.lin.obj, K = NULL)[ind, ]
+pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
+# pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
+pred_kraus <- pred.missfd(x[ind, ], x)
+
+par(mfrow = c(1, 2))
+df <- cbind(x.2$x.full[ind, ],
+            pred_missing_curve(x[ind, ], pred_yao),
+            pred_missing_curve(x[ind, ], pred_lin),
+            pred_missing_curve(x[ind, ], pred_huber),
+            pred_kraus,
+            pred_missing_curve(x[ind, ], pred_huber, align = TRUE),
+            pred_missing_curve_2(x[ind, ], pred_huber, align = TRUE))
+matplot(work.grid, df, type = "l",
+        xlab = "", ylab = "", main = "Completion for missing parts")
+abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
+       lty = 2, lwd = 2)
+grid()
+legend("topleft",
+       c("True","Yao","Lin","Huber","Kraus","Huber-algined"),
+       col = 1:6,
+       lty = rep(1, 7))
+
+df <- cbind(
+  x.2$x.full[ind, ],
+  pred_yao,
+  pred_lin,
+  pred_huber,
+  pred_kraus
+)
+matplot(work.grid, df, type = "l",
+        xlab = "", ylab = "", main = "Reconstruction")
+abline(v = work.grid[ range(which(!is.na(x[ind, ]))) ],
+       lty = 2, lwd = 2)
+grid()
+legend("topleft", 
+       c("True","Yao","Lin","Huber","Kraus"),
+       col = 1:5,
+       lty = rep(1, 5))
+
+
+pred <- pred_missing_curve_2(x[ind, ], pred_huber, align = TRUE)
+ind_missing <- which(is.na(x[ind, ]))
+z <- x[ind, ]
+z[ind_missing] <- pred[ind_missing]
+
+i <- (ind_missing[1]-4):(ind_missing[1]-1)
+j <- ind_missing[1]:(ind_missing[1]+2)
+
+get_deriv(z, work.grid)[c(i, j)]
+get_deriv(get_deriv(z, work.grid),
+          work.grid)[c(i, j)]
+
+
+get_deriv(c(x[ind, i], pred[j]),
+          work.grid[c(i, j)])
+get_deriv(get_deriv(c(x[ind, i], pred[j]),
+                    work.grid[c(i, j)]),
+          work.grid[c(i, j)])
+pred_missing_curve(x[ind, ], pred_huber, align = TRUE)
+pred
+lines(work.grid, pred, col = 2, lwd = 2)
 
 
 

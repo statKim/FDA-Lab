@@ -90,6 +90,18 @@ get_deriv <- function(f_x, x) {
 }
 
 
+### Check whether vector is convex
+# f_x : a vector of f(x)
+# x : a vector of x
+is.convex <- function(f_x, x) {
+  first_deriv <- get_deriv(f_x, x)
+  second_deriv <- get_deriv(first_deriv, x)
+  
+  ind <- stats::median(1:length(x))
+  
+  return( second_deriv > 0 )
+}
+
 
 ### Get design points
 get_design_index <- function(Lt) {
@@ -396,25 +408,43 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE, conti = TRUE
       intercept <- x[A_i] - slope * pred[A_i]
       pred_missing[A_i:B_i] <- slope*pred[A_i:B_i] + intercept
       
-      # check first derivative
-      # if (+ => -) or (- => +), other transform is performed.
-      first_deriv <- get_deriv(c(x[(A_i-1):A_i], pred_missing[A_i+1]),
-                               grid[(A_i-1):(A_i+1)])
-      first_deriv <- sign(first_deriv)   # obtain the sign
-      
-      # proportional transform having linear gradient of slope
-      if (prod(first_deriv[1], first_deriv[3]) < 0) {
-        # print(paste(ind, ":", prod(first_deriv[1], first_deriv[3])))
-        g <- function(t, y) {
-          numerator <- x[B_i] / pred[B_i] - x[A_i] / pred[A_i]
-          gamma_prime <- numerator / (grid[B_i] - grid[A_i])
-          const <- x[A_i] / pred[A_i] - gamma_prime*grid[A_i]
-          gamma <- gamma_prime * t + const
-
-          return(gamma * y)
+      # small missing values => Not align
+      if (diff(na_range) >= 3) {
+        # check convexity and difference of slope
+        # if (+ => -) or (- => +), other transform is performed.
+        # at least 7 obs are required to compare 3rd and 5th
+        if (A_i - 3 > 0) {
+          # missing start part
+          first_deriv <- get_deriv(c(x[(A_i-3):A_i], 
+                                     pred_missing[(A_i+1):(A_i+3)]),
+                                   grid[(A_i-3):(A_i+3)])
+          is_convex <- is.convex(c(x[(A_i-3):A_i], 
+                                   pred_missing[(A_i+1):(A_i+3)]),
+                                 grid[(A_i-3):(A_i+3)])
+        } else if (B_i + 3 <= num_grid) {
+          # missing end part
+          first_deriv <- get_deriv(c(pred_missing[(B_i-3):(B_i-1)],
+                                     x[B_i:(B_i+3)]),
+                                   grid[(B_i-3):(B_i+3)])
+          is_convex <- is.convex(c(pred_missing[(B_i-3):(B_i-1)],
+                                   x[B_i:(B_i+3)]),
+                                 grid[(B_i-3):(B_i+3)])
         }
-        pred_missing[A_i:B_i] <- g(grid[(A_i):(B_i)],
-                                   pred[(A_i):(B_i)])
+        
+        # proportional transform having linear gradient of slope
+        # second derivative is changed or differnece of first derivative > 10
+        if ( xor(is_convex[3], is_convex[5]) || abs(first_deriv[3] - first_deriv[5]) > 10 ) {
+          g <- function(t, y) {
+            numerator <- x[B_i] / pred[B_i] - x[A_i] / pred[A_i]
+            gamma_prime <- numerator / (grid[B_i] - grid[A_i])
+            const <- x[A_i] / pred[A_i] - gamma_prime*grid[A_i]
+            gamma <- gamma_prime * t + const
+            
+            return(gamma * y)
+          }
+          pred_missing[A_i:B_i] <- g(grid[(A_i):(B_i)],
+                                     pred[(A_i):(B_i)])
+        }
       }
     } else {
       pred_missing[A_i:B_i] <- pred[A_i:B_i]
