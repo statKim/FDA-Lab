@@ -1,7 +1,6 @@
 ### Load pacakges and source codes
 require(fdapace)
 require(tidyverse)
-require(tidyverse)
 source("R/utills.R")
 load_sources()
 

@@ -84,7 +84,7 @@ get_ise <- function(x, x_hat, grid) {
 # f_x : a vector of f(x)
 # x : a vector of x
 get_deriv <- function(f_x, x) {
-  f_prime <- gradient(f_x, x)
+  f_prime <- pracma::gradient(f_x, x)
   
   return(f_prime)
 }
@@ -336,8 +336,13 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE) {
     
     if ((obs_range[1] > 1) & (obs_range[2] < num_grid)) {
       # start and end
-      A_i <- obs_range[1] - 1
-      B_i <- obs_range[2] + 1
+      # include last observed point
+      A_i <- obs_range[1]
+      B_i <- obs_range[2]
+      
+      # exclude last observed point
+      # A_i <- obs_range[1] - 1
+      # B_i <- obs_range[2] + 1
       
       if (align == TRUE) {
         pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
@@ -349,7 +354,8 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE) {
     } else if ((obs_range[1] > 1) | (obs_range[2] < num_grid)) {
       if (obs_range[1] > 1) {
         # start periods
-        A_i <- obs_range[1] - 1
+        A_i <- obs_range[1]   # include last observed point
+        # A_i <- obs_range[1] - 1   # exclude last observed point
         
         if (align == TRUE) {
           pred_missing[1:A_i] <- pred[1:A_i] - pred[A_i] + x[A_i + 1]
@@ -358,7 +364,8 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE) {
         }
       } else if (obs_range[2] < num_grid) {
         # end periods
-        B_i <- obs_range[2] + 1
+        B_i <- obs_range[2]   # include last observed point
+        # B_i <- obs_range[2] + 1   # exclude last observed point
         
         if (align == TRUE) {
           pred_missing[B_i:num_grid] <- pred[B_i:num_grid] - pred[B_i] + x[B_i - 1] 
@@ -370,19 +377,55 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE) {
   } else {
     # missing is in the middle.
     na_range <- range(which(is.na(x)))
-    A_i <- na_range[1]
-    B_i <- na_range[2]
+    
+    # include last observed point
+    A_i <- na_range[1] - 1
+    B_i <- na_range[2] + 1
+    
+    # # exclude last observed point
+    # A_i <- na_range[1]
+    # B_i <- na_range[2]
     
     if (align == TRUE) {
-      # linear transform is performed
-      slope <- (x[B_i+1] - x[A_i-1]) / (pred[B_i+1] - pred[A_i-1])
-      intercept <- x[A_i-1] - slope * pred[A_i-1]
+      # align gradient(slope) and shift to the true scale
+      slope <- (x[B_i] - x[A_i]) / (pred[B_i] - pred[A_i])
+      intercept <- x[A_i] - slope * pred[A_i]
       pred_missing[A_i:B_i] <- slope*pred[A_i:B_i] + intercept
+      
+      # check first derivative
+      # if (+ => -) or (- => +), other transform is performed.
+      first_deriv <- get_deriv(c(x[(A_i-1):A_i], pred_missing[A_i+1]),
+                               grid[(A_i-1):(A_i+1)])
+      # proportional transform having linear gradient of slope
+      if (prod(first_deriv[1], first_deriv[3]) < 0) {
+        print(paste(ind, ":", prod(first_deriv[1], first_deriv[3])))
+        # new transform
+        g <- function(t, y) {
+          numerator <- x[B_i] / pred[B_i] - x[A_i] / pred[A_i]
+          gamma_prime <- numerator / (grid[B_i] - grid[A_i])
+          const <- x[A_i] / pred[A_i] - gamma_prime*grid[A_i]
+          gamma <- gamma_prime * t + const
+
+          return(gamma * y)
+        }
+        pred_missing[A_i:B_i] <- g(grid[(A_i):(B_i)],
+                                   pred[(A_i):(B_i)])
+      }
     } else {
       pred_missing[A_i:B_i] <- pred[A_i:B_i]
     }
+    # A_i <- na_range[1]
+    # B_i <- na_range[2]
+    # 
+    # if (align == TRUE) {
+    #   # linear transform is performed
+    #   slope <- (x[B_i+1] - x[A_i-1]) / (pred[B_i+1] - pred[A_i-1])
+    #   intercept <- x[A_i-1] - slope * pred[A_i-1]
+    #   pred_missing[A_i:B_i] <- slope*pred[A_i:B_i] + intercept
+    # } else {
+    #   pred_missing[A_i:B_i] <- pred[A_i:B_i]
+    # }
   }
-  
   
   return(pred_missing)
 }

@@ -237,7 +237,66 @@ legend("topleft",
        col = 1:5,
        lty = rep(1, 5))
 
-which(!is.na(x[ind, ]))
+
+
+par(mfrow = c(2, 3))
+cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 10)
+cand <- cand[cand <= 80]   # exclude outlier curves
+# par(mfrow = c(1, 3))
+# cand <- c(25, 70, 80)
+num_grid <- length(work.grid)
+for (ind in cand) {
+  pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+  pred_lin <- predict(pca.lin.obj, K = NULL)[ind, ]
+  pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
+  # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
+  pred_kraus <- pred.missfd(x[ind, ], x)
+  
+  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+    
+    if ((obs_range[1] > 1) & (obs_range[2] < num_grid)) {
+      # start and end
+      obs_range <- obs_range
+    } else if ((obs_range[1] > 1) | (obs_range[2] < num_grid)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        obs_range <- obs_range[1]
+      } else if (obs_range[2] < num_grid) {
+        # end periods
+        obs_range <- obs_range[2]
+      }
+    }
+  } else {
+    # missing is in the middle.
+    obs_range <- range(which(is.na(x[ind, ])))
+    # include last observed point
+    obs_range <- c(obs_range[1] - 1,
+                   obs_range[2] + 1  )
+  }
+    
+  
+  df <- cbind(x.2$x.full[ind, ],
+              pred_missing_curve(x[ind, ], pred_yao),
+              pred_missing_curve(x[ind, ], pred_lin),
+              pred_missing_curve(x[ind, ], pred_huber),
+              pred_kraus,
+              pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
+  matplot(work.grid, df, type = "l",
+          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  # legend("topleft",
+  #        c("True","Yao","Lin","Huber","Kraus","align 1","align 2"),
+  #        col = 1:6,
+  #        lty = 1:7)
+}
+par(mfrow = c(1, 1))
+
+
+
+
 
 
 # number of negative correlation
