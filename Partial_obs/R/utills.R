@@ -276,7 +276,7 @@ funPCA <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
     pc.score = PC_score,
     # pc.score = t(PC_score),
     K = K,
-    PVE = PVE,
+    PVE = eig.obj$PVE[K],
     work.grid = work.grid,
     eig.obj = eig.obj,
     mu = mu,
