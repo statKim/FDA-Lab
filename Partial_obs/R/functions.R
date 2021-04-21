@@ -62,6 +62,8 @@ meanfunc.rob <- function(Lt,
   # bw <- get.optional.param('bw',others,NULL)
   
   cv <- FALSE
+  delta_cv <- NULL
+  bw_cv <- NULL
   # 5-fold CV for delta in Huber function
   if ((method %in% c("HUBER","BISQUARE")) && (is.null(k2) | ncores > 1)) {
     print(paste0(cv_K, "-fold CV is performed for delta in Huber function."))
@@ -76,6 +78,7 @@ meanfunc.rob <- function(Lt,
                                             K = cv_K, 
                                             ncores = ncores,
                                             ...)
+    delta_cv <- delta_cv_obj$cv.error
     k2 <- delta_cv_obj$selected_delta
     cv <- TRUE
   }
@@ -93,6 +96,7 @@ meanfunc.rob <- function(Lt,
                                       K = cv_K, 
                                       ncores = ncores,
                                       ...)
+    bw_cv <- bw_cv_obj$cv.error
     bw <- bw_cv_obj$selected_bw
     cv <- TRUE
   }
@@ -130,7 +134,9 @@ meanfunc.rob <- function(Lt,
     R$cv_optns <- list(K = cv_K,
                        ncores = ncores,
                        delta_loss = cv_delta_loss,
-                       bw_loss = cv_bw_loss)
+                       bw_loss = cv_bw_loss,
+                       delta_cv = delta_cv,
+                       bw_cv = bw_cv)
   }
   
   return(R)

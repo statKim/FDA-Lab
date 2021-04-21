@@ -296,17 +296,18 @@ while (num.sim < 100) {
     })
   }
   
-  mise_reconstr[sim, ] <- colMeans(ise_reconstr)
-  mse_reconstr[sim, ] <- colMeans(sse_reconstr)
-  mise_completion[sim, ] <- colMeans(ise_completion)
-  mse_completion[sim, ] <- colMeans(sse_completion)
-  
   # update number of simulations and save seed which does not occur errors
   num.sim <- num.sim + 1
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
-  pca.est[[num.sim]] <- list(work.grid = work.grid,
+  mise_reconstr[num.sim, ] <- colMeans(ise_reconstr)
+  mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
+  mise_completion[num.sim, ] <- colMeans(ise_completion)
+  mse_completion[num.sim, ] <- colMeans(sse_completion)
+  
+  pca.est[[num.sim]] <- list(seed = seed,
+                             work.grid = work.grid,
                              mu.obj = list(yao = mu.yao.obj,
                                            lin = mu.lin.obj,
                                            huber = mu.huber.obj),
@@ -320,19 +321,54 @@ while (num.sim < 100) {
                                             lin = pca.lin.obj,
                                             huber = pca.huber.obj))
 }
-save(list = c("pca.est"),
+save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
      file = "RData/20210421_completion_fixed.RData")
 
-colMeans(mise_reconstr)*1000
-colMeans(mse_reconstr)*1000
-colMeans(mise_completion)*1000
-colMeans(mse_completion)*1000
+colMeans(mise_reconstr)
+colMeans(mse_reconstr)
+colMeans(mise_completion)
+colMeans(mse_completion)
 
-apply(mise_reconstr, 2, sd)*1000
-apply(mse_reconstr, 2, sd)*1000
-apply(mise_completion, 2, sd)*1000
-apply(mse_completion, 2, sd)*1000
+apply(mise_reconstr, 2, sd)
+apply(mse_reconstr, 2, sd)
+apply(mise_completion, 2, sd)
+apply(mse_completion, 2, sd)
 
+
+df <- cbind(
+  MISE = paste0(
+    round(colMeans(mise_reconstr), 2),
+    " (",
+    round(apply(mise_reconstr, 2, sd), 2),
+    ")"
+  ), 
+  MSE = paste0(
+    round(colMeans(mse_reconstr), 2),
+    " (",
+    round(apply(mse_reconstr, 2, sd), 2),
+    ")"
+  )
+) %>% 
+  as.data.frame %>% 
+  rownames_to_column("method")
+df <- cbind(
+  MISE = paste0(
+    round(colMeans(mise_completion[, c(1,2,4,3,5)]), 2),
+    " (",
+    round(apply(mise_completion[, c(1,2,4,3,5)], 2, sd), 2),
+    ")"
+  ), 
+  MSE = paste0(
+    round(colMeans(mse_completion[, c(1,2,4,3,5)]), 2),
+    " (",
+    round(apply(mse_completion[, c(1,2,4,3,5)], 2, sd), 2),
+    ")"
+  )
+) %>% 
+  as.data.frame %>% 
+  rownames_to_column("method") %>% 
+  left_join(df, by = "method")
+df
 
 
 ##################################
@@ -342,7 +378,7 @@ apply(mse_completion, 2, sd)*1000
 set.seed(100)
 n <- 100
 n.grid <- 51
-x.2 <- sim.kraus(n = n, out.prop = 0, out.type = 4, grid.length = n.grid)
+x.2 <- sim.kraus(n = n, out.prop = 0.2, out.type = 4, grid.length = n.grid)
 df <- data.frame(
   id = factor(unlist(sapply(1:length(x.2$Lt), 
                             function(id) { 
@@ -419,6 +455,34 @@ system.time({
 # 1.44    0.00    1.44
 # 59.39    0.00   59.39    # 5-fold CV
 
+system.time({
+  # delta.local_kern_smooth(x.2$Lt, x.2$Ly, method = "HUBER", kernel = "epanechnikov",
+  #                                     cv_loss = "L1", ncores = 8,
+  #                                     K = 5, delta_cand = NULL,  bw = 0.2)
+  mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
+                               bw = bw, k2 = NULL, ncores = 9)
+
+  # registerDoParallel(makeCluster(9))
+  # cv_error <- foreach(i = 1:3, .combine = "c",
+  #                     .packages = "mcfda") %dopar% {
+  #                       mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+  #                                              bw = bw)   # It occurs error or very slow.
+  #                       # print("mean finish")
+  #                       var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+  #                                              mu = mu.lin.obj, bw = bw)
+  #                       # print("var finish")
+  #                       cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
+  #                                              mu = mu.lin.obj, sig2x = var.lin.obj)
+  #                       # print("cov finish")
+  #                       mu.lin <- predict(mu.lin.obj, work.grid)
+  #                       cov.lin <- predict(cov.lin.obj, work.grid)
+  #                       # mu.huber.obj <- robfpca::meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
+  #                       #                              bw = bw, k2 = NULL)
+  #                       return(mu.huber.obj)
+  #                     }
+  # stopCluster(makeCluster(9))
+})
+
 # system.time({
 #   # For delta in Huber function and bandwidth are selected from 5-fold CV
 #   mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
@@ -459,7 +523,7 @@ pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly,
 
 
 ### Covariance surfaces
-cov.true <- cov(x.2$x.full)
+cov.true <- get_cov_fragm(work.grid, model = 2)   # true covariance
 par(mfrow = c(2, 2))
 persp3D(work.grid, work.grid, cov.true,
         main = "True",
@@ -480,7 +544,8 @@ matplot(work.grid,
               diag(cov.yao),
               diag(cov.lin),
               diag(cov.huber)),
-        type = "l", xlab = "", ylab = "")
+        type = "l", ylim = range(cov.true),
+        xlab = "", ylab = "")
 matplot(work.grid,
         cbind(mu.yao,
               mu.lin,
@@ -489,7 +554,7 @@ matplot(work.grid,
 
 
 ### Completion
-par(mfrow = c(2, 3))
+par(mfrow = c(3, 3))
 cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
 cand <- cand[cand <= 80]   # exclude outlier curves
 # par(mfrow = c(1, 3))
@@ -531,16 +596,20 @@ for (ind in cand) {
               pred_missing_curve(x[ind, ], pred_huber),
               pred_kraus,
               pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
-  matplot(work.grid, df, type = "l", lwd = c(1,1,1,2,1,2),
+  matplot(work.grid, df, type = "o",
+          pch = rep(1, 6), lty = rep(1, 6), 
+          # lwd = c(1,1,1,2,1,2),
           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
-  points(work.grid, x.2$x.full[ind, ])
+  # points(work.grid, x.2$x.full[ind, ])
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
   grid()
-  # legend("topleft",
-  #        c("True","Yao","Lin","Huber","Kraus","align 1","align 2"),
-  #        col = 1:6,
-  #        lty = 1:7)
+  if (ind %in% cand[(0:6)*9 + 1]) {
+    legend("topleft",
+           c("True","Yao","Lin","Huber","Kraus","Huber-aligned"),
+           col = 1:6,
+           lty = rep(1, 6))
+  }
 }
 par(mfrow = c(1, 1))
 
@@ -670,14 +739,25 @@ gridExtra::grid.arrange(grobs = fig, nrow = 1)
 ### Lin & Wang (2020) setting
 #####################################
 set.seed(1000)
-x <- reg.fd(n = 10, X = kl.process(domain = c(0, 1),
-                                   eigen.values = 1/(2^(1:2)),
-                                   eigen.functions = c("FOURIER"),
-                                   distribution = c("EXPONENTIAL")))
+x <- reg.fd(
+  n = 10, 
+  X = kl.process(domain = c(0, 1),
+                 eigen.values = 1/(3^(1:25)),
+                 eigen.functions = c("FOURIER"),
+                 distribution = c("GAUSSIAN"))
+)
 matplot(t(x$y), type = "l")
 
+mu <- function(s) sin(2*pi*s)
+D <- irreg.fd(mu=mu, X=synfd::gaussian.process(), n=100, m=5)
+plot(D$t[[1]], D$y[[1]], type = "o", xlim = c(0, 1), ylim = range(unlist(D$y)))
+for (i in 2:100) {
+  lines(D$t[[i]], D$y[[i]], col = i, type = "o")
+}
+
+
 n.grid <- 51
-x <- sim.kraus(n = 100, out.prop = 0, out.type = 4, len.grid = n.grid)
+x <- sim.kraus(n = 100, out.prop = 0, out.type = 4, grid.length = n.grid)
 plot(x$Lt[[i]], x$Ly[[i]], type = "l",
      xlim = c(0, 1), ylim = range(unlist(x$Ly)))
 for (i in 2:10) {
@@ -687,20 +767,180 @@ length(which(cov(x$x.full) < 0))
 
 
 ### simulation data test
-set.seed(1000)
-n <- 10
-x <- sim_lin_wang(n = n, out.prop = 0, out.type = 4,
-                  process = kl.process(domain = c(0, 1),
-                                       eigen.values = 1/(2^(1:4)),
-                                       eigen.functions = c("FOURIER"),
-                                       distribution = c("EXPONENTIAL")),
-                  regular.grid = TRUE, grid.length = 51)
+set.seed(100)
+n <- 100
+n.grid <- 51
+x.2 <- sim_lin_wang(n = n, out.prop = 0, out.type = 4,
+                    process = kl.process(domain = c(0, 1),
+                                         eigen.values = 1/(2^(1:3)),
+                                         eigen.functions = c("COS"),
+                                         distribution = c("EXPONENTIAL")),
+                    regular.grid = TRUE, grid.length = 51)
+df <- data.frame(
+  id = factor(unlist(sapply(1:length(x.2$Lt), 
+                            function(id) { 
+                              rep(id, length(x.2$Lt[[id]])) 
+                            }) 
+  )),
+  y = unlist(x.2$Ly),
+  t = unlist(x.2$Lt)
+)
 
-plot(x$Lt[[i]], x$Ly[[i]], type = "l",
-     xlim = c(0, 1), ylim = range(unlist(x$Ly)))
-for (i in 2:n) {
-  lines(x$Lt[[i]], x$Ly[[i]], col = i, lty = i)
+# spread data
+x <- df %>% 
+  spread(key = "t", value = "y")
+x <- x[, -1] %>% 
+  as.matrix
+matplot(t(x), type = "l")
+
+
+# test for fixed parameters
+system.time({
+  # bw <- 0.1
+  # kern <- "gauss"
+  bw <- 0.2
+  kern <- "epan"
+  optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, verbose = FALSE,
+                userBwMu = bw, userBwCov = bw)
+  mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
+  cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
+  
+  work.grid <- seq(0, 1, length.out = n.grid)
+  mu.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
+                           mu = mu.yao.obj$mu)
+  cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
+                            Cov = cov.yao.obj$cov)
+})
+
+system.time({
+  # kernel <- "gauss"
+  kernel <- "epanechnikov"
+  # estimate mean, variance, covariance
+  mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                         bw = bw)   # It occurs error or very slow.
+  # print("mean finish")
+  var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
+                         mu = mu.lin.obj, bw = bw)
+  # print("var finish")
+  cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
+                         mu = mu.lin.obj, sig2x = var.lin.obj)
+  # print("cov finish")
+  mu.lin <- predict(mu.lin.obj, work.grid)
+  cov.lin <- predict(cov.lin.obj, work.grid)
+  
+  if (sum(cov.lin) == 0) {
+    stop("All of estimated covariances are 0.")
+  }
+})
+
+system.time({
+  # For delta in Huber function and bandwidth are selected from 5-fold CV
+  mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
+                               bw = bw, k2 = 1.345)
+  # bandwidth are selected from 5-fold CV (almost 3 minutes)
+  cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
+                               mu = mu.huber.obj,
+                               bw = bw, k2 = 1.345)
+  mu.huber <- predict(mu.huber.obj, work.grid)
+  cov.huber <- predict(cov.huber.obj, work.grid)
+  
+  if (sum(cov.huber) == 0) {
+    stop("All of estimated covariances are 0.")
+  }
+})
+
+### Covariance surfaces
+# cov.true <- cov(x)   # true covariance
+par(mfrow = c(2, 2))
+# persp3D(work.grid, work.grid, cov.true,
+#         main = "True",
+#         theta = -70, phi = 30, expand = 1)
+persp3D(work.grid, work.grid, cov.yao, 
+        # zlim = range(cov.true), main = "Yao",
+        theta = -70, phi = 30, expand = 1)
+persp3D(work.grid, work.grid, cov.lin, 
+        # zlim = range(cov.true), main = "Lin",
+        theta = -70, phi = 30, expand = 1)
+persp3D(work.grid, work.grid, cov.huber, 
+        # zlim = range(cov.true), main = "Huber",
+        theta = -70, phi = 30, expand = 1)
+par(mfrow = c(1, 1))
+
+
+### Principal component analysis
+pve <- 0.99   # Not used if K is given
+K <- 2   # fixed number of PCs
+
+# Yao
+pca.yao.obj <- funPCA(x.2$Lt, x.2$Ly, 
+                      mu.yao, cov.yao, sig2 = cov.yao.obj$sigma2, 
+                      work.grid, PVE = pve, K = K)
+# Lin
+pca.lin.obj <- funPCA(x.2$Lt, x.2$Ly, 
+                      mu.lin, cov.lin, sig2 = cov.lin.obj$sig2e, 
+                      work.grid, PVE = pve, K = K)
+# Huber
+pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, 
+                        mu.huber, cov.huber, sig2 = cov.huber.obj$sig2e, 
+                        work.grid, PVE = pve, K = K)
+
+### Completion
+par(mfrow = c(3, 3))
+cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+cand <- cand[cand <= 80]   # exclude outlier curves
+# par(mfrow = c(1, 3))
+# cand <- c(25, 70, 80)
+for (ind in cand) {
+  pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+  pred_lin <- predict(pca.lin.obj, K = NULL)[ind, ]
+  pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
+  # pred_wrm <- mu.wrm + matrix(pca.wrm.obj$pc.score[1, ], nrow = 1) %*% t(pca.wrm.obj$eig.fun)
+  pred_kraus <- pred.missfd(x[ind, ], x)
+  
+  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+    
+    if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
+      # start and end
+      obs_range <- obs_range
+    } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        obs_range <- obs_range[1]
+      } else if (obs_range[2] < n.grid) {
+        # end periods
+        obs_range <- obs_range[2]
+      }
+    }
+  } else {
+    # missing is in the middle.
+    obs_range <- range(which(is.na(x[ind, ])))
+    # include last observed point
+    obs_range <- c(obs_range[1] - 1,
+                   obs_range[2] + 1)
+  }
+  
+  df <- cbind(x.2$x.full[ind, ],
+              pred_missing_curve(x[ind, ], pred_yao),
+              pred_missing_curve(x[ind, ], pred_lin),
+              pred_missing_curve(x[ind, ], pred_huber),
+              pred_kraus,
+              pred_missing_curve(x[ind, ], pred_huber, align = TRUE))
+  matplot(work.grid, df, type = "l",
+          pch = rep(1, 6), lty = rep(1, 6), 
+          # lwd = c(1,1,1,2,1,2),
+          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+  points(work.grid, x.2$x.full[ind, ])
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  grid()
+  if (ind %in% cand[(0:6)*9 + 1]) {
+    legend("topleft",
+           c("True","Yao","Lin","Huber","Kraus","Huber-aligned"),
+           col = 1:6,
+           lty = rep(1, 6))
+  }
 }
-
-length(which(cov(x$x.full) < 0))
+par(mfrow = c(1, 1))
 
