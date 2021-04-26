@@ -174,18 +174,18 @@ while (num.sim < 100) {
   tryCatch({
     # # For delta in Huber function and bandwidth are selected from 5-fold CV
     # mu.huber.obj <- meanfunc.rob(x$Lt, x$Ly, method = "huber", kernel = kernel, 
-    #                              bw = NULL, k2 = NULL)
+    #                              bw = NULL, delta = NULL)
     # # bandwidth are selected from 5-fold CV (almost 3 minutes)
     # cov.huber.obj <- covfunc.rob(x$Lt, x$Ly, method = "huber", kernel = kernel, 
     #                              mu = mu.huber.obj, 
-    #                              bw = NULL, k2 = NULL)
+    #                              bw = NULL, delta = NULL)
     # For delta in Huber function and bandwidth are selected from 5-fold CV
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
-                                 bw = bw, k2 = 1.345)
+                                 bw = bw, delta = 1.345)
     # bandwidth are selected from 5-fold CV (almost 3 minutes)
     cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
                                  mu = mu.huber.obj, 
-                                 bw = bw, k2 = 1.345)
+                                 bw = bw, delta = 1.345)
   }, error = function(e) { 
     print("Huber cov error")
     print(e)
@@ -443,11 +443,11 @@ system.time({
 system.time({
   # For delta in Huber function and bandwidth are selected from 5-fold CV
   mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
-                               bw = bw, k2 = 1.345)
+                               bw = bw, delta = 1.345, ncores = 10)
   # bandwidth are selected from 5-fold CV (almost 3 minutes)
   cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
                                mu = mu.huber.obj,
-                               bw = bw, k2 = 1.345)
+                               bw = bw, delta = 1.345, ncores = 10)
   mu.huber <- predict(mu.huber.obj, work.grid)
   cov.huber <- predict(cov.huber.obj, work.grid)
 })
@@ -455,42 +455,14 @@ system.time({
 # 1.44    0.00    1.44
 # 59.39    0.00   59.39    # 5-fold CV
 
-system.time({
-  # delta.local_kern_smooth(x.2$Lt, x.2$Ly, method = "HUBER", kernel = "epanechnikov",
-  #                                     cv_loss = "L1", ncores = 8,
-  #                                     K = 5, delta_cand = NULL,  bw = 0.2)
-  mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
-                               bw = bw, k2 = NULL, ncores = 9)
-
-  # registerDoParallel(makeCluster(9))
-  # cv_error <- foreach(i = 1:3, .combine = "c",
-  #                     .packages = "mcfda") %dopar% {
-  #                       mu.lin.obj <- meanfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
-  #                                              bw = bw)   # It occurs error or very slow.
-  #                       # print("mean finish")
-  #                       var.lin.obj <- varfunc(x.2$Lt, x.2$Ly, method = "PACE", kernel = kernel,
-  #                                              mu = mu.lin.obj, bw = bw)
-  #                       # print("var finish")
-  #                       cov.lin.obj <- covfunc(x.2$Lt, x.2$Ly, method = "SP",
-  #                                              mu = mu.lin.obj, sig2x = var.lin.obj)
-  #                       # print("cov finish")
-  #                       mu.lin <- predict(mu.lin.obj, work.grid)
-  #                       cov.lin <- predict(cov.lin.obj, work.grid)
-  #                       # mu.huber.obj <- robfpca::meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
-  #                       #                              bw = bw, k2 = NULL)
-  #                       return(mu.huber.obj)
-  #                     }
-  # stopCluster(makeCluster(9))
-})
-
 # system.time({
 #   # For delta in Huber function and bandwidth are selected from 5-fold CV
 #   mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
-#                              bw = bw, k2 = 1.345)
+#                              bw = bw, delta = 1.345)
 #   # bandwidth are selected from 5-fold CV (almost 3 minutes)
 #   cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
 #                              mu = mu.huber.obj,
-#                              bw = bw, k2 = 1.345)
+#                              bw = bw, delta = 1.345)
 #   mu.wrm <- predict(mu.wrm.obj, work.grid)
 #   cov.wrm <- predict(cov.wrm.obj, work.grid)
 # })
@@ -836,11 +808,11 @@ system.time({
 system.time({
   # For delta in Huber function and bandwidth are selected from 5-fold CV
   mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
-                               bw = bw, k2 = 1.345)
+                               bw = bw, delta = 1.345)
   # bandwidth are selected from 5-fold CV (almost 3 minutes)
   cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel,
                                mu = mu.huber.obj,
-                               bw = bw, k2 = 1.345)
+                               bw = bw, delta = 1.345)
   mu.huber <- predict(mu.huber.obj, work.grid)
   cov.huber <- predict(cov.huber.obj, work.grid)
   

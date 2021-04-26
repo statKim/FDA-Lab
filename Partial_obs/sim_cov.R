@@ -27,7 +27,7 @@ ncores <- 9   # number of cores for parallel computing
 # model parameters
 kernel <- "gauss"
 # bw <- 0.1   # fixed bandwidth
-# k2 <- 1.345   # delta in huber function
+# delta <- 1.345   # delta in huber function
 
 # outlyngness
 out.type <- 6   # 4~6 are available
@@ -155,11 +155,11 @@ while (num.sim < 100) {
   tryCatch({
     # For delta in Huber function and bandwidth are selected from 5-fold CV
     mu.huber.obj <- meanfunc.rob(x$Lt, x$Ly, method = "huber", kernel = kernel, 
-                                 bw = NULL, k2 = NULL)
+                                 bw = NULL, delta = NULL)
     # bandwidth are selected from 5-fold CV (almost 3 minutes)
     cov.huber.obj <- covfunc.rob(x$Lt, x$Ly, method = "huber", kernel = kernel, 
                                  mu = mu.huber.obj, 
-                                 bw = NULL, k2 = NULL)
+                                 bw = NULL, delta = NULL)
   }, error = function(e) { 
     print("Huber cov error")
     print(e)
