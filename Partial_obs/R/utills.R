@@ -249,15 +249,22 @@ funPCA <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
   # - for loop is as fast as sapply!
   PC_score <- matrix(NA, n, K)
   
+  ## If there exist complete curves, compute by matrix mutliplication.
   # complete curves - calculate matrix multiplication
   ind_complete <- sapply(Lt, function(t) { identical(work.grid, t) })
-  complete_curves <- list2rbind(Ly[ind_complete])   # combine complete curves
-  PC_score[ind_complete, ] <- get_CE_score(work.grid, complete_curves, 
-                                           mu, cov, 
-                                           sig2, eig.obj, K, work.grid)
+  if (sum(ind_complete) > 0) {
+    complete_curves <- list2rbind(Ly[ind_complete])   # combine complete curves
+    PC_score[ind_complete, ] <- get_CE_score(work.grid, complete_curves, 
+                                             mu, cov, 
+                                             sig2, eig.obj, K, work.grid)
+    # index of incomplete curves
+    ind_snippet <- (1:n)[!ind_complete]
+  } else {
+    # does not exist complete curves
+    ind_snippet <- 1:n
+  }
   
   # snippets or partially observed curves - calculate individually
-  ind_snippet <- (1:n)[!ind_complete]
   for (i in ind_snippet) {
     PC_score[i, ] <- get_CE_score(Lt[[i]], Ly[[i]], 
                                   mu, cov, 
@@ -287,6 +294,99 @@ funPCA <- function(Lt, Ly, mu, cov, sig2 = NULL, work.grid, K = NULL, PVE = 0.99
   class(res) <- "funPCA"
   
   return(res)
+}
+
+
+### Get PC scores via conditional expectation
+# - t: observed time points
+# - y: matrix => fully observed curves
+# - y: vector => snippets or partially observed curve
+get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
+  phi <- eig.obj$phi[, 1:K]
+  lambda <- eig.obj$lambda[1:K]
+  Sigma_y <- cov + diag(sig2, nrow = nrow(cov))
+  # Sigma_Y <- fpca.yao$smoothedCov
+  # Sigma_Y <- eig.yao$phi %*% diag(eig.yao$lambda) %*% t(eig.yao$phi)
+  
+  
+  # # convert phi and fittedCov to obsGrid.
+  # mu <- ConvertSupport(work.grid, obs.grid, mu = mu)
+  # phi <- ConvertSupport(work.grid, obs.grid, phi = phi)
+  # Sigma_Y <- ConvertSupport(work.grid, obs.grid,
+  #                           Cov = Sigma_y)
+  # # get subsets at each observed grid for conditional expectation
+  # mu_y_i <- approx(obs.grid, mu, t)$y
+  # phi_y_i <- apply(phi, 2, function(eigvec){ 
+  #   return(approx(obs.grid, eigvec, t)$y)
+  # })
+  # Sigma_y_i <- matrix(pracma::interp2(obs.grid,
+  #                                     obs.grid,
+  #                                     Sigma_y,
+  #                                     rep(t, each = length(t)),
+  #                                     rep(t, length(t))),
+  #                     length(t),
+  #                     length(t))
+  
+  # get CE scores via matrix multiplication for fully observed curves
+  if (is.matrix(y)) {
+    n <- nrow(y)   # number of complete curves
+    
+    # obtain PC score via conditional expectation
+    y_mu <- y - matrix(rep(mu, n),
+                       nrow = n,
+                       byrow = TRUE)
+    lamda_phi <- diag(lambda) %*% t(phi)
+    Sigma_y_mu <- solve(Sigma_y, t(y_mu))
+    xi <- lamda_phi %*% Sigma_y_mu
+    
+    return( t(xi) )
+  }
+  
+  # get subsets at each observed grid for conditional expectation
+  if (!identical(work.grid, t)) {
+    mu_y_i <- approx(work.grid, mu, t)$y
+    phi_y_i <- apply(phi, 2, function(eigvec){
+      return(approx(work.grid, eigvec, t)$y)
+    })
+    Sigma_y_i <- matrix(pracma::interp2(work.grid,
+                                        work.grid,
+                                        Sigma_y,
+                                        rep(t, each = length(t)),
+                                        rep(t, length(t))),
+                        length(t),
+                        length(t))
+  } else {
+    mu_y_i <- mu
+    phi_y_i <- phi
+    Sigma_y_i <- Sigma_y
+  }
+  
+  # obtain PC score via conditional expectation
+  lamda_phi <- diag(lambda) %*% t(phi_y_i)
+  Sigma_y_i_mu <- solve(Sigma_y_i, y - mu_y_i)
+  xi <- lamda_phi %*% Sigma_y_i_mu
+  
+  return(as.numeric(xi))
+}
+
+
+### Get PC scores using numerical integration
+get_IN_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
+  phi <- eig.obj$phi[, 1:K]
+  lambda <- eig.obj$lambda[1:K]
+  Sigma_y <- cov + diag(sig2, nrow = nrow(cov))
+  
+  # get subsets at each observed grid for numerical integration
+  mu_y_i <- approx(work.grid, mu, t)$y
+  phi_y_i <- apply(phi, 2, function(eigvec){
+    return(approx(work.grid, eigvec, t)$y)
+  })
+  
+  # obtain PC score using numerical integration
+  h <- (y - mu_y_i) %*% phi_y_i
+  xi <- trapzRcpp(t, h)
+  
+  return(as.numeric(xi))
 }
 
 
@@ -458,98 +558,3 @@ pred_missing_curve <- function(x, pred, grid = NULL, align = FALSE, conti = TRUE
   
   return(pred_missing)
 }
-
-
-### Get PC scores via conditional expectation
-# - t: observed time points
-# - y: matrix => fully observed curves
-# - y: vector => snippets or partially observed curve
-get_CE_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
-  phi <- eig.obj$phi[, 1:K]
-  lambda <- eig.obj$lambda[1:K]
-  Sigma_y <- cov + diag(sig2, nrow = nrow(cov))
-  # Sigma_Y <- fpca.yao$smoothedCov
-  # Sigma_Y <- eig.yao$phi %*% diag(eig.yao$lambda) %*% t(eig.yao$phi)
-  
-  
-  # # convert phi and fittedCov to obsGrid.
-  # mu <- ConvertSupport(work.grid, obs.grid, mu = mu)
-  # phi <- ConvertSupport(work.grid, obs.grid, phi = phi)
-  # Sigma_Y <- ConvertSupport(work.grid, obs.grid,
-  #                           Cov = Sigma_y)
-  # # get subsets at each observed grid for conditional expectation
-  # mu_y_i <- approx(obs.grid, mu, t)$y
-  # phi_y_i <- apply(phi, 2, function(eigvec){ 
-  #   return(approx(obs.grid, eigvec, t)$y)
-  # })
-  # Sigma_y_i <- matrix(pracma::interp2(obs.grid,
-  #                                     obs.grid,
-  #                                     Sigma_y,
-  #                                     rep(t, each = length(t)),
-  #                                     rep(t, length(t))),
-  #                     length(t),
-  #                     length(t))
-  
-  # get CE scores via matrix multiplication for fully observed curves
-  if (is.matrix(y)) {
-    n <- nrow(y)   # number of complete curves
-    
-    # obtain PC score via conditional expectation
-    y_mu <- y - matrix(rep(mu, n),
-                       nrow = n,
-                       byrow = TRUE)
-    lamda_phi <- diag(lambda) %*% t(phi)
-    Sigma_y_mu <- solve(Sigma_y, t(y_mu))
-    xi <- lamda_phi %*% Sigma_y_mu
-    
-    return( t(xi) )
-  }
-  
-  # get subsets at each observed grid for conditional expectation
-  if (!identical(work.grid, t)) {
-    mu_y_i <- approx(work.grid, mu, t)$y
-    phi_y_i <- apply(phi, 2, function(eigvec){
-      return(approx(work.grid, eigvec, t)$y)
-    })
-    Sigma_y_i <- matrix(pracma::interp2(work.grid,
-                                        work.grid,
-                                        Sigma_y,
-                                        rep(t, each = length(t)),
-                                        rep(t, length(t))),
-                        length(t),
-                        length(t))
-  } else {
-    mu_y_i <- mu
-    phi_y_i <- phi
-    Sigma_y_i <- Sigma_y
-  }
-  
-  # obtain PC score via conditional expectation
-  lamda_phi <- diag(lambda) %*% t(phi_y_i)
-  Sigma_y_i_mu <- solve(Sigma_y_i, y - mu_y_i)
-  xi <- lamda_phi %*% Sigma_y_i_mu
-  
-  return(as.numeric(xi))
-}
-
-
-### Get PC scores using numerical integration
-get_IN_score <- function(t, y, mu, cov, sig2, eig.obj, K, work.grid) {
-  phi <- eig.obj$phi[, 1:K]
-  lambda <- eig.obj$lambda[1:K]
-  Sigma_y <- cov + diag(sig2, nrow = nrow(cov))
-  
-  # get subsets at each observed grid for numerical integration
-  mu_y_i <- approx(work.grid, mu, t)$y
-  phi_y_i <- apply(phi, 2, function(eigvec){
-    return(approx(work.grid, eigvec, t)$y)
-  })
-  
-  # obtain PC score using numerical integration
-  h <- (y - mu_y_i) %*% phi_y_i
-  xi <- trapzRcpp(t, h)
-  
-  return(as.numeric(xi))
-}
-
-

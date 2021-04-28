@@ -16,11 +16,14 @@ library(doRNG)   # set.seed for foreach
 library(MASS)   # huber, rlm
 library(latex2exp)
 library(tidyverse)
-library(robfilter)
-source("R/functions.R")
+library(robfpca)
+source("R/sim_Delaigle(2020).R")
+source("R/sim_Lin_Wang(2020).R")
+# library(robfilter)
+# source("R/functions.R")
 
 # list of manual functions and packages
-ftns <- fun2char()
+# ftns <- fun2char()
 packages <- c("fdapace","mcfda","synfd")
 ncores <- 9   # number of cores for parallel computing
 
@@ -58,7 +61,7 @@ while (num.sim < 100) {
   model.cov <- 2   # covariance function setting of the paper (1, 2)
   
   # generate curve with no outliers
-  x <- fun.fragm(n = n, model = model.cov, out.prop = out.prop, out.type = out.type)
+  x <- sim_delaigle(n = n, model = model.cov, out.prop = out.prop, out.type = out.type)
   gr <- sort(unique(unlist(x$Lt)))   # observed grid
   
   if ( !identical(range(unlist(x$Lt)), c(0, 1)) ) {

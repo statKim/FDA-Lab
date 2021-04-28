@@ -68,7 +68,7 @@ sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
         }
       }
       
-      x$Ly[[n_i]] <- rmvnorm(1, rep(0, m), cov_sim)
+      x$Ly[[n_i]] <- as.numeric(rmvnorm(1, rep(0, m), cov_sim))
       x$Lt[[n_i]] <- t
     }
   }
