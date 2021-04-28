@@ -247,13 +247,14 @@ varfunc.rob <- function(Lt,
       return( (Ly[[i]] - mui)^2 )
     }
   })
-
+print("ss")
   # obtain noise variance  
   if (is.null(sig2)) {
     h.sig2 <- select.sig2.rob.bw(Lt, Ly, ss)
     sig2 <- sigma2.rob(Lt, Ly, h = h.sig2)
   }
   
+print("sig2")
   R <- list(obj = meanfunc.rob(Lt, ss, method = method, ...),
             sig2 = sig2)
   class(R) <- 'varfunc.rob'
@@ -483,9 +484,17 @@ sigma2.rob <- function(t, y, h = NULL) {
                B/(m*(m-1))))
     })
     
-    # mean((A0A1[1, ] - A0A1[2, ])/A0A1[3, ])
-    # mean( mean(A0A1[1, ] - A0A1[2, ]) / mean(A0A1[3, ]) )
+    # sig2 <- mean((A0A1[1, ] - A0A1[2, ])/A0A1[3, ])
+    # sig2 <- mean( mean(A0A1[1, ] - A0A1[2, ]) / mean(A0A1[3, ]) )
     sig2 <- median(A0A1[1, ] - A0A1[2, ]) / median(A0A1[3, ])
+    
+    # # 25% trimmed estimator (interquartile mean; Q1 ~ Q3)
+    # cutoff_trimmed <- quantile(A0A1[1, ], c(0.25, 0.75))
+    # ind_trimmed <- which(A0A1[1, ] > cutoff_trimmed[1] & A0A1[1, ] < cutoff_trimmed[2])
+    # (mean(A0A1[1, ind_trimmed]) - mean(A0A1[2, ind_trimmed])) / mean(A0A1[3, ind_trimmed])
+    # median(A0A1[1, ] - A0A1[2, ]) / median(A0A1[3, ])
+    # median(A0A1[1, ] - A0A1[2, ] / A0A1[3, ])
+    # (median(A0A1[1, ]) - median(A0A1[2, ])) / median(A0A1[3, ])
     
   } else {
     stop('unsupported data type')
@@ -508,6 +517,7 @@ select.sig2.rob.bw <- function(Lt, Ly, ss = NULL) {
   
   # calculate sum of squares - Not recommended (Already it was calculated once!)
   if (is.null(ss)) {
+    print("ss is null")
     # mu.hat <- predict(meanfunc(Lt,Ly),Ly)
     mu.hat <- predict(meanfunc(Lt, Ly), Lt)
     ss <- lapply(1:length(Lt),function(i){

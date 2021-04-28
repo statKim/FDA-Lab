@@ -24,10 +24,7 @@ library(MASS)   # huber, rlm
 library(latex2exp)
 library(tidyverse)
 library(gridExtra)
-# library(robfilter)
 library(robfpca)
-source("Kraus(2015)/pred.missfd.R")
-source("Kraus(2015)/simul.missfd.R")
 
 #########################################
 ### AMI data load and transform
@@ -142,9 +139,30 @@ AMI_df <- AMI_1day %>%
   column_to_rownames(var = "ID")
 dim(AMI_df)
 
+# label indicated "0 or negative only", "NA only", "0 or NA"
+y_outlier <- apply(AMI_df, 1, function(row) {
+  have_0 <- (sum(which(row <= 0)) > 0)
+  have_NA <- (sum(which(is.na(row))) > 0)
+  have_0_NA <- have_0 & have_NA
+  
+  if (isTRUE(have_0_NA)) {
+    return(3)
+  } else if (isTRUE(have_0)) {
+    return(1)
+  } else if (isTRUE(have_NA)) {
+    return(2)
+  } else {
+    return(0)
+  }
+}) %>% 
+  as.integer()
+table(y_outlier)
+
+
 # set 0 values to NA
 AMI_df[which(AMI_df <= 0, arr.ind = T)] <- NA
 # # remove obs having negative value
+# y_outlier <- y_outlier[-unique(which(AMI_df < 0, arr.ind = T)[, 1])]
 # AMI_df <- AMI_df[-unique(which(AMI_df < 0, arr.ind = T)[, 1]), ]
 
 
@@ -185,7 +203,9 @@ ind <- which(
 length(ind)
 
 AMI_df <- AMI_df[-ind, ]
+y_outlier <- y_outlier[-ind]
 dim(AMI_df)
+table(y_outlier)
 matplot(t(AMI_df), type = "l")
 
 
@@ -330,8 +350,6 @@ par(mfrow = c(1, 1))
 # # user  system elapsed 
 # # 41.69    0.14   41.82 epan
 
-# save(list = c("AMI_3day","cov.huber.obj","pca.huber.obj","pca.yao.obj"),
-#      file = "RData/20210413_cluster_test.RData")
 
 
 #####################################
@@ -382,6 +400,28 @@ fpc.yao <- pca.yao.obj$pc.score[, 1:K]
 fpc.huber <- pca.huber.obj$pc.score[, 1:K]
 
 
+# pca.obj <- list()
+# pca.obj[["0_to_NA_max_Xi"]] <- list(fpc.yao = fpc.yao,
+#                                     fpc.huber = fpc.huber,
+#                                     AMI_df = AMI_df,
+#                                     y_outlier = y_outlier)
+# pca.obj[["0_to_NA_minmax"]] <- list(fpc.yao = fpc.yao,
+#                                     fpc.huber = fpc.huber,
+#                                     AMI_df = AMI_df,
+#                                     y_outlier = y_outlier)
+# pca.obj[["minmax"]] <- list(fpc.yao = fpc.yao,
+#                             fpc.huber = fpc.huber,
+#                             AMI_df = AMI_df,
+#                             y_outlier = y_outlier)
+# pca.obj[["max_Xi"]] <- list(fpc.yao = fpc.yao,
+#                             fpc.huber = fpc.huber,
+#                             AMI_df = AMI_df,
+#                             y_outlier = y_outlier)
+# save(list = c("pca.obj"),
+#      file = "RData/20210428_AMI_FPC.RData")
+
+
+
 ##############################################
 ### Clustering
 ### - k-means clustering based on FPC scores
@@ -408,6 +448,13 @@ plot(fpc.huber[, 1], fpc.huber[, 2], col = kmeans.huber,
      xlab = "1st FPC", ylab = "2nd FPC", main = "Huber")
 grid()
 par(mfrow = c(1, 1))
+
+data.frame(cluster = kmeans.yao,
+           y = y_outlier) %>% 
+  table()
+data.frame(cluster = kmeans.huber,
+           y = y_outlier) %>% 
+  table()
 
 # library(scatterplot3d)
 # par(mfrow = c(1, 2))
@@ -475,6 +522,8 @@ par(mfrow = c(1, 1))
 
 
 # mean trajectories of non-missing and missing for each cluster
+mse_yao <- numeric(n_group)
+mse_huber <- numeric(n_group)
 par(mfrow = c(2, n_group))
 for (i in 1:n_group) {
   # cl <- c(2,3,4,1)
@@ -495,6 +544,20 @@ for (i in 1:n_group) {
            c("Total","Complete","Missing"),
            lty = c(1, 1, 1), col = 1:3)
   }
+  
+  # mse
+  mse_yao[i] <- cbind(colMeans(AMI_df[ind_yao, ], na.rm = T),
+                      colMeans(AMI_df[ind_yao[-NA_ind], ], na.rm = T),
+                      colMeans(AMI_df[ind_yao[NA_ind], ], na.rm = T)) %>% 
+    apply(2, function(col){
+      NA_ind <- which(apply(AMI_df[ind_yao, ], 1, function(row){ sum(is.na(row)) > 0 }))
+      c(
+        mean((col - colMeans(AMI_df[ind_yao, ], na.rm = T))^2),
+        mean((col - colMeans(AMI_df[ind_yao[-NA_ind], ], na.rm = T))^2),
+        mean((col - colMeans(AMI_df[ind_yao[NA_ind], ], na.rm = T))^2)
+      )
+    }) %>% 
+    sum() / 2
 }
 for (i in 1:n_group) {
   # cl <- c(4,3,1,2)
@@ -510,9 +573,51 @@ for (i in 1:n_group) {
                 colMeans(AMI_df[ind_huber[NA_ind], ], na.rm = T)),
           type = "l", lwd = c(2, 1, 1), lty = c(1,2,2),
           xlab = "", ylab = "", main = title)
+  
+  # mse
+  mse_huber[i] <- cbind(colMeans(AMI_df[ind_huber, ], na.rm = T),
+                        colMeans(AMI_df[ind_huber[-NA_ind], ], na.rm = T),
+                        colMeans(AMI_df[ind_huber[NA_ind], ], na.rm = T)) %>% 
+    apply(2, function(col){
+      NA_ind <- which(apply(AMI_df[ind_huber, ], 1, function(row){ sum(is.na(row)) > 0 }))
+      c(
+        mean((col - colMeans(AMI_df[ind_huber, ], na.rm = T))^2),
+        mean((col - colMeans(AMI_df[ind_huber[-NA_ind], ], na.rm = T))^2),
+        mean((col - colMeans(AMI_df[ind_huber[NA_ind], ], na.rm = T))^2)
+      )
+    }) %>% 
+    sum() / 2
 }
 par(mfrow = c(1, 1))
 
+sum(mse_yao)
+sum(mse_huber)
+
+cbind(colMeans(AMI_df[ind_yao, ], na.rm = T),
+      colMeans(AMI_df[ind_yao[-NA_ind], ], na.rm = T),
+      colMeans(AMI_df[ind_yao[NA_ind], ], na.rm = T)) %>% 
+  apply(2, function(col){
+    NA_ind <- which(apply(AMI_df[ind_yao, ], 1, function(row){ sum(is.na(row)) > 0 }))
+    c(
+      mean((col - colMeans(AMI_df[ind_yao, ], na.rm = T))^2),
+      mean((col - colMeans(AMI_df[ind_yao[-NA_ind], ], na.rm = T))^2),
+      mean((col - colMeans(AMI_df[ind_yao[NA_ind], ], na.rm = T))^2)
+    )
+  }) %>% 
+  sum() / 2
+
+cbind(colMeans(AMI_df[ind_huber, ], na.rm = T),
+      colMeans(AMI_df[ind_huber[-NA_ind], ], na.rm = T),
+      colMeans(AMI_df[ind_huber[NA_ind], ], na.rm = T)) %>% 
+  apply(2, function(col){
+    NA_ind <- which(apply(AMI_df[ind_huber, ], 1, function(row){ sum(is.na(row)) > 0 }))
+    c(
+      mean((col - colMeans(AMI_df[ind_huber, ], na.rm = T))^2),
+      mean((col - colMeans(AMI_df[ind_huber[-NA_ind], ], na.rm = T))^2),
+      mean((col - colMeans(AMI_df[ind_huber[NA_ind], ], na.rm = T))^2)
+    )
+  }) %>% 
+  sum() / 2
 
 
 # # Visualize average consumption for each cluster
