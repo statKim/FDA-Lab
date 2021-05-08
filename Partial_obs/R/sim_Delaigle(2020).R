@@ -100,7 +100,7 @@ sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
       diag(Sig_norm) <- rep(100, m)
       
       if (out.type == 4) {
-        err.out <- rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
+        err.out <- LaplacesDemon::rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
       } else if (out.type == 5) {
         err.out <- rmvc(1, mu, I)   # cauchy
       } else {

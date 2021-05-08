@@ -139,31 +139,45 @@ AMI_df <- AMI_1day %>%
   column_to_rownames(var = "ID")
 dim(AMI_df)
 
-# label indicated "0 or negative only", "NA only", "0 or NA"
-y_outlier <- apply(AMI_df, 1, function(row) {
-  have_0 <- (sum(which(row <= 0)) > 0)
-  have_NA <- (sum(which(is.na(row))) > 0)
-  have_0_NA <- have_0 & have_NA
-  
-  if (isTRUE(have_0_NA)) {
-    return(3)
-  } else if (isTRUE(have_0)) {
-    return(1)
-  } else if (isTRUE(have_NA)) {
-    return(2)
-  } else {
-    return(0)
-  }
-}) %>% 
-  as.integer()
-table(y_outlier)
+# # add the outlier have many 0
+# set.seed(100)
+# AMI_outlier <- AMI_df[sample(1:nrow(AMI_df), 20), ]
+# AMI_outlier[sample(1:length(AMI_outlier), ceiling(length(AMI_outlier)*0.7))] <- 0
+# dim(AMI_outlier)
+# AMI_df <- rbind(AMI_df,
+#                 AMI_outlier)
+
+# define outlier which has many 0
+prop_0 <- apply(AMI_df, 1, function(row){ sum(row == 0, na.rm = T) / ncol(AMI_df) }) %>% 
+  as.numeric() 
+y_outlier <- rep(0, nrow(AMI_df))
+y_outlier[which(prop_0 > 0.8)] <- 1
+
+# # label indicated "0 or negative only", "NA only", "0 or NA"
+# y_outlier <- apply(AMI_df, 1, function(row) {
+#   have_0 <- (sum(which(row <= 0)) > 0)
+#   have_NA <- (sum(which(is.na(row))) > 0)
+#   have_0_NA <- have_0 & have_NA
+#   
+#   if (isTRUE(have_0_NA)) {
+#     return(3)
+#   } else if (isTRUE(have_0)) {
+#     return(1)
+#   } else if (isTRUE(have_NA)) {
+#     return(2)
+#   } else {
+#     return(0)
+#   }
+# }) %>% 
+#   as.integer()
+# table(y_outlier)
 
 
-# set 0 values to NA
-AMI_df[which(AMI_df <= 0, arr.ind = T)] <- NA
-# # remove obs having negative value
-# y_outlier <- y_outlier[-unique(which(AMI_df < 0, arr.ind = T)[, 1])]
-# AMI_df <- AMI_df[-unique(which(AMI_df < 0, arr.ind = T)[, 1]), ]
+# # set 0 values to NA
+# AMI_df[which(AMI_df <= 0, arr.ind = T)] <- NA
+# remove obs having negative value
+y_outlier <- y_outlier[-unique(which(AMI_df < 0, arr.ind = T)[, 1])]
+AMI_df <- AMI_df[-unique(which(AMI_df < 0, arr.ind = T)[, 1]), ]
 
 
 ### normalization => c(0, NA, ...) vectors becomes all values with NaN

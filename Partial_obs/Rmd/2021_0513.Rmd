@@ -1,0 +1,85 @@
+---
+title: "Robust PCA for functional snippets"
+author: "Hyunsung Kim"
+date: '2021-05-13'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", fig.width = 12, fig.height = 6
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+
+# Noise variance
+- 코드에서 실수가 있었음 (average에서는 성립하지만, median에서는 성립하지 않음)
+- estiamte이 크게 달라짐
+  - 0.1 => 0.7
+  - 0.03 => 0.5
+- trimmed mean으로 사용하면 값이 줄어들긴 하지만 어느정도를 trim할지를 결정해야함
+
+
+<br>
+
+# AMI clustering
+- 0이 많은 case를 강제로 추가하여 outlier로 생각하고 clustering
+- 나머지 setting은 기존과 동일
+- 그다지 결과는 좋지 않음...(0이 많은 case들이 전체적으로 값이 작은 curve들과 같은 그룹으로 묶임)
+
+
+<br>
+
+
+# Clustering simulation
+- doppler signal 4개를 true cluster라 하고 시행
+- normal noise를 주고, outlier의 경우는 기존 outlier의 noise를 줌
+- 3 방법론 비교 (Yao, Kraus, Huber)
+- 결과
+  - Huber의 경우, variance가 0으로 estimate되어 직접적인 비교는 힘들어보임...
+  - 초기값에 따라 결과가 많이 달라짐
+  - outlier 없는 경우, Kraus가 굉장히 좋음 (4개를 모두 맞히는 경우가 생김)
+  - outlier 있는 경우, 3 방법 모두 안좋음
+    - ex) 3 / 1 / 94 / 2 
+    
+<br> 
+   
+# Abstract
+[File](./abstract.txt)
+
+  
+
