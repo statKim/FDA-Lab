@@ -42,7 +42,8 @@ num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, 100)   # collection of seed with no error occurs
 
-
+ise_cov <- c()
+ise_cov_cv <- c()
 # repeat until 100 simulations are obtained
 while (num.sim < 50) {
   #############################
@@ -176,7 +177,63 @@ ise.extra <- summary_ise(data.list, cov.est, method = "extra")
 rowMeans(ise.extra)
 apply(ise.extra, 1, sd)
 
+# delta cv
+# > ### variance
+#   > ise.var <- summary_ise(data.list, cov.est, method = "var")
+# > sqrt(rowMeans(ise.var))
+# [1] 0.9612889 1.1383390
+# > apply(ise.var, 1, sd)
+# [1] 0.4071509 0.5122131
+# > 
+#   > ### covariance
+#   > ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+# > sqrt(rowMeans(ise.cov))
+# [1] 0.5712111 0.6748887
+# > apply(ise.cov, 1, sd)
+# [1] 0.1624076 0.2043409
+# > 
+#   > ### Intrapolation parts (D_0)
+#   > ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+# > rowMeans(ise.intra)
+# [1] 0.2526136 0.3829456
+# > apply(ise.intra, 1, sd)
+# [1] 0.1519010 0.1777714
+# > 
+#   > ### Extrapolation parts (S_0 \ D_0)
+#   > ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+# > rowMeans(ise.extra)
+# [1] 0.07366862 0.07252921
+# > apply(ise.extra, 1, sd)
+# [1] 0.04547889 0.03677989
 
+# bw CV
+# > ### variance
+#   > ise.var <- summary_ise(data.list, cov.est, method = "var")
+# > sqrt(rowMeans(ise.var))
+# [1] 0.9749018 0.9964617
+# > apply(ise.var, 1, sd)
+# [1] 0.4268462 0.4214440
+# > 
+#   > ### covariance
+#   > ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+# > sqrt(rowMeans(ise.cov))
+# [1] 0.5673462 0.5755957
+# > apply(ise.cov, 1, sd)
+# [1] 0.1556944 0.1928741
+# > 
+#   > ### Intrapolation parts (D_0)
+#   > ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+# > rowMeans(ise.intra)
+# [1] 0.2499317 0.2718674
+# > apply(ise.intra, 1, sd)
+# [1] 0.1476513 0.1761322
+# > 
+#   > ### Extrapolation parts (S_0 \ D_0)
+#   > ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+# > rowMeans(ise.extra)
+# [1] 0.07195002 0.05944308
+# > apply(ise.extra, 1, sd)
+# [1] 0.04527774 0.04002467
 
 ### Eigen analysis
 # Parallel computing setting
@@ -241,3 +298,14 @@ for (sim in 1:num.sim) {
 sqrt(colMeans(ise))
 apply(ise, 2, sd)
 
+# # delta cv
+# > sqrt(colMeans(ise))
+# [1] 0.6472023 0.7793626
+# > apply(ise, 2, sd)
+# [1] 0.5172154 0.7363772
+
+# bw cv
+# > sqrt(colMeans(ise))
+# [1] 0.6491594 0.5997455
+# > apply(ise, 2, sd)
+# [1] 0.5171207 0.5646688

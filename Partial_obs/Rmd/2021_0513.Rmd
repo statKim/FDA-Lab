@@ -36,6 +36,8 @@ output:
 
 ```{r setup, include=FALSE}
 library(knitr)
+library(kableExtra)
+library(tidyverse)
 knitr::opts_chunk$set(
   echo = FALSE, message = FALSE, warning = FALSE, 
   # cache = T,
@@ -77,9 +79,107 @@ knitr::opts_chunk$set(
     - ex) 3 / 1 / 94 / 2 
     
 <br> 
-   
-# Abstract
-[File](./abstract.txt)
+
+
+# M-estimator for partially observed functional data
+```{r}
+df <- data.frame(
+  method = c("Yao(2005)","M-est","Huber","Kraus(2015)"),
+  MISE.x = c("0.62 (2.97)","0.02 (0.02)","0.06 (0.03)","0.36 (0.09)"),
+  MSE.x = c("34.82 (160.04)","1.33 (1.20)","3.59 (1.87)","21.09 (4.72)"),
+  MISE.y = c("1.83 (5.75)","0.03 (0.02)","0.08 (0.07)",NA),
+  MSE.y = c("97.54 (304.37)","1.84 (1.25)","4.64 (3.71)",NA)
+)
+
+knitr::kable(df,
+             # digits = 3,
+             col.names = c("Method","MISE","MSE","MISE","MSE"),
+             align = "c",
+             escape = FALSE,
+             caption = "Table 1. MISE and MSE for completion and reconstruction.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "Completion" = 2,
+                       "Reconstruction" = 2))
+```
+
+
+
+<br>
+
+# CV
+```{r}
+# delta cv
+# > ### variance
+#   > ise.var <- summary_ise(data.list, cov.est, method = "var")
+# > sqrt(rowMeans(ise.var))
+# [1] 0.9612889 1.1383390
+# > apply(ise.var, 1, sd)
+# [1] 0.4071509 0.5122131
+# > 
+#   > ### covariance
+#   > ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+# > sqrt(rowMeans(ise.cov))
+# [1] 0.5712111 0.6748887
+# > apply(ise.cov, 1, sd)
+# [1] 0.1624076 0.2043409
+# > 
+#   > ### Intrapolation parts (D_0)
+#   > ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+# > rowMeans(ise.intra)
+# [1] 0.2526136 0.3829456
+# > apply(ise.intra, 1, sd)
+# [1] 0.1519010 0.1777714
+# > 
+#   > ### Extrapolation parts (S_0 \ D_0)
+#   > ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+# > rowMeans(ise.extra)
+# [1] 0.07366862 0.07252921
+# > apply(ise.extra, 1, sd)
+# [1] 0.04547889 0.03677989
+
+# bw CV
+# > ### variance
+#   > ise.var <- summary_ise(data.list, cov.est, method = "var")
+# > sqrt(rowMeans(ise.var))
+# [1] 0.9749018 0.9964617
+# > apply(ise.var, 1, sd)
+# [1] 0.4268462 0.4214440
+# > 
+#   > ### covariance
+#   > ise.cov <- summary_ise(data.list, cov.est, method = "cov")
+# > sqrt(rowMeans(ise.cov))
+# [1] 0.5673462 0.5755957
+# > apply(ise.cov, 1, sd)
+# [1] 0.1556944 0.1928741
+# > 
+#   > ### Intrapolation parts (D_0)
+#   > ise.intra <- summary_ise(data.list, cov.est, method = "intra")
+# > rowMeans(ise.intra)
+# [1] 0.2499317 0.2718674
+# > apply(ise.intra, 1, sd)
+# [1] 0.1476513 0.1761322
+# > 
+#   > ### Extrapolation parts (S_0 \ D_0)
+#   > ise.extra <- summary_ise(data.list, cov.est, method = "extra")
+# > rowMeans(ise.extra)
+# [1] 0.07195002 0.05944308
+# > apply(ise.extra, 1, sd)
+# [1] 0.04527774 0.04002467
+
+# # delta cv
+# > sqrt(colMeans(ise))
+# [1] 0.6472023 0.7793626
+# > apply(ise, 2, sd)
+# [1] 0.5172154 0.7363772
+
+# bw cv
+# > sqrt(colMeans(ise))
+# [1] 0.6491594 0.5997455
+# > apply(ise, 2, sd)
+# [1] 0.5171207 0.5646688
+```
+
 
   
 

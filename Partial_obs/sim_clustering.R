@@ -118,7 +118,7 @@ sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4,
 #############################
 # data generattion with outlier
 set.seed(100)
-grid.length <- 512
+grid.length <- 128
 X <- sim.doppler(n_c = 25, out.prop = 0.2, out.type = 5, grid.length = grid.length)
 y_outlier <- X$y_outlier
 X <- X$X
@@ -229,6 +229,39 @@ diag(cov.huber)
 #                   diag(cov.huber)),
 #         type = "l")
 
+
+
+# res <- diag(cov.huber)
+# # df <- cbind(
+# #   which(v == 0) + 1,
+# #   which(v == 0) - 1  
+# # )
+# # if (df < 1) {
+# #   df <- 1
+# # }
+# # if (df > 128) {
+# #   df <- 128
+# # }
+# # d <- rep(NA, 128)
+# # d[which(v == 0)] <- 1
+# # diff(d)
+# 
+# d <- ifelse(res == 0, 0, 1)
+# 
+# ind_1 <- which(diff(d) == 1) + 1
+# ind_2 <- which(diff(d) == -1)
+# 
+# res[which(1:length(newt) < ind_1)] <- res[ind_1]
+# res[which(1:length(newt) > ind_2)] <- res[ind_2]
+# 
+# # NA NA 1 1 1 1
+# # 1 1 1 1 NA NA
+# # NA NA 1 1 NA NA
+# # 1 1 NA NA 1 1
+# # 1 NA 1 NA 1 NA
+
+
+var.y - cov.huber.obj$sig2e
 
 
 # calculate sum of squares
@@ -353,27 +386,42 @@ pca.huber.obj$eig.obj$PVE
 fpc.yao <- pca.yao.obj$pc.score[, 1:K]
 fpc.huber <- pca.huber.obj$pc.score[, 1:K]
 
+
 # Kraus
 x <- list2matrix(X)
 R <- var.missfd(x)
-
 # # bivariate smoothing
-# R <- smooth.2d(as.numeric(R), 
-#                x = expand.grid(gr, gr), 
+# R <- smooth.2d(as.numeric(R),
+#                x = expand.grid(gr, gr), surface = F,
 #                theta = 0.1, nrow = 128, ncol = 128)
-# R <- R$z
-
 eig.R <- eigen.missfd(R)
 # first 5 principal components
 phi <- eig.R$vectors[, 1:K]
 fpc.kraus <- apply(x, 1, function(row){ pred.score.missfd(row, phi = phi, x = x) }) %>% 
   t()
+
+# M-estimator
+library(MASS)
+library(fields)
+mu.Mest.obj <- meanfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
+                            bw = bw, delta = 1.345)
+cov.Mest.obj <- var.rob.missfd(x, smooth = T)
+mu.Mest <- predict(mu.Mest.obj, work.grid)
+cov.Mest <- cov.Mest.obj
+system.time({
+  pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
+                        sig2 = 0.0001, work.grid, K = K)
+})
+fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
+pca.Mest.obj$eig.obj$PVE
+
+
 par(mfrow = c(1, 2))
-GA::persp3D(gr, gr, var.missfd(x),
+GA::persp3D(gr, gr, R,
             theta = -70, phi = 30, expand = 1)
 # GA::persp3D(gr, gr, cov.lin,
 #             theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, R,
+GA::persp3D(gr, gr, cov.Mest,
             theta = -70, phi = 30, expand = 1)
 par(mfrow = c(1, 1))
 
@@ -401,6 +449,11 @@ kmeans.kraus.obj <- kmeans(x = fpc.kraus, centers = n_group)
 kmeans.kraus <- kmeans.kraus.obj$cluster
 table(kmeans.kraus)
 
+# set.seed(1000)
+kmeans.Mest.obj <- kmeans(x = fpc.Mest, centers = n_group)  
+kmeans.Mest <- kmeans.Mest.obj$cluster
+table(kmeans.Mest)
+
 # 1st FPC vs 2nd FPC
 par(mfrow = c(2, 2))
 plot(fpc.yao[, 1], fpc.yao[, 2], col = kmeans.yao,
@@ -412,6 +465,9 @@ grid()
 plot(fpc.kraus[, 1], fpc.kraus[, 2], col = kmeans.kraus,
      xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus (2015)")
 grid()
+plot(fpc.Mest[, 1], fpc.Mest[, 2], col = kmeans.Mest,
+     xlab = "1st FPC", ylab = "2nd FPC", main = "M-estimator")
+grid()
 par(mfrow = c(1, 1))
 
 data.frame(cluster = kmeans.yao,
@@ -420,6 +476,10 @@ data.frame(cluster = kmeans.yao,
 data.frame(cluster = kmeans.huber,
            y = y_class) %>% 
   table()
+data.frame(cluster = kmeans.kraus,
+           y = y_class) %>% 
+  table()
+
 
 
 apply(x, 1, function(row){ sum(is.na(row))/grid.length*100 })
@@ -438,11 +498,12 @@ matplot(t(x[76:100, ]), type = "l", ylim = c(-1, 1))
 par(mfrow = c(1, 1))
 
 
-
+### PAM
 library(cluster)
 pam.yao.obj <- pam(fpc.yao, n_group, metric = "manhattan")
 table(pam.yao.obj$clustering)
 
+### Trimmed k-means clustering
 library(tclust)
 tkmeans.yao.obj <- tkmeans(x = fpc.huber, k = n_group, alpha = 0.2)
 table(tkmeans.yao.obj$cluster)
@@ -455,3 +516,87 @@ par(mfrow = c(1, 1))
 
 table(y_outlier, tkmeans.yao.obj$cluster)
 table(y_class, tkmeans.yao.obj$cluster)[, -1]
+
+y_class <- ifelse(y_outlier == 1, 0, y_class)
+
+tkmeans.yao.obj <- tkmeans(x = fpc.yao, k = n_group, alpha = 0.2)
+table(y_class, 
+      tkmeans.yao.obj$cluster)
+tkmeans.huber.obj <- tkmeans(x = fpc.huber, k = n_group, alpha = 0.2)
+table(y_class, 
+      tkmeans.huber.obj$cluster)
+tkmeans.kraus.obj <- tkmeans(x = fpc.kraus, k = n_group, alpha = 0.2)
+table(y_class,
+      tkmeans.kraus.obj$cluster)
+tkmeans.Mest.obj <- tkmeans(x = fpc.Mest, k = n_group, alpha = 0.2)
+table(y_class,
+      tkmeans.Mest.obj$cluster)
+
+par(mfrow = c(4,4))
+for (i in 1:4) {
+  matplot(t(x[tkmeans.yao.obj$cluster == i, ]), type = "l")
+}
+for (i in 1:4) {
+  matplot(t(x[tkmeans.huber.obj$cluster == i, ]), type = "l")
+}
+for (i in 1:4) {
+  matplot(t(x[tkmeans.kraus.obj$cluster == i, ]), type = "l")
+}
+for (i in 1:4) {
+  matplot(t(x[tkmeans.Mest.obj$cluster == i, ]), type = "l")
+}
+par(mfrow = c(1, 1))
+
+
+### match predicted cluster to true
+match_cluster <- function(y, pred) {
+  y_group <- sort(unique(y))
+  n_group <- length(y_group)
+  
+  df <- data.frame(id = 1:length(y),
+                   y = y,
+                   pred = pred)
+  df2 <- df %>% 
+    group_by(y, pred) %>% 
+    summarise(n = n(), .groups = "drop_last") %>% 
+    filter(n == max(n)) %>% 
+    dplyr::select(y, pred)
+  
+  if (length(unique(df2$pred)) != n_group) {
+    permut_list <- combinat::permn(y_group)   # a list of permutation
+    acc <- rep(NA, length(permut_list))
+    for (i in 1:length(permut_list)) {
+      permut_y <- data.frame(y_group = y_group,
+                             cl = permut_list[[i]])
+      permut_y <- data.frame(y_group = pred) %>% 
+        left_join(permut_y, by = "y_group")
+      
+      acc[i] <- mean(y == permut_y$cl)
+    }
+    df2 <- data.frame(pred = y_group,
+                      y = permut_list[[which.max(acc)]])
+  }
+  
+  pred_matched <- df["pred"] %>% 
+    left_join(df2, by = "pred") %>% 
+    dplyr::select(y) 
+  pred_matched <- as.numeric(pred_matched$y)
+  
+  return(pred_matched)
+}
+
+
+
+y_yao <- match_cluster(y_class, 
+                       tkmeans.yao.obj$cluster)
+y_huber <- match_cluster(y_class, 
+                         tkmeans.huber.obj$cluster)
+y_kraus <- match_cluster(y_class,
+                         tkmeans.kraus.obj$cluster)
+y_Mest <- match_cluster(y_class,
+                        tkmeans.Mest.obj$cluster)
+mean(y_class == y_yao)
+mean(y_class == y_huber)
+mean(y_class == y_kraus)
+mean(y_class == y_Mest)
+
