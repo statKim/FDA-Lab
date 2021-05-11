@@ -50,7 +50,13 @@
 <li><a href="#noise-variance">Noise variance</a></li>
 <li><a href="#ami-clustering">AMI clustering</a></li>
 <li><a href="#clustering-simulation">Clustering simulation</a></li>
-<li><a href="#m-estimator-for-partially-observed-functional-data">M-estimator for partially observed functional data</a></li>
+<li><a href="#m-estimator-for-partially-observed-functional-data">M-estimator for partially observed functional data</a>
+<ul>
+<li><a href="#marginal-m-estimator-for-mean-park-et-al.-2020">Marginal M-estimator for mean (Park et al. (2020))</a></li>
+<li><a href="#marginal-m-estimator-for-covariance">Marginal M-estimator for covariance</a></li>
+<li><a href="#completion-result">Completion result</a></li>
+<li><a href="#completion-result-pre-smoothing">Completion result (pre-smoothing)</a></li>
+</ul></li>
 <li><a href="#cv">CV</a></li>
 </ul>
 </div>
@@ -118,6 +124,26 @@
 </div>
 <div id="m-estimator-for-partially-observed-functional-data" class="section level1">
 <h1>M-estimator for partially observed functional data</h1>
+<div id="marginal-m-estimator-for-mean-park-et-al.-2020" class="section level2">
+<h2>Marginal M-estimator for mean (Park et al. (2020))</h2>
+<ul>
+<li>박연주 교수님 arxiv paper에서 언급된 식.</li>
+</ul>
+<p><span class="math display">\[
+\hat{\mu}^M(t) = \arg\min_{\theta} \sum_{i=1}^n O_i(t) \rho\left( X_i(t) - \theta \right)
+\]</span></p>
+</div>
+<div id="marginal-m-estimator-for-covariance" class="section level2">
+<h2>Marginal M-estimator for covariance</h2>
+<ul>
+<li>raw covariance 식에서 M-estimator 식으로 바꿔본 식</li>
+</ul>
+<p><span class="math display">\[
+\hat{\sigma}^M(s,t) = \arg\min_{\theta} \sum_{i=1}^n U_i(s,t) \rho\left( \{X_i(s) - \hat{\mu}^M(s)\} \{X_i(t) - \hat{\mu}^M(t)\} - \theta \right),
+\]</span> where <span class="math inline">\(U_i(s,t) = O_i(s)O_i(t)\)</span>.</p>
+</div>
+<div id="completion-result" class="section level2">
+<h2>Completion result</h2>
 <table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption style="font-size: initial !important;">
 Table 1. MISE and MSE for completion and reconstruction.
@@ -158,7 +184,7 @@ MSE
 <tbody>
 <tr>
 <td style="text-align:center;">
-Yao(2005)
+Yao (2005)
 </td>
 <td style="text-align:center;">
 0.62 (2.97)
@@ -171,23 +197,6 @@ Yao(2005)
 </td>
 <td style="text-align:center;">
 97.54 (304.37)
-</td>
-</tr>
-<tr>
-<td style="text-align:center;">
-M-est
-</td>
-<td style="text-align:center;">
-0.02 (0.02)
-</td>
-<td style="text-align:center;">
-1.33 (1.2)
-</td>
-<td style="text-align:center;">
-0.03 (0.02)
-</td>
-<td style="text-align:center;">
-1.84 (1.25)
 </td>
 </tr>
 <tr>
@@ -209,7 +218,41 @@ Huber
 </tr>
 <tr>
 <td style="text-align:center;">
-Kraus(2015)
+M-est
+</td>
+<td style="text-align:center;">
+0.14 (0.22)
+</td>
+<td style="text-align:center;">
+8.24 (12.97)
+</td>
+<td style="text-align:center;">
+0.21 (0.25)
+</td>
+<td style="text-align:center;">
+11.62 (14.13)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M-est (smooth)
+</td>
+<td style="text-align:center;">
+0.05 (0.05)
+</td>
+<td style="text-align:center;">
+2.75 (2.77)
+</td>
+<td style="text-align:center;">
+0.06 (0.05)
+</td>
+<td style="text-align:center;">
+3.4 (2.90)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus (2015)
 </td>
 <td style="text-align:center;">
 0.36 (0.09)
@@ -224,9 +267,206 @@ NA
 NA
 </td>
 </tr>
+<tr>
+<td style="text-align:center;">
+Kraus-M
+</td>
+<td style="text-align:center;">
+0.15 (0.06)
+</td>
+<td style="text-align:center;">
+9.16 (3.25)
+</td>
+<td style="text-align:center;">
+NA
+</td>
+<td style="text-align:center;">
+NA
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus-M (smooth)
+</td>
+<td style="text-align:center;">
+0.05 (0.03)
+</td>
+<td style="text-align:center;">
+3.14 (1.60)
+</td>
+<td style="text-align:center;">
+NA
+</td>
+<td style="text-align:center;">
+NA
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="completion-result-pre-smoothing" class="section level2">
+<h2>Completion result (pre-smoothing)</h2>
+<table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption style="font-size: initial !important;">
+Table 2. MISE and MSE for completion and reconstruction.
+</caption>
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Completion
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Reconstruction
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:center;">
+Method
+</th>
+<th style="text-align:center;">
+MISE
+</th>
+<th style="text-align:center;">
+MSE
+</th>
+<th style="text-align:center;">
+MISE
+</th>
+<th style="text-align:center;">
+MSE
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+Yao (2005)
+</td>
+<td style="text-align:center;">
+365.05 (3607.21)
+</td>
+<td style="text-align:center;">
+21012.03 (207630.60)
+</td>
+<td style="text-align:center;">
+516.66 (5057.71)
+</td>
+<td style="text-align:center;">
+27852.52 (273000.81)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Huber
+</td>
+<td style="text-align:center;">
+0.05 (0.03)
+</td>
+<td style="text-align:center;">
+3.08 (1.92)
+</td>
+<td style="text-align:center;">
+0.07 (0.07)
+</td>
+<td style="text-align:center;">
+4.10 (3.90)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M-est
+</td>
+<td style="text-align:center;">
+0.07 (0.07)
+</td>
+<td style="text-align:center;">
+3.93 (3.91)
+</td>
+<td style="text-align:center;">
+0.09 (0.07)
+</td>
+<td style="text-align:center;">
+4.82 (4.04)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M-est (smooth)
+</td>
+<td style="text-align:center;">
+0.41 (1.00)
+</td>
+<td style="text-align:center;">
+22.63 (56.77)
+</td>
+<td style="text-align:center;">
+0.42 (1.02)
+</td>
+<td style="text-align:center;">
+23.57 (57.75)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus (2015)
+</td>
+<td style="text-align:center;">
+0.15 (0.09)
+</td>
+<td style="text-align:center;">
+8.59 (5.14)
+</td>
+<td style="text-align:center;">
+NA
+</td>
+<td style="text-align:center;">
+NA
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus-M
+</td>
+<td style="text-align:center;">
+0.06 (0.03)
+</td>
+<td style="text-align:center;">
+3.67 (1.72)
+</td>
+<td style="text-align:center;">
+NA
+</td>
+<td style="text-align:center;">
+NA
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus-M (smooth)
+</td>
+<td style="text-align:center;">
+0.12 (0.05)
+</td>
+<td style="text-align:center;">
+7.12 (2.75)
+</td>
+<td style="text-align:center;">
+NA
+</td>
+<td style="text-align:center;">
+NA
+</td>
+</tr>
 </tbody>
 </table>
 <p><br></p>
+</div>
 </div>
 <div id="cv" class="section level1">
 <h1>CV</h1>

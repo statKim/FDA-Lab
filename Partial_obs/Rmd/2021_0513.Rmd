@@ -82,13 +82,30 @@ knitr::opts_chunk$set(
 
 
 # M-estimator for partially observed functional data
+
+## Marginal M-estimator for mean (Park et al. (2020))
+- 박연주 교수님 arxiv paper에서 언급된 식.
+
+$$
+\hat{\mu}^M(t) = \arg\min_{\theta} \sum_{i=1}^n O_i(t) \rho\left( X_i(t) - \theta \right)
+$$
+
+## Marginal M-estimator for covariance
+- raw covariance 식에서 M-estimator 식으로 바꿔본 식
+
+$$
+\hat{\sigma}^M(s,t) = \arg\min_{\theta} \sum_{i=1}^n U_i(s,t) \rho\left( \{X_i(s) - \hat{\mu}^M(s)\} \{X_i(t) - \hat{\mu}^M(t)\} - \theta \right),
+$$
+where $U_i(s,t) = O_i(s)O_i(t)$.
+
+## Completion result
 ```{r}
 df <- data.frame(
-  method = c("Yao(2005)","M-est","Huber","Kraus(2015)"),
-  MISE.x = c("0.62 (2.97)","0.02 (0.02)","0.06 (0.03)","0.36 (0.09)"),
-  MSE.x = c("34.82 (160.04)","1.33 (1.20)","3.59 (1.87)","21.09 (4.72)"),
-  MISE.y = c("1.83 (5.75)","0.03 (0.02)","0.08 (0.07)",NA),
-  MSE.y = c("97.54 (304.37)","1.84 (1.25)","4.64 (3.71)",NA)
+  method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
+  MISE.x = c("0.62 (2.97)","0.06 (0.03)","0.14 (0.22)","0.05 (0.05)","0.36 (0.09)","0.15 (0.06)","0.05 (0.03)"),
+  MSE.x = c("34.82 (160.04)","3.59 (1.87)","8.24 (12.97)","2.75 (2.77)","21.09 (4.72)","9.16 (3.25)","3.14 (1.60)"),
+  MISE.y = c("1.83 (5.75)","0.08 (0.07)","0.21 (0.25)","0.06 (0.05)",NA,NA,NA),
+  MSE.y = c("97.54 (304.37)","4.64 (3.71)","11.62 (14.13)","3.4 (2.90)",NA,NA,NA)
 )
 
 knitr::kable(df,
@@ -97,6 +114,44 @@ knitr::kable(df,
              align = "c",
              escape = FALSE,
              caption = "Table 1. MISE and MSE for completion and reconstruction.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "Completion" = 2,
+                       "Reconstruction" = 2))
+# method "1"                    "2"           "3"             "4"           "5"            "6"           "7"
+# # n.sim = 50, bw = 0.1
+# MISE.x "419.34 (2888.5)"      "0.06 (0.03)" "0.15 (0.24)"   "0.06 (0.05)" "0.37 (0.08)"  "0.15 (0.05)" "0.05 (0.02)"
+# MSE.x  "21465.46 (147212.4)"  "3.52 (1.57)" "8.55 (13.65)"  "3.12 (2.92)" "21.24 (4.38)" "9.16 (2.63)" "3.22 (1.35)"
+# MISE.y "628.67 (4016.48)"     "0.08 (0.05)" "0.22 (0.27)"   "0.07 (0.06)" NA             NA            NA           
+# MSE.y  "31758.03 (201631.02)" "4.46 (2.51)" "12.14 (15.02)" "3.84 (3.01)" NA             NA            NA
+# # n.sim = 100, bw 0.2
+# MISE.x "0.62 (2.97)"    "0.06 (0.03)" "0.14 (0.22)"   "0.06 (0.06)" "0.36 (0.09)"  "0.15 (0.06)" "0.05 (0.03)"
+# MSE.x  "34.82 (160.04)" "3.59 (1.87)" "8.24 (12.97)"  "3.58 (3.58)" "21.09 (4.72)" "9.16 (3.25)" "3.16 (1.51)"
+# MISE.y "1.83 (5.75)"    "0.08 (0.07)" "0.21 (0.25)"   "0.08 (0.07)" NA             NA            NA           
+# MSE.y  "97.54 (304.37)" "4.64 (3.71)" "11.62 (14.13)" "4.28 (3.7)"  NA             NA            NA      
+
+# MISE.x "0.62 (2.97)"    "0.06 (0.03)" "0.14 (0.22)"   "0.05 (0.05)" "0.36 (0.09)"  "0.15 (0.06)" "0.05 (0.03)"
+# MSE.x  "34.82 (160.04)" "3.59 (1.87)" "8.24 (12.97)"  "2.75 (2.77)" "21.09 (4.72)" "9.16 (3.25)" "3.14 (1.6)" 
+# MISE.y "1.83 (5.75)"    "0.08 (0.07)" "0.21 (0.25)"   "0.06 (0.05)" NA             NA            NA           
+# MSE.y  "97.54 (304.37)" "4.64 (3.71)" "11.62 (14.13)" "3.4 (2.9)"   NA             NA            NA        
+```
+
+## Completion result (pre-smoothing)
+```{r}
+df <- data.frame(
+  method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
+  MISE.x = c("365.05 (3607.21)","0.05 (0.03)","0.07 (0.07)","0.41 (1.00)","0.15 (0.09)","0.06 (0.03)","0.12 (0.05)"),
+  MSE.x = c("21012.03 (207630.60)","3.08 (1.92)","3.93 (3.91)","22.63 (56.77)","8.59 (5.14)","3.67 (1.72)","7.12 (2.75)"),
+  MISE.y = c("516.66 (5057.71)","0.07 (0.07)","0.09 (0.07)","0.42 (1.02)",NA,NA,NA),
+  MSE.y = c("27852.52 (273000.81)","4.10 (3.90)","4.82 (4.04)","23.57 (57.75)",NA,NA,NA)
+)
+
+knitr::kable(df,
+             # digits = 3,
+             col.names = c("Method","MISE","MSE","MISE","MSE"),
+             align = "c",
+             escape = FALSE,
+             caption = "Table 2. MISE and MSE for completion and reconstruction.") %>%
     kable_styling("striped", full_width = FALSE, font_size = 14) %>%
     add_header_above(c(" " = 1,
                        "Completion" = 2,

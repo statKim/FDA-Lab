@@ -9,11 +9,17 @@
 library(tidyverse)
 library(fdapace)
 library(LaplacesDemon)
+library(doRNG)   # set.seed for foreach
 library(mcfda)
+library(MASS)
+library(fields)   # 2d smoothing
+library(mclust)   # cluster utills
+library(tclust)   # Trimmed k-means clustering
 library(robfpca)
 source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("R/sim_kraus.R")
+source("robust_Kraus.R")
 
 
 ### a function of generate shifted Doppler signals (Ray and Mallick (2006))
@@ -28,7 +34,7 @@ doppler <- function(t, tau = 0.0001) {
   return( -0.025 + 0.6*sqrt(t*(1-t))*sin(2.1*pi/(t-tau)) )
 }
 
-
+### generate shifted Doppler signal with outliers
 sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4, 
                         grid.length = 512) {
   n <- n_c*4
@@ -113,490 +119,510 @@ sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4,
 }
 
 
-#############################
-### Data generation
-#############################
-# data generattion with outlier
-set.seed(100)
-grid.length <- 128
-X <- sim.doppler(n_c = 25, out.prop = 0.2, out.type = 5, grid.length = grid.length)
-y_outlier <- X$y_outlier
-X <- X$X
-gr <- seq(0, 1, length.out = grid.length)
-y_class <- rep(1:4, each = 25)
+####################################
+### Simulations
+####################################
+total_sim <- 50
+num.sim <- 0   # number of simulations
+seed <- 0   # current seed
+sim.seed <- rep(NA, total_sim)   # collection of seed with no error occurs
 
+### performance measures
+CCR <- matrix(NA, total_sim, 7)
+aRand <- matrix(NA, total_sim, 7)
+colnames(CCR) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
+colnames(aRand) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
 
-#############################
-### Covariance estimation
-#############################
-# test for fixed parameters
-system.time({
+while (num.sim < total_sim) {
+  seed <- seed + 1
+  set.seed(seed)
+  print(paste0("Seed: ", seed))
+  
+  #############################
+  ### Data generation
+  #############################
+  # data generattion with outlier
+  set.seed(1000)
+  out.prop <- 0.2
+  grid.length <- 128
+  X <- sim.doppler(n_c = 25, 
+                   out.prop = out.prop, 
+                   out.type = 5, 
+                   grid.length = grid.length)
+  y_outlier <- X$y_outlier
+  X <- X$X
+  gr <- seq(0, 1, length.out = grid.length)
+  y_class <- rep(1:4, each = 25)
+  
+  # pre-smoothing using penalized spline
+  gr <- seq(0, 1, length.out = grid.length)
+  x <- list2matrix(X)
+  x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
+  x <- t(x)
+  X.sm <- matrix2list(x)
+  X$Lt <- X.sm$Lt
+  X$Ly <- X.sm$Ly
+  
+  
+  # par(mfrow = c(4, 2))
+  # matplot(gr, t(list2matrix(X)[1:25, ]), type = "l")
+  # matplot(gr, t(x[1:25, ]), type = "l")
+  # matplot(gr, t(list2matrix(X)[26:50, ]), type = "l")
+  # matplot(gr, t(x[26:50, ]), type = "l")
+  # matplot(gr, t(list2matrix(X)[51:75, ]), type = "l")
+  # matplot(gr, t(x[51:75, ]), type = "l")
+  # matplot(gr, t(list2matrix(X)[76:100, ]), type = "l")
+  # matplot(gr, t(x[76:100, ]), type = "l")
+  # par(mfrow = c(1, 1))
+  
+  
+  
+  #############################################
+  ### Covariance estimation & Functional PCA
+  ### - Get FPC scores for clustering
+  #############################################
+  skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
   bw <- 0.2
-  kern <- "epan"
+  kernel <- "epanechnikov"
+  work.grid <- seq(0, 1, length.out = grid.length)
+  pve <- 0.99
+  K <- 2
+  
+  ### Yao et al. (2005)
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  kern <- ifelse(kernel == "epanechnikov", "epan", kernel)
   optns <- list(methodXi = "CE", dataType = "Sparse", verbose = FALSE,
                 nRegGrid = grid.length, useBinnedData = "OFF",
                 kernel = kern, userBwMu = bw, userBwCov = bw)
-  mu.yao.obj <- GetMeanCurve(Ly = X$Ly, Lt = X$Lt, optns = optns)
-})
-# user  system elapsed 
-# 0.48    0.03    0.52 
-system.time({
-  cov.yao.obj <- GetCovSurface(Ly = X$Ly, Lt = X$Lt, optns = optns)
-})
-# user  system elapsed 
-# 264.66   99.29  364.27 
-cov.yao <- cov.yao.obj$cov
-
-
-# system.time({
-#   # kernel <- "gauss"
-#   kernel <- "epanechnikov"
-#   # estimate mean, variance, covariance
-#   mu.lin.obj <- meanfunc(X$Lt, X$Ly, method = "PACE", kernel = kernel,
-#                          bw = bw)   # It occurs error or very slow.
-# })
-# # user  system elapsed 
-# # 0       0       0 
-# system.time({
-#   var.lin.obj <- varfunc(X$Lt, X$Ly, method = "PACE", kernel = kernel,
-#                          mu = mu.lin.obj, bw = bw)
-# })
-# # user  system elapsed 
-# # 144.05    5.03  149.13 
-# system.time({
-#   cov.lin.obj <- covfunc(X$Lt, X$Ly, method = "SP",
-#                          mu = mu.lin.obj, sig2x = var.lin.obj)
-# })
-# # user  system elapsed 
-# # 4295.06    1.71 4297.84 
-# system.time({
-#   cov.lin <- predict(cov.lin.obj, gr)
-# })
-# # user  system elapsed 
-# # 1.54    0.00    1.53 
-
-
-system.time({
-  kernel <- "epanechnikov"
-  # For delta in Huber function and bandwidth are selected from 5-fold CV
-  mu.huber.obj <- meanfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
-                               bw = bw, delta = 1.345)
-})
-# user  system elapsed 
-# 0.03    0.00    0.03 
-# system.time({
-#   mu_hat <- predict(mu.huber.obj, gr)
-# })
-# # user  system elapsed 
-# # 22.28    1.61   23.89 
-system.time({
-  # bandwidth are selected from 5-fold CV (almost 3 minutes)
-  cov.huber.obj <- covfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
-                               mu = mu.huber.obj, 
-                               bw = bw, delta = 1.345)
-})
-# user  system elapsed 
-# 515.44    1.28  516.84 
-system.time({
-  cov.huber <- predict(cov.huber.obj, gr)
-})
-# user  system elapsed 
-# 6.19    0.52    6.70 
-
-# # convert to 101 grids
-# gr <- seq(0, 1, length.out = 101)
-# system.time({
-#   cov.huber <- predict(cov.huber.obj, gr)
-# })
-# # user  system elapsed 
-# # 25.61    1.57   27.17 
-# persp3D(gr, gr, cov.huber,
-#         theta = -70, phi = 30, expand = 1)
-
-par(mfrow = c(1, 2))
-GA::persp3D(gr, gr, cov.yao,
-            theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.lin,
-#             theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, cov.huber,
-            theta = -70, phi = 30, expand = 1)
-par(mfrow = c(1, 1))
-
-diag(cov.yao)
-diag(cov.huber)
-
-# matplot(gr, cbind(diag(cov.yao),
-#                   diag(cov.huber)),
-#         type = "l")
-
-
-
-# res <- diag(cov.huber)
-# # df <- cbind(
-# #   which(v == 0) + 1,
-# #   which(v == 0) - 1  
-# # )
-# # if (df < 1) {
-# #   df <- 1
-# # }
-# # if (df > 128) {
-# #   df <- 128
-# # }
-# # d <- rep(NA, 128)
-# # d[which(v == 0)] <- 1
-# # diff(d)
-# 
-# d <- ifelse(res == 0, 0, 1)
-# 
-# ind_1 <- which(diff(d) == 1) + 1
-# ind_2 <- which(diff(d) == -1)
-# 
-# res[which(1:length(newt) < ind_1)] <- res[ind_1]
-# res[which(1:length(newt) > ind_2)] <- res[ind_2]
-# 
-# # NA NA 1 1 1 1
-# # 1 1 1 1 NA NA
-# # NA NA 1 1 NA NA
-# # 1 1 NA NA 1 1
-# # 1 NA 1 NA 1 NA
-
-
-var.y - cov.huber.obj$sig2e
-
-
-# calculate sum of squares
-gr <- sort(unique(unlist(X$Lt)))
-mu_hat <- predict(mu.huber.obj, gr)
-ss <- lapply(1:length(X$Lt), function(i) {
-  ind <- match(X$Lt[[i]], gr)
-  if (length(ind) == length(X$Lt[[i]])) {
-    return( (X$Ly[[i]] - mu_hat[ind])^2 )
-  } else {
-    mui <- predict(mu.huber.obj, X$Lt[[i]])
-    return( (X$Ly[[i]] - mui)^2 )
+  tryCatch({
+    # cov estimation
+    mu.yao.obj <- GetMeanCurve(Ly = X$Ly, Lt = X$Lt, optns = optns)
+    cov.yao.obj <- GetCovSurface(Ly = X$Ly, Lt = X$Lt, optns = optns)
+    # PCA
+    pca.yao.obj <- funPCA(X$Lt, X$Ly, mu.yao, cov.yao, PVE = pve,
+                          sig2 = cov.yao.obj$sigma2, work.grid, K = K)
+    pca.yao.obj$eig.obj$PVE
+    fpc.yao <- pca.yao.obj$pc.score[, 1:K]
+  }, error = function(e) { 
+    print("Yao error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
   }
-})
-# ss_abs <- lapply(ss, sqrt)
-# # obtain noise variance
-# h.sig2 <- select.sig2.rob.bw(X$Lt, X$Ly, ss)
-# sig2 <- sigma2.rob(X$Lt, X$Ly, h = h.sig2)
+  mu.yao <- mu.yao.obj$mu
+  cov.yao <- cov.yao.obj$cov
+  end_time <- Sys.time()
+  print(paste0("Yao et al. : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  # user  system elapsed 
+  # 264.66   99.29  364.27 
+  
+  
+  # system.time({
+  #   # kernel <- "gauss"
+  #   kernel <- "epanechnikov"
+  #   # estimate mean, variance, covariance
+  #   mu.lin.obj <- meanfunc(X$Lt, X$Ly, method = "PACE", kernel = kernel,
+  #                          bw = bw)   # It occurs error or very slow.
+  #   var.lin.obj <- varfunc(X$Lt, X$Ly, method = "PACE", kernel = kernel,
+  #                          mu = mu.lin.obj, bw = bw)
+  # })
+  # # user  system elapsed 
+  # # 144.05    5.03  149.13 
+  # system.time({
+  #   cov.lin.obj <- covfunc(X$Lt, X$Ly, method = "SP",
+  #                          mu = mu.lin.obj, sig2x = var.lin.obj)
+  # })
+  # # user  system elapsed 
+  # # 4295.06    1.71 4297.84 
+  # system.time({
+  #   cov.lin <- predict(cov.lin.obj, gr)
+  # })
+  
+  
+  ### Huber loss
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    # cov estimation
+    mu.huber.obj <- meanfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
+                                 bw = bw, delta = 1.345)
+    cov.huber.obj <- covfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
+                                 mu = mu.huber.obj, 
+                                 bw = bw, delta = 1.345)
+    mu.huber <- predict(mu.huber.obj, work.grid)
+    cov.huber <- predict(cov.huber.obj, work.grid)
+    # PCA
+    pca.huber.obj <- funPCA(X$Lt, X$Ly, mu.huber, cov.huber, PVE = pve,
+                            sig2 = cov.huber.obj$sig2e, work.grid, K = K)
+    pca.huber.obj$eig.obj$PVE
+    fpc.huber <- pca.huber.obj$pc.score[, 1:K]
+  }, error = function(e) { 
+    print("Huber error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("Robust (Huber loss) : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  # user  system elapsed 
+  # 515.44    1.28  516.84 
+  
+  
+  
+  ### Kraus (2015)
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    cov.kraus <- var.missfd(x)
+    eig.R <- eigen.missfd(cov.kraus)
+    # first 5 principal components
+    phi <- eig.R$vectors[, 1:K]
+    fpc.kraus <- apply(x, 1, function(row){ 
+      pred.score.missfd(row, phi = phi, x = x) 
+    })
+    fpc.kraus <- t(fpc.kraus)
+  }, error = function(e) { 
+    print("Kraus error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("Kraus : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  
+  
+  ### M-estimator
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    mu.Mest <- mean.rob.missfd(x, smooth = F)
+    cov.Mest <- var.rob.missfd(x, smooth = F)
+    pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
+                           sig2 = 1e-6, work.grid, K = K)
+    fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
+    pca.Mest.obj$eig.obj$PVE
+  }, error = function(e) { 
+    print("M-est error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("M-est : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  
+  
+  ### M-estimator (smooth)
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
+    cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+    pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
+                              sig2 = 1e-6, work.grid, K = K)
+    fpc.Mest.sm <- pca.Mest.sm.obj$pc.score[, 1:K]
+    pca.Mest.sm.obj$eig.obj$PVE
+  }, error = function(e) { 
+    print("M-est(smooth) error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("M-est(smooth) : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  
+  
+  ### Kraus + M-est
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    mu <- mean.rob.missfd(x)
+    cov.kraus_M <- var.rob.missfd(x)
+    eig.R <- eigen.missfd(cov.kraus_M)
+    # first 5 principal components
+    phi <- eig.R$vectors[, 1:K]
+    fpc.kraus_M <- apply(x, 1, function(row){ 
+      pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
+                            mu = mu, R = cov.kraus_M) 
+    })
+    fpc.kraus_M <- t(fpc.kraus_M)
+  }, error = function(e) { 
+    print("Kraus-M error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("Kraus-M : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  # user  system elapsed 
+  # 295.07    0.11  295.30 
+  
+  
+  ### Kraus + M-est (smooth)
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    mu <- mean.rob.missfd(x, smooth = T)
+    cov.kraus_M_sm <- var.rob.missfd(x, smooth = T)
+    eig.R <- eigen.missfd(cov.kraus_M_sm)
+    # first 5 principal components
+    phi <- eig.R$vectors[, 1:K]
+    fpc.kraus_M_sm <- apply(x, 1, function(row){ 
+      pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
+                            mu = mu, R = cov.kraus_M_sm) 
+    })
+    fpc.kraus_M_sm <- t(fpc.kraus_M_sm)
+  }, error = function(e) { 
+    print("Kraus-M(smooth) error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("Kraus-M(smooth) : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+
+    
+  # par(mfrow = c(2, 2))
+  # GA::persp3D(gr, gr, cov.yao,
+  #             theta = -70, phi = 30, expand = 1)
+  # GA::persp3D(gr, gr, cov.huber,
+  #             theta = -70, phi = 30, expand = 1)
+  # GA::persp3D(gr, gr, cov.kraus,
+  #             theta = -70, phi = 30, expand = 1)
+  # GA::persp3D(gr, gr, cov.Mest,
+  #             theta = -70, phi = 30, expand = 1)
+  # par(mfrow = c(1, 1))
+  
+  
+  
+  ##############################################
+  ### Clustering
+  ### - k-means clustering based on FPC scores
+  ##############################################
+  n_group <- 4   # number of clusters
+  
+  set.seed(seed)
+  if (out.prop == 0) {
+    ### No outliers => k-means clustring is performed.
+    kmeans.yao <- kmeans(x = fpc.yao, centers = n_group, 
+                         iter.max = 30, nstart = 50)
+    kmeans.huber <- kmeans(x = fpc.huber, centers = n_group, 
+                           iter.max = 30, nstart = 50)
+    kmeans.kraus <- kmeans(x = fpc.kraus, centers = n_group, 
+                           iter.max = 30, nstart = 50)
+    kmeans.Mest <- kmeans(x = fpc.Mest, centers = n_group, 
+                          iter.max = 30, nstart = 50)
+    kmeans.Mest.sm <- kmeans(x = fpc.Mest.sm, centers = n_group, 
+                             iter.max = 30, nstart = 50)
+    kmeans.kraus_M <- kmeans(x = fpc.kraus_M, centers = n_group, 
+                             iter.max = 30, nstart = 50)
+    kmeans.kraus_M_sm <- kmeans(x = fpc.kraus_M_sm, centers = n_group, 
+                                iter.max = 30, nstart = 50)
+  } else {
+    ### Outliers => Trimmed k-means clustering is performed.
+    ### Trimmed k-means clustering
+    
+    # substitute trimmed cluster to 0
+    y_class <- ifelse(y_outlier == 1, 0, y_class)
+    
+    # fit trimmed k-means clustering
+    kmeans.yao <- tkmeans(x = fpc.yao, k = n_group, alpha = out.prop,
+                          iter.max = 30, nstart = 50)
+    kmeans.huber <- tkmeans(x = fpc.huber, k = n_group, alpha = out.prop,
+                            iter.max = 30, nstart = 50)
+    kmeans.kraus <- tkmeans(x = fpc.kraus, k = n_group, alpha = out.prop,
+                            iter.max = 30, nstart = 50)
+    kmeans.Mest <- tkmeans(x = fpc.Mest, k = n_group, alpha = out.prop,
+                           iter.max = 30, nstart = 50)
+    kmeans.Mest.sm <- tkmeans(x = fpc.Mest.sm, k = n_group, alpha = out.prop,
+                              iter.max = 30, nstart = 50)
+    kmeans.kraus_M <- tkmeans(x = fpc.kraus_M, k = n_group, alpha = out.prop,
+                              iter.max = 30, nstart = 50)
+    kmeans.kraus_M_sm <- tkmeans(x = fpc.kraus_M_sm, k = n_group, alpha = out.prop,
+                                 iter.max = 30, nstart = 50)
+  }
+  
+  
+  num.sim <- num.sim + 1
+  
+  # CCR (correct classification rate) and aRand (adjusted Rand index)
+  CCR[num.sim, ] <- c(
+    1 - classError(y_class, kmeans.yao$cluster)$errorRate,
+    1 - classError(y_class, kmeans.huber$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
+    1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
+    1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate
+  )
+  aRand[num.sim, ] <- c(
+    adjustedRandIndex(y_class, kmeans.yao$cluster),
+    adjustedRandIndex(y_class, kmeans.huber$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus$cluster),
+    adjustedRandIndex(y_class, kmeans.Mest$cluster),
+    adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster)
+  )
+}
+
+colMeans(CCR, na.rm = T)
+colMeans(aRand, na.rm = T)
 
 
-# var.huber <- predict(cov.huber.obj$sig2x$obj, seq(0, 1, length.out = 101))
-# fit <- varfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel,
-#                    mu = mu.huber.obj, sig2 = 0,
-#                    bw = bw, delta = 1.345)
-# predict(fit, seq(0, 1, length.out = 101))
-
-var.y.obj <- meanfunc.rob(X$Lt, ss, method = "huber", kernel = kernel,
-                          bw = 0.2, delta = 1.345)
-var.y <- predict(var.y.obj, gr)
-plot(unlist(X$Lt), unlist(ss), ylim = c(0, 0.3))
-lines(gr, var.y, type = "l", col = 2, lwd = 3)
-lines(seq(0, 1, length.out = 101),
-      predict(var.y.obj, seq(0, 1, length.out = 101)),
-      type = "l", col = 4, lwd = 3)
-# lines(gr, apply(X, 2, var, na.rm = T), col = 3, lwd = 3)
-
-# sd.y.obj <- meanfunc.rob(X$Lt, ss_abs, method = "huber", kernel = kernel,
-#                           bw = 0.05, delta = 1.345)
-# sd.y <- predict(sd.y.obj, gr)
-# lines(gr, sd.y^2, type = "l", col = 5, lwd = 3)
-# lines(seq(0, 1, length.out = 101),
-#       predict(sd.y.obj, seq(0, 1, length.out = 101))^2,
-#       type = "l", col = 2, lwd = 3)
-# 
-# 
-# plot(unlist(X$Lt), unlist(ss_abs))
-# lines(gr, sd.y, type = "l", col = 5, lwd = 3)
-# lines(seq(0, 1, length.out = 101),
-#       predict(sd.y.obj, seq(0, 1, length.out = 101)),
-#       type = "l", col = 2, lwd = 3)
-# 
-# summary(unlist(ss_abs))
-
-matplot(t(list2matrix(X)[1:25, ]), type = "l")
-
-
-
-# system.time({
-#   # For delta in Huber function and bandwidth are selected from 5-fold CV
-#   mu.wrm.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
-#                              bw = bw, delta = 1.345)
-# })
-# # user  system elapsed 
-# # 39.81    0.00   39.81 
-# system.time({
-#   # bandwidth are selected from 5-fold CV (almost 3 minutes)
-#   cov.wrm.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "wrm", kernel = kernel,
-#                              mu = mu.huber.obj,
-#                              bw = bw, delta = 1.345)
-# })
-# # Too slow....
-
-# save.image("RData/20210501_sim_cluster.RData")
-
-
-#####################################
-### Functional PCA
-### - Get FPC scores for clustering
-#####################################
-pve <- 0.99
-K <- 5
-work.grid <- gr
-
-### Yao et al. (2005)
-# mu.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
-#                          mu = mu.yao.obj$mu)
-# cov.yao <- ConvertSupport(fromGrid = cov.yao.obj$workGrid, toGrid = work.grid,
-#                           Cov = cov.yao.obj$cov)
-mu.yao <- mu.yao.obj$mu
-system.time({
-  pca.yao.obj <- funPCA(X$Lt, X$Ly, mu.yao, cov.yao, PVE = pve,
-                        sig2 = cov.yao.obj$sigma2, work.grid, K = K)
-})
-# user  system elapsed 
-# 184.11    0.07  184.19 
-pca.yao.obj$eig.obj$PVE
-
-
-# ### Lin and Wang (2020)
-# mu.lin <- predict(mu.lin.obj, work.grid)
-# cov.lin <- predict(cov.lin.obj, work.grid)
-# system.time({
-#   pca.lin.obj <- funPCA(X$Lt, X$Ly, mu.lin, cov.lin, PVE = pve,
-#                         sig2 = cov.lin.obj$sig2e, work.grid, K = K)
-# })
-
-
-### Huber (proposed method)
-mu.huber <- predict(mu.huber.obj, work.grid)
-cov.huber <- predict(cov.huber.obj, work.grid)
-system.time({
-  pca.huber.obj <- funPCA(X$Lt, X$Ly, mu.huber, cov.huber, PVE = pve,
-                          sig2 = cov.huber.obj$sig2e, work.grid, K = K)
-})
-# user  system elapsed 
-# 179.31    0.16  179.54 
-pca.huber.obj$eig.obj$PVE
-
-
-### FPC scores
-# K <- 3
-fpc.yao <- pca.yao.obj$pc.score[, 1:K]
-fpc.huber <- pca.huber.obj$pc.score[, 1:K]
-
-
-# Kraus
-x <- list2matrix(X)
-R <- var.missfd(x)
-# # bivariate smoothing
-# R <- smooth.2d(as.numeric(R),
-#                x = expand.grid(gr, gr), surface = F,
-#                theta = 0.1, nrow = 128, ncol = 128)
-eig.R <- eigen.missfd(R)
-# first 5 principal components
-phi <- eig.R$vectors[, 1:K]
-fpc.kraus <- apply(x, 1, function(row){ pred.score.missfd(row, phi = phi, x = x) }) %>% 
-  t()
-
-# M-estimator
-library(MASS)
-library(fields)
-mu.Mest.obj <- meanfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
-                            bw = bw, delta = 1.345)
-cov.Mest.obj <- var.rob.missfd(x, smooth = T)
-mu.Mest <- predict(mu.Mest.obj, work.grid)
-cov.Mest <- cov.Mest.obj
-system.time({
-  pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
-                        sig2 = 0.0001, work.grid, K = K)
-})
-fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
-pca.Mest.obj$eig.obj$PVE
-
-
-par(mfrow = c(1, 2))
-GA::persp3D(gr, gr, R,
-            theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.lin,
-#             theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, cov.Mest,
-            theta = -70, phi = 30, expand = 1)
-par(mfrow = c(1, 1))
-
-
-
-
-##############################################
-### Clustering
-### - k-means clustering based on FPC scores
-##############################################
-n_group <- 4   # number of clusters
-
-# set.seed(1000)
-kmeans.yao.obj <- kmeans(x = fpc.yao, centers = n_group)  
-kmeans.yao <- kmeans.yao.obj$cluster
-table(kmeans.yao)
-
-# set.seed(1000)
-kmeans.huber.obj <- kmeans(x = fpc.huber, centers = n_group)  
-kmeans.huber <- kmeans.huber.obj$cluster
-table(kmeans.huber)
-
-# set.seed(1000)
-kmeans.kraus.obj <- kmeans(x = fpc.kraus, centers = n_group)  
-kmeans.kraus <- kmeans.kraus.obj$cluster
-table(kmeans.kraus)
-
-# set.seed(1000)
-kmeans.Mest.obj <- kmeans(x = fpc.Mest, centers = n_group)  
-kmeans.Mest <- kmeans.Mest.obj$cluster
-table(kmeans.Mest)
-
-# 1st FPC vs 2nd FPC
-par(mfrow = c(2, 2))
-plot(fpc.yao[, 1], fpc.yao[, 2], col = kmeans.yao,
+# 1st FPC vs 2nd FPC (k-means)
+par(mfrow = c(4, 2))
+plot(fpc.yao[, 1], fpc.yao[, 2], col = kmeans.yao$cluster,
      xlab = "1st FPC", ylab = "2nd FPC", main = "Yao et al. (2005)")
 grid()
-plot(fpc.huber[, 1], fpc.huber[, 2], col = kmeans.huber,
+plot(fpc.huber[, 1], fpc.huber[, 2], col = kmeans.huber$cluster,
      xlab = "1st FPC", ylab = "2nd FPC", main = "Huber")
 grid()
-plot(fpc.kraus[, 1], fpc.kraus[, 2], col = kmeans.kraus,
+plot(fpc.kraus[, 1], fpc.kraus[, 2], col = kmeans.kraus$cluster,
      xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus (2015)")
 grid()
-plot(fpc.Mest[, 1], fpc.Mest[, 2], col = kmeans.Mest,
-     xlab = "1st FPC", ylab = "2nd FPC", main = "M-estimator")
+plot(fpc.Mest[, 1], fpc.Mest[, 2], col = kmeans.Mest$cluster,
+     xlab = "1st FPC", ylab = "2nd FPC", main = "M-est")
+grid()
+plot(fpc.Mest.sm[, 1], fpc.Mest.sm[, 2], col = kmeans.Mest.sm$cluster,
+     xlab = "1st FPC", ylab = "2nd FPC", main = "M-est (smooth)")
+grid()
+plot(fpc.kraus_M[, 1], fpc.kraus_M[, 2], col = kmeans.kraus_M$cluster,
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus-M")
+grid()
+plot(fpc.kraus_M_sm[, 1], fpc.kraus_M_sm[, 2], col = kmeans.kraus_M_sm$cluster,
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus-M (smooth)")
 grid()
 par(mfrow = c(1, 1))
 
-data.frame(cluster = kmeans.yao,
-           y = y_class) %>% 
-  table()
-data.frame(cluster = kmeans.huber,
-           y = y_class) %>% 
-  table()
-data.frame(cluster = kmeans.kraus,
-           y = y_class) %>% 
-  table()
 
 
-
-apply(x, 1, function(row){ sum(is.na(row))/grid.length*100 })
-par(mfrow = c(2, 2))
-matplot(t(x[1:25, ]), type = "l")
-matplot(t(x[26:50, ]), type = "l")
-matplot(t(x[51:75, ]), type = "l")
-matplot(t(x[76:100, ]), type = "l")
+# 1st FPC vs 2nd FPC (Trimmed k-means)
+par(mfrow = c(4, 2))
+plot(fpc.yao[, 1], fpc.yao[, 2], col = kmeans.yao$cluster,
+     xlim = range(fpc.yao[-which(kmeans.yao$cluster == 0), 1]),
+     ylim = range(fpc.yao[-which(kmeans.yao$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Yao et al. (2005)")
+grid()
+plot(fpc.huber[, 1], fpc.huber[, 2], col = kmeans.huber$cluster,
+     xlim = range(fpc.huber[-which(kmeans.huber$cluster == 0), 1]),
+     ylim = range(fpc.huber[-which(kmeans.huber$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Huber")
+grid()
+plot(fpc.kraus[, 1], fpc.kraus[, 2], col = kmeans.kraus$cluster,
+     xlim = range(fpc.kraus[-which(kmeans.kraus$cluster == 0), 1]),
+     ylim = range(fpc.kraus[-which(kmeans.kraus$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus (2015)")
+grid()
+plot(fpc.Mest[, 1], fpc.Mest[, 2], col = kmeans.Mest$cluster,
+     xlim = range(fpc.Mest[-which(kmeans.Mest$cluster == 0), 1]),
+     ylim = range(fpc.Mest[-which(kmeans.Mest$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "M-est")
+grid()
+plot(fpc.Mest.sm[, 1], fpc.Mest.sm[, 2], col = kmeans.Mest.sm$cluster,
+     xlim = range(fpc.Mest.sm[-which(kmeans.Mest.sm$cluster == 0), 1]),
+     ylim = range(fpc.Mest.sm[-which(kmeans.Mest.sm$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "M-est (smooth)")
+grid()
+plot(fpc.kraus_M[, 1], fpc.kraus_M[, 2], col = kmeans.kraus_M$cluster,
+     xlim = range(fpc.kraus_M[-which(kmeans.kraus_M$cluster == 0), 1]),
+     ylim = range(fpc.kraus_M[-which(kmeans.kraus_M$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus-M")
+grid()
+plot(fpc.kraus_M_sm[, 1], fpc.kraus_M_sm[, 2], col = kmeans.kraus_M_sm$cluster,
+     xlim = range(fpc.kraus_M_sm[-which(kmeans.kraus_M_sm$cluster == 0), 1]),
+     ylim = range(fpc.kraus_M_sm[-which(kmeans.kraus_M_sm$cluster == 0), 2]),
+     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus-M (smooth)")
+grid()
 par(mfrow = c(1, 1))
 
-par(mfrow = c(2, 2))
-matplot(t(x[1:25, ]), type = "l", ylim = c(-1, 1))
-matplot(t(x[26:50, ]), type = "l", ylim = c(-1, 1))
-matplot(t(x[51:75, ]), type = "l", ylim = c(-1, 1))
-matplot(t(x[76:100, ]), type = "l", ylim = c(-1, 1))
-par(mfrow = c(1, 1))
 
-
-### PAM
-library(cluster)
-pam.yao.obj <- pam(fpc.yao, n_group, metric = "manhattan")
-table(pam.yao.obj$clustering)
-
-### Trimmed k-means clustering
-library(tclust)
-tkmeans.yao.obj <- tkmeans(x = fpc.huber, k = n_group, alpha = 0.2)
-table(tkmeans.yao.obj$cluster)
-tkmeans.yao.obj$cluster
-par(mfrow = c(2, 2))
-for (i in 1:4) {
-  matplot(t(x[tkmeans.yao.obj$cluster == i, ]), type = "l")
-}
-par(mfrow = c(1, 1))
-
-table(y_outlier, tkmeans.yao.obj$cluster)
-table(y_class, tkmeans.yao.obj$cluster)[, -1]
-
-y_class <- ifelse(y_outlier == 1, 0, y_class)
-
-tkmeans.yao.obj <- tkmeans(x = fpc.yao, k = n_group, alpha = 0.2)
-table(y_class, 
-      tkmeans.yao.obj$cluster)
-tkmeans.huber.obj <- tkmeans(x = fpc.huber, k = n_group, alpha = 0.2)
-table(y_class, 
-      tkmeans.huber.obj$cluster)
-tkmeans.kraus.obj <- tkmeans(x = fpc.kraus, k = n_group, alpha = 0.2)
-table(y_class,
-      tkmeans.kraus.obj$cluster)
-tkmeans.Mest.obj <- tkmeans(x = fpc.Mest, k = n_group, alpha = 0.2)
-table(y_class,
-      tkmeans.Mest.obj$cluster)
 
 par(mfrow = c(4,4))
 for (i in 1:4) {
-  matplot(t(x[tkmeans.yao.obj$cluster == i, ]), type = "l")
+  matplot(t(x[kmeans.yao$cluster == i, ]), type = "l")
 }
 for (i in 1:4) {
-  matplot(t(x[tkmeans.huber.obj$cluster == i, ]), type = "l")
+  matplot(t(x[kmeans.huber$cluster == i, ]), type = "l")
 }
 for (i in 1:4) {
-  matplot(t(x[tkmeans.kraus.obj$cluster == i, ]), type = "l")
+  matplot(t(x[kmeans.kraus$cluster == i, ]), type = "l")
 }
 for (i in 1:4) {
-  matplot(t(x[tkmeans.Mest.obj$cluster == i, ]), type = "l")
+  matplot(t(x[kmeans.Mest$cluster == i, ]), type = "l")
 }
 par(mfrow = c(1, 1))
 
 
-### match predicted cluster to true
-match_cluster <- function(y, pred) {
-  y_group <- sort(unique(y))
-  n_group <- length(y_group)
-  
-  df <- data.frame(id = 1:length(y),
-                   y = y,
-                   pred = pred)
-  df2 <- df %>% 
-    group_by(y, pred) %>% 
-    summarise(n = n(), .groups = "drop_last") %>% 
-    filter(n == max(n)) %>% 
-    dplyr::select(y, pred)
-  
-  if (length(unique(df2$pred)) != n_group) {
-    permut_list <- combinat::permn(y_group)   # a list of permutation
-    acc <- rep(NA, length(permut_list))
-    for (i in 1:length(permut_list)) {
-      permut_y <- data.frame(y_group = y_group,
-                             cl = permut_list[[i]])
-      permut_y <- data.frame(y_group = pred) %>% 
-        left_join(permut_y, by = "y_group")
-      
-      acc[i] <- mean(y == permut_y$cl)
-    }
-    df2 <- data.frame(pred = y_group,
-                      y = permut_list[[which.max(acc)]])
-  }
-  
-  pred_matched <- df["pred"] %>% 
-    left_join(df2, by = "pred") %>% 
-    dplyr::select(y) 
-  pred_matched <- as.numeric(pred_matched$y)
-  
-  return(pred_matched)
-}
 
-
-
-y_yao <- match_cluster(y_class, 
-                       tkmeans.yao.obj$cluster)
-y_huber <- match_cluster(y_class, 
-                         tkmeans.huber.obj$cluster)
-y_kraus <- match_cluster(y_class,
-                         tkmeans.kraus.obj$cluster)
-y_Mest <- match_cluster(y_class,
-                        tkmeans.Mest.obj$cluster)
-mean(y_class == y_yao)
-mean(y_class == y_huber)
-mean(y_class == y_kraus)
-mean(y_class == y_Mest)
+# ### PAM
+# library(cluster)
+# pam.yao.obj <- pam(fpc.yao, n_group, metric = "manhattan")
+# table(pam.yao.obj$clustering)
+# 
+# 
+# ### match predicted cluster to true
+# match_cluster <- function(y, pred) {
+#   y_group <- sort(unique(y))
+#   n_group <- length(y_group)
+#   
+#   df <- data.frame(id = 1:length(y),
+#                    y = y,
+#                    pred = pred)
+#   df2 <- df %>%
+#     group_by(y, pred) %>%
+#     summarise(n = n(), .groups = "drop_last") %>%
+#     filter(n == max(n)) %>%
+#     dplyr::select(y, pred)
+#   
+#   if (length(unique(df2$pred)) != n_group) {
+#     permut_list <- combinat::permn(y_group)   # a list of permutation
+#     acc <- rep(NA, length(permut_list))
+#     for (i in 1:length(permut_list)) {
+#       permut_y <- data.frame(y_group = y_group,
+#                              cl = permut_list[[i]])
+#       permut_y <- data.frame(y_group = pred) %>% 
+#         left_join(permut_y, by = "y_group")
+#       
+#       acc[i] <- mean(y == permut_y$cl)
+#     }
+#     df2 <- data.frame(pred = y_group,
+#                       y = permut_list[[which.max(acc)]])
+#   }
+#   
+#   pred_matched <- df["pred"] %>% 
+#     left_join(df2, by = "pred") %>% 
+#     dplyr::select(y) 
+#   pred_matched <- as.numeric(pred_matched$y)
+#   
+#   return(pred_matched)
+# }
 

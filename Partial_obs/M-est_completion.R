@@ -82,6 +82,19 @@ while (num.sim < num_sim) {
   x <- list2matrix(x.2)
   # matplot(t(x), type = "l")
   
+  # pre-smoothing using penalized spline
+  gr <- seq(0, 1, length.out = n.grid)
+  x <- list2matrix(x.2)
+  x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
+  x <- t(x)
+  x.2.sm <- matrix2list(x)
+  x.2$Lt <- x.2.sm$Lt
+  x.2$Ly <- x.2.sm$Ly
+  # par(mfrow = c(1, 2))
+  # matplot(gr, t(list2matrix(x.2)[81:100, ]), type = "l")
+  # matplot(gr, t(x[81:100, ]), type = "l")
+  # par(mfrow = c(1, 1))
+  
   
   #############################
   ### Covariance estimation
@@ -339,8 +352,8 @@ while (num.sim < num_sim) {
   print(colMeans(mise_reconstr, na.rm = T))
   print(colMeans(mise_completion, na.rm = T))
 }
-# save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
-#      file = "RData/20210510_comp_0_1_bw.RData")
+save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
+     file = "RData/20210510_comp_0_2_bw_presmooth.RData")
 
 colMeans(mise_reconstr)
 colMeans(mse_reconstr)

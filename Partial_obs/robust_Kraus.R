@@ -1,3 +1,47 @@
+### penalized spline for each curve
+pspline_curve <- function(t, x) {
+  grid.length <- length(x)
+  x_sm <- rep(NA, grid.length)
+  NA_ind <- which(is.na(x))   # check NA
+  
+  if (length(NA_ind) > 0) {
+    # Partially observed curve
+    ind_1 <- min(NA_ind)
+    ind_2 <- max(NA_ind)
+    if (ind_1 == 1 || ind_2 == grid.length) {
+      # missing for start or end
+      t_obs <- t[-NA_ind]
+      x_obs <- x[-NA_ind]
+      x_sm[-NA_ind] <- pspline::sm.spline(t_obs, x_obs)$ysmth
+    } else {
+      # missing for middle
+      # concatenate for 2 parts of observed periods, smoothing, and seperate
+      t_obs <- t[-NA_ind]
+      x_obs <- x[-NA_ind]
+      sm_fit <- pspline::sm.spline(t_obs, x_obs)
+      x_sm[1:(ind_1-1)] <- sm_fit$ysmth[1:(ind_1-1)]
+      x_sm[(ind_2+1):grid.length] <- sm_fit$ysmth[-(1:(ind_1-1))]
+      
+      # t_obs_1 <- t[1:(ind_1-1)]
+      # x_obs_1 <- x[1:(ind_1-1)]
+      # sm_fit <- sm.spline(t_obs_1, x_obs_1)
+      # x_sm[1:(ind_1-1)] <- as.numeric(sm_fit$ysmth)
+      # 
+      # t_obs_2 <- t[(ind_2+1):grid.length]
+      # x_obs_2 <- x[(ind_2+1):grid.length]
+      # sm_fit <- sm.spline(t_obs_2, x_obs_2)
+      # x_sm[(ind_2+1):grid.length] <- as.numeric(sm_fit$ysmth)
+    }
+  } else {
+    # Fully observed curve
+    sm_fit <- pspline::sm.spline(t, x)
+    x_sm <- as.numeric(sm_fit$ysmth)
+  }
+  
+  return(x_sm)
+}
+
+
 ## main programs for principal component analysis and reconstruction
 ## of incomplete functional data using regularised linear prediction
 
@@ -20,7 +64,7 @@ mean.rob.missfd <- function(x, smooth = F) {
     work.grid <- seq(0, 1, length.out = ncol(x))
     mu.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", 
                            kernel = "epanechnikov",
-                           bw = 0.1, delta = 1.345)
+                           bw = 0.2, delta = 1.345)
     mu <- predict(mu.obj, work.grid)
   } else {
     if (is.list(x)) {
