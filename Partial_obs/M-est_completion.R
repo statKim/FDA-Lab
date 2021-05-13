@@ -32,7 +32,7 @@ source("robust_Kraus.R")
 #####################################
 ### Delaigle (2020) setting
 #####################################
-num_sim <- 100
+num_sim <- 50
 mise_reconstr <- matrix(NA, num_sim, 4)
 mse_reconstr <- matrix(NA, num_sim, 4)
 mise_completion <- matrix(NA, num_sim, 7)
@@ -48,6 +48,7 @@ pca.est <- list()
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, num_sim)   # collection of seed with no error occurs
+pre_smooth <- TRUE   # pre-smoothing
 
 while (num.sim < num_sim) {
   seed <- seed + 1
@@ -83,17 +84,15 @@ while (num.sim < num_sim) {
   # matplot(t(x), type = "l")
   
   # pre-smoothing using penalized spline
-  gr <- seq(0, 1, length.out = n.grid)
-  x <- list2matrix(x.2)
-  x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
-  x <- t(x)
-  x.2.sm <- matrix2list(x)
-  x.2$Lt <- x.2.sm$Lt
-  x.2$Ly <- x.2.sm$Ly
-  # par(mfrow = c(1, 2))
-  # matplot(gr, t(list2matrix(x.2)[81:100, ]), type = "l")
-  # matplot(gr, t(x[81:100, ]), type = "l")
-  # par(mfrow = c(1, 1))
+  if (pre_smooth == T) {
+    gr <- seq(0, 1, length.out = n.grid)
+    x <- list2matrix(x.2)
+    x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
+    x <- t(x)
+    x.2.sm <- matrix2list(x)
+    x.2$Lt <- x.2.sm$Lt
+    x.2$Ly <- x.2.sm$Ly
+  }
   
   
   #############################
@@ -187,33 +186,6 @@ while (num.sim < num_sim) {
                " secs"))
   
   
-  # library(fields)
-  # cov.kraus.modify <- var.rob.missfd(x, mu.huber)
-  # cov.kraus.modify <- smooth.2d(as.numeric(cov.kraus.modify),
-  #                               x = expand.grid(gr, gr), surface = F,
-  #                               theta = 0.1, nrow = 51, ncol = 51)
-  # 
-  # gr <- work.grid
-  # cov.true <- get_cov_fragm(work.grid, model = 2)   # true covariance
-  # 
-  # par(mfrow = c(2, 2))
-  # GA::persp3D(gr, gr, cov.true,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.yao,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.huber,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.kraus.modify,
-  #             theta = -70, phi = 30, expand = 1)
-  # par(mfrow = c(1, 1))
-  # 
-  # matplot(gr, cbind(diag(cov.true),
-  #                   diag(cov.yao),
-  #                   diag(cov.huber),
-  #                   diag(cov.kraus.modify)),
-  #         type = "l")
-  
-  
   # if some covariances is a not finite value
   if (!is.finite(sum(cov.yao)) | !is.finite(sum(cov.Mest)) | 
       !is.finite(sum(cov.huber)) | !is.finite(sum(cov.Mest.sm))) {
@@ -285,9 +257,11 @@ while (num.sim < num_sim) {
     pred_Mest <- pred_Mest_mat[ind, ]
     pred_Mest_sm <- pred_Mest_sm_mat[ind, ]
     pred_kraus <- pred.missfd(x[ind, ], x)
-    pred_kraus_M <- pred.rob.missfd(x[ind, ], x)
+    pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
+                                    R = cov.Mest)
     pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
-                                       smooth = T)
+                                       smooth = T,
+                                       R = cov.Mest.sm)
     
     # ISE for reconstruction of overall interval
     df <- cbind(pred_yao,
@@ -298,7 +272,7 @@ while (num.sim < num_sim) {
       get_ise(x.2$x.full[ind, ], pred, work.grid) 
     })
     sse_reconstr[i, ] <- apply(df, 2, function(pred) { 
-      sum((x.2$x.full[ind, ] - pred)^2)
+      mean((x.2$x.full[ind, ] - pred)^2)
     })
     
     # ISE for completion
@@ -318,7 +292,7 @@ while (num.sim < num_sim) {
       get_ise(x.2$x.full[ind, NA_ind], pred, work.grid[NA_ind]) 
     })
     sse_completion[i, ] <- apply(df, 2, function(pred) { 
-      sum((x.2$x.full[ind, NA_ind] - pred)^2)
+      mean((x.2$x.full[ind, NA_ind] - pred)^2)
     })
   }
   
@@ -352,8 +326,10 @@ while (num.sim < num_sim) {
   print(colMeans(mise_reconstr, na.rm = T))
   print(colMeans(mise_completion, na.rm = T))
 }
-save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
-     file = "RData/20210510_comp_0_2_bw_presmooth.RData")
+# save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
+#      file = "RData/20210512_comp_0_2_bw.RData")
+# save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
+#      file = "RData/20210512_comp_0_2_bw_presmooth.RData")
 
 colMeans(mise_reconstr)
 colMeans(mse_reconstr)
@@ -418,71 +394,73 @@ print(t(df))
 # par(mfrow = c(1, 1))
 # 
 # 
-# ### Completion
-# par(mfrow = c(3, 3))
-# cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-# cand <- cand[cand <= 80]   # exclude outlier curves
-# # par(mfrow = c(1, 3))
-# # cand <- c(25, 70, 80)
-# for (ind in cand) {
-#   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
-#   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
-#   pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
-#   pred_Mest_sm <- predict(pca.Mest.sm.obj, K = NULL)[ind, ]
-#   pred_kraus <- pred.missfd(x[ind, ], x)
-#   pred_kraus_M <- pred.rob.missfd(x[ind, ], x)
-#   pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
-#                                      smooth = T)
-# 
-#   is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
-#   if (is_snippets) {
-#     obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
-# 
-#     if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
-#       # start and end
-#       obs_range <- obs_range
-#     } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
-#       if (obs_range[1] > 1) {
-#         # start periods
-#         obs_range <- obs_range[1]
-#       } else if (obs_range[2] < n.grid) {
-#         # end periods
-#         obs_range <- obs_range[2]
-#       }
-#     }
-#   } else {
-#     # missing is in the middle.
-#     obs_range <- range(which(is.na(x[ind, ])))
-#     # include last observed point
-#     obs_range <- c(obs_range[1] - 1,
-#                    obs_range[2] + 1)
-#   }
-# 
-#   df <- cbind(x.2$x.full[ind, ],
-#               pred_missing_curve(x[ind, ], pred_yao),
-#               pred_missing_curve(x[ind, ], pred_huber),
-#               pred_missing_curve(x[ind, ], pred_Mest),
-#               pred_missing_curve(x[ind, ], pred_Mest_sm),
-#               pred_kraus,
-#               pred_kraus_M,
-#               pred_kraus_M_sm)
-#   matplot(work.grid, df, type = "l",
-#           col = 1:8,
-#           lty = rep(1, 8),
-#           lwd = c(1,1,2,2,2,1,2,2),
-#           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
-#   abline(v = work.grid[obs_range],
-#          lty = 2, lwd = 2)
-#   grid()
-#   if (ind %in% cand[(0:6)*9 + 1]) {
-#     legend("topleft",
-#            c("True","Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)"),
-#            col = 1:8,
-#            lty = rep(1, 8),
-#            lwd = c(1,1,2,2,2,1,2,2))
-#   }
-# }
-# par(mfrow = c(1, 1))
+### Completion
+par(mfrow = c(3, 3))
+cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+cand <- cand[cand <= 80]   # exclude outlier curves
+par(mfrow = c(1, 3))
+cand <- c(15, 32, 21)
+for (ind in cand) {
+  pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+  pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
+  pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
+  pred_Mest_sm <- predict(pca.Mest.sm.obj, K = NULL)[ind, ]
+  pred_kraus <- pred.missfd(x[ind, ], x)
+  pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
+                                  R = cov.Mest)
+  pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
+                                     smooth = T,
+                                     R = cov.Mest.sm)
+
+  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+
+    if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
+      # start and end
+      obs_range <- obs_range
+    } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        obs_range <- obs_range[1]
+      } else if (obs_range[2] < n.grid) {
+        # end periods
+        obs_range <- obs_range[2]
+      }
+    }
+  } else {
+    # missing is in the middle.
+    obs_range <- range(which(is.na(x[ind, ])))
+    # include last observed point
+    obs_range <- c(obs_range[1] - 1,
+                   obs_range[2] + 1)
+  }
+
+  df <- cbind(x.2$x.full[ind, ],
+              pred_missing_curve(x[ind, ], pred_yao),
+              pred_missing_curve(x[ind, ], pred_huber),
+              pred_missing_curve(x[ind, ], pred_Mest),
+              pred_missing_curve(x[ind, ], pred_Mest_sm),
+              pred_kraus,
+              pred_kraus_M,
+              pred_kraus_M_sm)
+  matplot(work.grid, df, type = "l",
+          col = 1:8,
+          lty = rep(1, 8),
+          lwd = c(1,1,2,2,2,1,2,2),
+          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  grid()
+  if (ind %in% cand[(0:6)*9 + 1]) {
+    legend("topleft",
+           c("True","Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)"),
+           col = 1:8,
+           lty = rep(1, 8),
+           lwd = c(1,1,2,2,2,1,2,2))
+  }
+}
+par(mfrow = c(1, 1))
 # 
 # 
 # 

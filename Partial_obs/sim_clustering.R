@@ -119,6 +119,7 @@ sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4,
 }
 
 
+
 ####################################
 ### Simulations
 ####################################
@@ -126,6 +127,7 @@ total_sim <- 50
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, total_sim)   # collection of seed with no error occurs
+pre_smooth <- TRUE   # pre-smoothing
 
 ### performance measures
 CCR <- matrix(NA, total_sim, 7)
@@ -142,7 +144,6 @@ while (num.sim < total_sim) {
   ### Data generation
   #############################
   # data generattion with outlier
-  set.seed(1000)
   out.prop <- 0.2
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
@@ -154,14 +155,18 @@ while (num.sim < total_sim) {
   gr <- seq(0, 1, length.out = grid.length)
   y_class <- rep(1:4, each = 25)
   
-  # pre-smoothing using penalized spline
-  gr <- seq(0, 1, length.out = grid.length)
   x <- list2matrix(X)
-  x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
-  x <- t(x)
-  X.sm <- matrix2list(x)
-  X$Lt <- X.sm$Lt
-  X$Ly <- X.sm$Ly
+  
+  # pre-smoothing using penalized spline
+  if (pre_smooth == T) {
+    gr <- seq(0, 1, length.out = grid.length)
+    x <- list2matrix(X)
+    x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
+    x <- t(x)
+    X.sm <- matrix2list(x)
+    X$Lt <- X.sm$Lt
+    X$Ly <- X.sm$Ly
+  }
   
   
   # par(mfrow = c(4, 2))
@@ -199,6 +204,8 @@ while (num.sim < total_sim) {
     # cov estimation
     mu.yao.obj <- GetMeanCurve(Ly = X$Ly, Lt = X$Lt, optns = optns)
     cov.yao.obj <- GetCovSurface(Ly = X$Ly, Lt = X$Lt, optns = optns)
+    mu.yao <- mu.yao.obj$mu
+    cov.yao <- cov.yao.obj$cov
     # PCA
     pca.yao.obj <- funPCA(X$Lt, X$Ly, mu.yao, cov.yao, PVE = pve,
                           sig2 = cov.yao.obj$sigma2, work.grid, K = K)
@@ -472,30 +479,59 @@ while (num.sim < total_sim) {
   
   
   num.sim <- num.sim + 1
+  sim.seed[num.sim] <- seed
   
   # CCR (correct classification rate) and aRand (adjusted Rand index)
   CCR[num.sim, ] <- c(
     1 - classError(y_class, kmeans.yao$cluster)$errorRate,
     1 - classError(y_class, kmeans.huber$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
     1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
     1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
     1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
     1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate
   )
   aRand[num.sim, ] <- c(
     adjustedRandIndex(y_class, kmeans.yao$cluster),
     adjustedRandIndex(y_class, kmeans.huber$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus$cluster),
     adjustedRandIndex(y_class, kmeans.Mest$cluster),
     adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus$cluster),
     adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
     adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster)
   )
+  
+  print(colMeans(CCR, na.rm = T))
 }
 
-colMeans(CCR, na.rm = T)
-colMeans(aRand, na.rm = T)
+save(list = c("CCR","aRand","sim.seed"),
+     file = "RData/20210512_cluster_0_2_bw.RData")
+save(list = c("CCR","aRand","sim.seed"),
+     file = "RData/20210512_cluster_0_2_bw_presmooth.RData")
+
+
+colnames(CCR)[apply(CCR, 1, which.max)]
+
+colMeans(CCR)
+colMeans(aRand)
+apply(CCR, 2, sd)
+apply(aRand, 2, sd)
+
+df <- rbind(
+  paste0(
+    format(round(colMeans(CCR), 2), digits = 2), 
+    " (",
+    format(round(apply(CCR, 2, sd), 2), digits = 2),
+    ")"
+  ),
+  paste0(
+    format(round(colMeans(aRand), 2), digits = 2), 
+    " (",
+    format(round(apply(aRand, 2, sd), 2), digits = 2),
+    ")"
+  )
+)
+df
 
 
 # 1st FPC vs 2nd FPC (k-means)
@@ -526,41 +562,48 @@ par(mfrow = c(1, 1))
 
 
 # 1st FPC vs 2nd FPC (Trimmed k-means)
-par(mfrow = c(4, 2))
+par(mfrow = c(3, 3))
 plot(fpc.yao[, 1], fpc.yao[, 2], col = kmeans.yao$cluster,
      xlim = range(fpc.yao[-which(kmeans.yao$cluster == 0), 1]),
      ylim = range(fpc.yao[-which(kmeans.yao$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "Yao et al. (2005)")
+     xlab = "1st FPC", ylab = "2nd FPC", 
+     main = paste("Yao et al. (2005) :", CCR[num.sim, 1]))
 grid()
 plot(fpc.huber[, 1], fpc.huber[, 2], col = kmeans.huber$cluster,
      xlim = range(fpc.huber[-which(kmeans.huber$cluster == 0), 1]),
      ylim = range(fpc.huber[-which(kmeans.huber$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "Huber")
+     xlab = "1st FPC", ylab = "2nd FPC",
+     main = paste("Huber :", CCR[num.sim, 2]))
 grid()
 plot(fpc.kraus[, 1], fpc.kraus[, 2], col = kmeans.kraus$cluster,
      xlim = range(fpc.kraus[-which(kmeans.kraus$cluster == 0), 1]),
      ylim = range(fpc.kraus[-which(kmeans.kraus$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus (2015)")
+     xlab = "1st FPC", ylab = "2nd FPC",
+     main = paste("Kraus (2015) :", CCR[num.sim, 5]))
 grid()
 plot(fpc.Mest[, 1], fpc.Mest[, 2], col = kmeans.Mest$cluster,
      xlim = range(fpc.Mest[-which(kmeans.Mest$cluster == 0), 1]),
      ylim = range(fpc.Mest[-which(kmeans.Mest$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "M-est")
+     xlab = "1st FPC", ylab = "2nd FPC", 
+     main = paste("M-est :", CCR[num.sim, 3]))
 grid()
 plot(fpc.Mest.sm[, 1], fpc.Mest.sm[, 2], col = kmeans.Mest.sm$cluster,
      xlim = range(fpc.Mest.sm[-which(kmeans.Mest.sm$cluster == 0), 1]),
      ylim = range(fpc.Mest.sm[-which(kmeans.Mest.sm$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "M-est (smooth)")
+     xlab = "1st FPC", ylab = "2nd FPC", 
+     main = paste("M-est (smooth) :", CCR[num.sim, 4]))
 grid()
 plot(fpc.kraus_M[, 1], fpc.kraus_M[, 2], col = kmeans.kraus_M$cluster,
      xlim = range(fpc.kraus_M[-which(kmeans.kraus_M$cluster == 0), 1]),
      ylim = range(fpc.kraus_M[-which(kmeans.kraus_M$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus-M")
+     xlab = "1st FPC", ylab = "2nd FPC", 
+     main = paste("Kraus-M :", CCR[num.sim, 6]))
 grid()
 plot(fpc.kraus_M_sm[, 1], fpc.kraus_M_sm[, 2], col = kmeans.kraus_M_sm$cluster,
      xlim = range(fpc.kraus_M_sm[-which(kmeans.kraus_M_sm$cluster == 0), 1]),
      ylim = range(fpc.kraus_M_sm[-which(kmeans.kraus_M_sm$cluster == 0), 2]),
-     xlab = "1st FPC", ylab = "2nd FPC", main = "Kraus-M (smooth)")
+     xlab = "1st FPC", ylab = "2nd FPC", 
+     main = paste("Kraus-M (smooth) :", CCR[num.sim, 6]))
 grid()
 par(mfrow = c(1, 1))
 

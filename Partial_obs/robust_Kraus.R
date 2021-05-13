@@ -58,10 +58,12 @@ pspline_curve <- function(t, x) {
 ### for possibly incomplete functional data
 #####################################################################
 ### M-estimator for covaraince function
-mean.rob.missfd <- function(x, smooth = F) {
+mean.rob.missfd <- function(x, smooth = F, work.grid = NULL) {
   if (smooth == T) {
     x.2 <- matrix2list(x)
-    work.grid <- seq(0, 1, length.out = ncol(x))
+    if (is.null(work.grid)) {
+      work.grid <- seq(0, 1, length.out = ncol(x))
+    }
     mu.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", 
                            kernel = "epanechnikov",
                            bw = 0.2, delta = 1.345)
@@ -76,27 +78,65 @@ mean.rob.missfd <- function(x, smooth = F) {
   return(mu)
 }
 
-var.rob.missfd <- function(x, mu = NULL, smooth = F, make.pos.semidef = TRUE) {
-  if (is.null(mu)) {
-    mu <- mean.rob.missfd(x, smooth = smooth)
-  }
-  
+var.rob.missfd <- function(x, smooth = F, make.pos.semidef = TRUE) {
   n <- nrow(x)
   p <- ncol(x)
-  rob.var <- matrix(nrow=p, ncol=p)
-  for (s in 1:p) {
-    for (t in 1:p) {
-      if (s <= t) {
-        A <- vector()
-        for (i in 1:n) {
-          A[i] <- (x[i, s] - mu[s])*(x[i, t] - mu[t])	
+  rob.var <- matrix(0, p, p)
+  
+  if (sum(is.na(x)) == 0) {
+    mu <- mean.rob.missfd(x, smooth = smooth)
+    # complete curves
+    for (s in 1:p) {
+      for (t in 1:p) {
+        if (s <= t) {
+          A <- (x[, s] - mu[s])*(x[, t] - mu[t])
+          rob.var[s, t] <- huber(A)$mu
+        } else {
+          rob.var[s, t] <- rob.var[t, s]
         }
-        rob.var[s, t] <- huber(A)$mu
-      } else {
-        rob.var[s, t] <- rob.var[t, s]
+      }
+    }
+  } else {
+    # include partially observed curves
+    for (s in 1:p) {
+      for (t in 1:p) {
+        if (s <= t) {
+          NA_ind <- apply(x, 1, function(xi){ sum(is.na(xi[c(s, t)])) > 0 })
+          if (sum(NA_ind) > 0) {
+            ind <- which(NA_ind == FALSE)
+          } else {
+            ind <- 1:n
+          }
+          
+          mu <- mean.rob.missfd(x[ind, ], smooth = smooth, work.grid = c(s, t))
+          A <- (x[ind, s] - mu[1])*(x[ind, t] - mu[2])
+          rob.var[s, t] <- huber(A)$mu
+        } else {
+          rob.var[s, t] <- rob.var[t, s]
+        }
       }
     }
   }
+  
+  # rob.var <- matrix(0, p, p)
+  # for (s in 1:p) {
+  #   for (t in 1:p) {
+  #     if (s <= t) {
+  #       NA_ind <- apply(x, 1, function(xi){ sum(is.na(xi[c(s, t)])) > 0 })
+  #       if (sum(NA_ind) > 0) {
+  #         ind <- which(NA_ind == FALSE)
+  #       } else {
+  #         ind <- 1:n
+  #       }
+  #       
+  #       mu <- mean.rob.missfd(x[ind, ], smooth = smooth, work.grid = c(s, t))
+  #       A <- (x[ind, s] - mu[1])*(x[ind, t] - mu[2])
+  #       rob.var[s, t] <- huber(A)$mu
+  #     } else {
+  #       rob.var[s, t] <- rob.var[t, s]
+  #     }
+  #   }
+  # }
   
   # 2-dimensional smoothing
   if (smooth == T) {
