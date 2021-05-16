@@ -15,6 +15,7 @@ library(MASS)
 library(fields)   # 2d smoothing
 library(mclust)   # cluster utills
 library(tclust)   # Trimmed k-means clustering
+library(doParallel)
 library(robfpca)
 source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
@@ -123,11 +124,269 @@ sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4,
 ####################################
 ### Simulations
 ####################################
+
+#####################################################
+### parallel computing with fixed hyperparameters
+#####################################################
+### Get function name in the global environment
+fun2char <- function() {
+  env <- ls(envir = .GlobalEnv)
+  ind <- sapply(env, function(x) { is.function(get(x)) })
+  return(env[ind])
+}
+
+ftns <- fun2char()
+ncores <- detectCores() - 3
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+
+packages <- c("fdapace","mcfda","synfd","robfpca","fields",
+              "mclust","tclust","doRNG","tidyverse","MASS")
+
+start_time <- Sys.time()
+registerDoRNG(1000)
+cluster.obj <- foreach(seed = 1:50,
+                       .errorhandling = "pass",
+                       .export = ftns,
+                       .packages = packages) %dopar% {
+  pre_smooth <- FALSE   # pre-smoothing
+  # registerDoRNG(seed)
+  
+  #############################
+  ### Data generation
+  #############################
+  # data generation with outlier
+  out.prop <- 0
+  grid.length <- 128
+  X <- sim.doppler(n_c = 25, 
+                   out.prop = out.prop, 
+                   out.type = 5, 
+                   grid.length = grid.length)
+  y_outlier <- X$y_outlier
+  X <- X$X
+  gr <- seq(0, 1, length.out = grid.length)
+  y_class <- rep(1:4, each = 25)
+  
+  x <- list2matrix(X)
+  
+  # pre-smoothing using penalized spline
+  if (pre_smooth == T) {
+    gr <- seq(0, 1, length.out = grid.length)
+    x <- list2matrix(X)
+    x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
+    x <- t(x)
+    X.sm <- matrix2list(x)
+    X$Lt <- X.sm$Lt
+    X$Ly <- X.sm$Ly
+  }
+  
+  
+  #############################################
+  ### Covariance estimation & Functional PCA
+  ### - Get FPC scores for clustering
+  #############################################
+  skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
+  bw <- 0.2
+  kernel <- "epanechnikov"
+  work.grid <- seq(0, 1, length.out = grid.length)
+  pve <- 0.99
+  K <- 2
+  
+  ### Yao et al. (2005)
+  # registerDoRNG(seed)
+  kern <- ifelse(kernel == "epanechnikov", "epan", kernel)
+  optns <- list(methodXi = "CE", dataType = "Sparse", verbose = FALSE,
+                nRegGrid = grid.length, useBinnedData = "OFF",
+                kernel = kern, userBwMu = bw, userBwCov = bw)
+  # cov estimation
+  mu.yao.obj <- GetMeanCurve(Ly = X$Ly, Lt = X$Lt, optns = optns)
+  cov.yao.obj <- GetCovSurface(Ly = X$Ly, Lt = X$Lt, optns = optns)
+  mu.yao <- mu.yao.obj$mu
+  cov.yao <- cov.yao.obj$cov
+  # PCA
+  pca.yao.obj <- funPCA(X$Lt, X$Ly, mu.yao, cov.yao, PVE = pve,
+                        sig2 = cov.yao.obj$sigma2, work.grid, K = K)
+  pca.yao.obj$eig.obj$PVE
+  fpc.yao <- pca.yao.obj$pc.score[, 1:K]
+
+  
+  ### Huber loss
+  # registerDoRNG(seed)
+  # cov estimation
+  mu.huber.obj <- meanfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
+                               bw = bw, delta = 1.345)
+  cov.huber.obj <- covfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
+                               mu = mu.huber.obj, 
+                               bw = bw, delta = 1.345)
+  mu.huber <- predict(mu.huber.obj, work.grid)
+  cov.huber <- predict(cov.huber.obj, work.grid)
+  # PCA
+  pca.huber.obj <- funPCA(X$Lt, X$Ly, mu.huber, cov.huber, PVE = pve,
+                          sig2 = cov.huber.obj$sig2e, work.grid, K = K)
+  pca.huber.obj$eig.obj$PVE
+  fpc.huber <- pca.huber.obj$pc.score[, 1:K]
+  
+  
+  ### Kraus (2015)
+  # registerDoRNG(seed)
+  cov.kraus <- var.missfd(x)
+  eig.R <- eigen.missfd(cov.kraus)
+  # first 5 principal components
+  phi <- eig.R$vectors[, 1:K]
+  fpc.kraus <- apply(x, 1, function(row){ 
+    pred.score.missfd(row, phi = phi, x = x) 
+  })
+  fpc.kraus <- t(fpc.kraus)
+  
+  
+  ### M-estimator
+  # registerDoRNG(seed)
+  mu.Mest <- mean.rob.missfd(x, smooth = F)
+  cov.Mest <- var.rob.missfd(x, smooth = F)
+  pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
+                         sig2 = 1e-6, work.grid, K = K)
+  fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
+  pca.Mest.obj$eig.obj$PVE
+  
+  
+  ### M-estimator (smooth)
+  # registerDoRNG(seed)
+  mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
+  cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+  pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
+                            sig2 = 1e-6, work.grid, K = K)
+  fpc.Mest.sm <- pca.Mest.sm.obj$pc.score[, 1:K]
+  pca.Mest.sm.obj$eig.obj$PVE
+  
+  
+  ### Kraus + M-est
+  # registerDoRNG(seed)
+  mu <- mean.rob.missfd(x)
+  cov.kraus_M <- var.rob.missfd(x)
+  eig.R <- eigen.missfd(cov.kraus_M)
+  # first 5 principal components
+  phi <- eig.R$vectors[, 1:K]
+  fpc.kraus_M <- apply(x, 1, function(row){ 
+    pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
+                          mu = mu, R = cov.kraus_M) 
+  })
+  fpc.kraus_M <- t(fpc.kraus_M)
+
+    
+  ### Kraus + M-est (smooth)
+  # registerDoRNG(seed)
+  mu <- mean.rob.missfd(x, smooth = T)
+  cov.kraus_M_sm <- var.rob.missfd(x, smooth = T)
+  eig.R <- eigen.missfd(cov.kraus_M_sm)
+  # first 5 principal components
+  phi <- eig.R$vectors[, 1:K]
+  fpc.kraus_M_sm <- apply(x, 1, function(row){ 
+    pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
+                          mu = mu, R = cov.kraus_M_sm) 
+  })
+  fpc.kraus_M_sm <- t(fpc.kraus_M_sm)
+  
+  
+  ##############################################
+  ### Clustering
+  ### - k-means clustering based on FPC scores
+  ##############################################
+  n_group <- 4   # number of clusters
+  
+  print("clustering")
+  
+  # registerDoRNG(seed)
+  if (out.prop == 0) {
+    ### No outliers => k-means clustering is performed.
+    kmeans.yao <- kmeans(x = fpc.yao, centers = n_group, 
+                         iter.max = 30, nstart = 50)
+    kmeans.huber <- kmeans(x = fpc.huber, centers = n_group, 
+                           iter.max = 30, nstart = 50)
+    kmeans.kraus <- kmeans(x = fpc.kraus, centers = n_group, 
+                           iter.max = 30, nstart = 50)
+    kmeans.Mest <- kmeans(x = fpc.Mest, centers = n_group, 
+                          iter.max = 30, nstart = 50)
+    kmeans.Mest.sm <- kmeans(x = fpc.Mest.sm, centers = n_group, 
+                             iter.max = 30, nstart = 50)
+    kmeans.kraus_M <- kmeans(x = fpc.kraus_M, centers = n_group, 
+                             iter.max = 30, nstart = 50)
+    kmeans.kraus_M_sm <- kmeans(x = fpc.kraus_M_sm, centers = n_group, 
+                                iter.max = 30, nstart = 50)
+  } else {
+    ### Outliers => Trimmed k-means clustering is performed.
+    ### Trimmed k-means clustering
+    
+    # substitute trimmed cluster to 0
+    y_class <- ifelse(y_outlier == 1, 0, y_class)
+    
+    # fit trimmed k-means clustering
+    kmeans.yao <- tkmeans(x = fpc.yao, k = n_group, alpha = out.prop,
+                          iter.max = 30, nstart = 50)
+    kmeans.huber <- tkmeans(x = fpc.huber, k = n_group, alpha = out.prop,
+                            iter.max = 30, nstart = 50)
+    kmeans.kraus <- tkmeans(x = fpc.kraus, k = n_group, alpha = out.prop,
+                            iter.max = 30, nstart = 50)
+    kmeans.Mest <- tkmeans(x = fpc.Mest, k = n_group, alpha = out.prop,
+                           iter.max = 30, nstart = 50)
+    kmeans.Mest.sm <- tkmeans(x = fpc.Mest.sm, k = n_group, alpha = out.prop,
+                              iter.max = 30, nstart = 50)
+    kmeans.kraus_M <- tkmeans(x = fpc.kraus_M, k = n_group, alpha = out.prop,
+                              iter.max = 30, nstart = 50)
+    kmeans.kraus_M_sm <- tkmeans(x = fpc.kraus_M_sm, k = n_group, alpha = out.prop,
+                                 iter.max = 30, nstart = 50)
+  }
+  
+  
+  # CCR (correct classification rate) and aRand (adjusted Rand index)
+  CCR <- c(
+    1 - classError(y_class, kmeans.yao$cluster)$errorRate,
+    1 - classError(y_class, kmeans.huber$cluster)$errorRate,
+    1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
+    1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
+    1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate
+  )
+  aRand <- c(
+    adjustedRandIndex(y_class, kmeans.yao$cluster),
+    adjustedRandIndex(y_class, kmeans.huber$cluster),
+    adjustedRandIndex(y_class, kmeans.Mest$cluster),
+    adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
+    adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster)
+  )
+
+    
+  obj <- list(CCR = CCR,
+              aRand = aRand)
+  return(obj)
+}
+end_time <- Sys.time()
+end_time - start_time
+cluster.obj
+stopCluster(cl)
+
+# save(list = c("cluster.obj"), file = "RData/2021_0516_cluster.RData")
+df <- cbind(
+  CCR = sapply(cluster.obj, function(x){ x$CCR }) %>% 
+    rowMeans,
+  aRand = sapply(cluster.obj, function(x){ x$aRand }) %>% 
+    rowMeans
+)
+rownames(df) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
+df
+
+
+
+#############################################
+### While loop
+#############################################
 total_sim <- 50
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, total_sim)   # collection of seed with no error occurs
-pre_smooth <- TRUE   # pre-smoothing
+pre_smooth <- FALSE   # pre-smoothing
 
 ### performance measures
 CCR <- matrix(NA, total_sim, 7)
@@ -144,7 +403,7 @@ while (num.sim < total_sim) {
   ### Data generation
   #############################
   # data generattion with outlier
-  out.prop <- 0.2
+  out.prop <- 0
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
                    out.prop = out.prop, 
@@ -504,10 +763,10 @@ while (num.sim < total_sim) {
   print(colMeans(CCR, na.rm = T))
 }
 
-save(list = c("CCR","aRand","sim.seed"),
-     file = "RData/20210512_cluster_0_2_bw.RData")
-save(list = c("CCR","aRand","sim.seed"),
-     file = "RData/20210512_cluster_0_2_bw_presmooth.RData")
+# save(list = c("CCR","aRand","sim.seed"),
+#      file = "RData/20210512_cluster_0_2_bw.RData")
+# save(list = c("CCR","aRand","sim.seed"),
+#      file = "RData/20210512_cluster_0_2_bw_presmooth.RData")
 
 
 colnames(CCR)[apply(CCR, 1, which.max)]
