@@ -23,10 +23,10 @@ get_K <- function(s, t, model = 1) {
 
 ### Generate functional fragments with outliers => fun.fragm
 # model = 1~2 avaliable (In the paper, 1~4 models are shown)
-# out.type : same as "fun.snipp" in "sim_Lin_Wang(2020).R" but just 4~6 are available
+# out.type : same as "fun.snipp" in "sim_Lin_Wang(2020).R" but just 1~3 are available
 # len.frag : length of domain for each curves
 # frag : generate functional fragments (If frag = FALSE, dense curves are generated.)
-sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
+sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 1,
                          len.frag = c(0.1, 0.3), frag = TRUE) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
@@ -80,41 +80,84 @@ sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 4,
   
   # generate outlier curves
   n.outlier <- ceiling(n*out.prop)   # number of outliers
-  
-  if (out.type %in% 4:6) {
-    d <- 0.3
-    sigma.exp <- 1
-    for (k in (n-n.outlier+1):n) {
-      t <- x$Lt[[k]]
-      m <- length(t)   # length of time points
-      tmp.mat <- matrix(NA, m, m)
-      for (j in 1:m){
-        tmp.mat[j, ] <- abs(t - t[j])
-      }
-      Sigma <- exp(-tmp.mat/d) * sigma.exp^2
-      
-      mu <- rep(0, m)
-      I <- matrix(0, m, m)
-      diag(I) <- rep(1, m)
-      Sig_norm <- matrix(0, m, m)
-      diag(Sig_norm) <- rep(100, m)
-      
-      if (out.type == 4) {
-        err.out <- LaplacesDemon::rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
-      } else if (out.type == 5) {
-        err.out <- rmvc(1, mu, I)   # cauchy
-      } else {
-        err.out <- rmvc(1, mu, Sigma)   # cauchy
-      }
-      
-      # x$Ly[[k]] <- rmvn(1, mu, Sigma) * 2 + err.out
-      
-      # x_i <- rmvn(1, mu, Sigma) * 2 + err.out
-      x_i <- err.out
-      x$Ly[[k]] <- as.numeric(x_i)
-    }
+  if (out.type %in% 1:3) {
+    x.outlier <- make_outlier(x[(n-n.outlier+1):n], out.type = out.type)
+    x$Ly[(n-n.outlier+1):n] <- x.outlier$Ly
+    x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
   } else {
-    stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 4~6."))
+    stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))
+  }
+  
+  # if (out.type %in% 4:6) {
+  #   d <- 0.3
+  #   sigma.exp <- 1
+  #   for (k in (n-n.outlier+1):n) {
+  #     t <- x$Lt[[k]]
+  #     m <- length(t)   # length of time points
+  #     tmp.mat <- matrix(NA, m, m)
+  #     for (j in 1:m){
+  #       tmp.mat[j, ] <- abs(t - t[j])
+  #     }
+  #     Sigma <- exp(-tmp.mat/d) * sigma.exp^2
+  #     
+  #     mu <- rep(0, m)
+  #     I <- matrix(0, m, m)
+  #     diag(I) <- rep(1, m)
+  #     Sig_norm <- matrix(0, m, m)
+  #     diag(Sig_norm) <- rep(100, m)
+  #     
+  #     if (out.type == 4) {
+  #       err.out <- LaplacesDemon::rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
+  #     } else if (out.type == 5) {
+  #       err.out <- rmvc(1, mu, I)   # cauchy
+  #     } else {
+  #       err.out <- rmvc(1, mu, Sigma)   # cauchy
+  #     }
+  #     
+  #     # x$Ly[[k]] <- rmvn(1, mu, Sigma) * 2 + err.out
+  #     
+  #     # x_i <- rmvn(1, mu, Sigma) * 2 + err.out
+  #     x_i <- err.out
+  #     x$Ly[[k]] <- as.numeric(x_i)
+  #   }
+  # } else {
+  #   stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 4~6."))
+  # }
+  
+  return(x)
+}
+
+### Generate outlying curves
+make_outlier <- function(x, out.type = 1) {
+  n <- length(x)   # number of outlying curves
+  d <- 0.3
+  sigma.exp <- 1
+  for (k in 1:n) {
+    t <- x$Lt[[k]]
+    m <- length(t)   # length of time points
+    tmp.mat <- matrix(NA, m, m)
+    for (j in 1:m){
+      tmp.mat[j, ] <- abs(t - t[j])
+    }
+    Sigma <- exp(-tmp.mat/d) * sigma.exp^2
+    
+    mu <- rep(0, m)
+    I <- matrix(0, m, m)
+    diag(I) <- rep(1, m)
+    Sig_norm <- matrix(0, m, m)
+    diag(Sig_norm) <- rep(100, m)
+    
+    if (out.type == 1) {
+      err.out <- LaplacesDemon::rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
+    } else if (out.type == 2) {
+      err.out <- LaplacesDemon::rmvc(1, mu, I)   # cauchy
+    } else if (out.type == 3) {
+      err.out <- LaplacesDemon::rmvc(1, mu, Sigma)   # cauchy
+    }
+    
+    # x_i <- rmvn(1, mu, Sigma) * 2 + err.out
+    x_i <- err.out
+    x$Ly[[k]] <- as.numeric(x_i)
   }
   
   return(x)

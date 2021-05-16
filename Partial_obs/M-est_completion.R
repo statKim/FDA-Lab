@@ -64,7 +64,7 @@ while (num.sim < num_sim) {
   #############################
   n <- 100
   n.grid <- 51
-  x.2 <- sim.kraus(n = 100, out.prop = 0.2, out.type = 4, grid.length = n.grid)
+  x.2 <- sim_kraus(n = 100, out.prop = 0.2, out.type = 4, grid.length = n.grid)
   df <- data.frame(
     id = factor(unlist(sapply(1:length(x.2$Lt), 
                               function(id) { 
