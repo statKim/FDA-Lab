@@ -81,7 +81,9 @@ sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 1,
   # generate outlier curves
   n.outlier <- ceiling(n*out.prop)   # number of outliers
   if (out.type %in% 1:3) {
-    x.outlier <- make_outlier(x[(n-n.outlier+1):n], out.type = out.type)
+    x.outlier <- list(Ly = x$Ly[(n-n.outlier+1):n],
+                      Lt = x$Lt[(n-n.outlier+1):n])
+    x.outlier <- make_outlier(x.outlier, out.type = out.type)
     x$Ly[(n-n.outlier+1):n] <- x.outlier$Ly
     x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
   } else {
