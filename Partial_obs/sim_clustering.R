@@ -377,6 +377,26 @@ df <- cbind(
 rownames(df) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
 df
 
+CCR <- sapply(cluster.obj, function(x){ x$CCR }) %>% 
+  t()
+aRand <- sapply(cluster.obj, function(x){ x$aRand }) %>% 
+  t()
+df <- rbind(
+  paste0(
+    format(round(colMeans(CCR), 2), digits = 2), 
+    " (",
+    format(round(apply(CCR, 2, sd), 2), digits = 2),
+    ")"
+  ),
+  paste0(
+    format(round(colMeans(aRand), 2), digits = 2), 
+    " (",
+    format(round(apply(aRand, 2, sd), 2), digits = 2),
+    ")"
+  )
+)
+df
+
 
 
 #############################################

@@ -1,0 +1,168 @@
+---
+title: "Robust covariance estimation for partially observed functional data"
+author: "Hyunsung Kim"
+date: '2021-05-20'
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    fig_caption: true
+    # number_sections: true
+    toc: true
+    # toc_depth: 2
+# header-includes:
+#   - \newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+---
+
+<style>
+  p.caption {   <!-- figure caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+  caption {    <!-- table caption -->
+    font-size: 0.9em;
+    font-style: italic;
+    color: grey;
+    <!-- margin-right: 10%; -->
+    <!-- margin-left: 10%;   -->
+    text-align: justify;
+  }
+</style>
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", fig.width = 12, fig.height = 6
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+
+
+# Simulation
+
+## Settings
+- **Completion**
+  - Delaigle et al. (2020) setting
+  - 20% outlier + partially observed
+  - 5 FPC scores
+  - 50 repetitions
+- **Clustering**
+  - shifted Doppler signal setting
+    - 4개 true clusters
+    - 512 => 128 timepoints로 줄여서 확인
+  - 20% outliers + partially observed
+  - Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체
+  - 2 FPC scores
+  - Trimmed $k$-means clustering 적용 (outlier 비율만큼 trim되도록 설정)
+  - 50 repetitions
+- **비교 방법론**
+  - **Yao (2005)** : PCA (CE)
+  - **Huber** : Lin & Wang (2020) + Huber loss function + PCA (CE)
+  - **M-est** : Marginal M-estimator for mean and covariances + PCA (CE)
+  - **M-est (smooth)** : M-est + 2D smoothed covariance + PCA (CE)
+  - **Kraus (2015)** : PCA (Kraus)
+  - **Kraus-M** : M-est + PCA (Kraus)
+  - **Kraus-M (smooth)** : M-est (smooth) + PCA (Kraus)
+- pre-smoothing 적용 X
+
+
+<br>
+
+## Completion result
+
+```{r}
+df <- data.frame(
+  method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
+  MISE.x = c("0.53 (1.95)","0.05 (0.03)","0.05 (0.04)","0.36 (1.31)","0.03 (0.02)","0.06 (0.03)","0.13 (0.05)"),
+  MSE.x = c("2.57 (9.79)","0.28 (0.16)","0.24 (0.17)","1.35 (4.95)","0.25 (0.24)","0.44 (0.28)","1.15 (0.42)"),
+  MISE.y = c("0.94 (2.42)","0.06 (0.03)","0.15 (0.21)","0.04 (0.04)","0.37 (0.11)","0.16 (0.06)","0.06 (0.03)"),
+  MSE.y = c("7.67 (19.64)","0.34 (0.17)","0.68 (0.83)","0.18 (0.18)","2.64 (0.64)","1.37 (0.46)","0.46 (0.34)")
+)
+
+knitr::kable(df,
+             # digits = 3,
+             col.names = c("Method","MISE","MSE","MISE","MSE"),
+             align = "c",
+             escape = FALSE,
+             caption = "Table 1. Average MISE, MSE, and its standard errors of completion for simulated data from 50 repetitions.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "Outlier X" = 2,
+                       "Outlier O" = 2))
+```
+
+
+```{r}
+df <- data.frame(
+  method = c("Yao (2005)","Huber","M-est","M-est (smooth)"),
+  MISE.x = c("0.6 (2.11)","0.06 (0.03)","0.07 (0.04)","0.38 (1.32)"),
+  MSE.x = c("0.65 (2.31)","0.07 (0.04)","0.07 (0.05)","0.41 (1.47)"),
+  MISE.y = c("3.81 (8.24)","0.07 (0.04)","0.21 (0.22)","0.05 (0.04)"),
+  MSE.y = c("3.91 (8.35)","0.08 (0.04)","0.22 (0.24)","0.06 (0.05)")
+)
+
+knitr::kable(df,
+             # digits = 3,
+             col.names = c("Method","MISE","MSE","MISE","MSE"),
+             align = "c",
+             escape = FALSE,
+             caption = "Table 2. Average MISE, MSE, and its standard errors of reconstruction for simulated data from 50 repetitions.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "Outlier X" = 2,
+                       "Outlier O" = 2))
+```
+
+```{r, fig.show = 'hold', fig.cap = "Figure 1. Completion for missing parts of 1st simulated data. Top is obtained from raw data, and bottom from pre-smoothed data."}
+# knitr::include_graphics(
+#   c("../figure/2021_0513/comp.png",
+#     "../figure/2021_0513/comp_sm.png")
+# )
+```
+
+
+
+<br>
+
+## Clustering result
+
+```{r}
+df <- data.frame(
+  method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
+  CCR = c("0.77 (0.02)","0.39 (0.06)","0.99 (0.02)","0.66 (0.12)","1.00 (0.01)","0.99 (0.04)","0.78 (0.04)"),
+  aRand = c("0.65 (0.03)","0.05 (0.07)","0.98 (0.05)","0.50 (0.17)","1.00 (0.03)","0.99 (0.05)","0.66 (0.03)"),
+  CCR_out = c("0.64 (0.11)","0.52 (0.06)","0.95 (0.02)","0.64 (0.04)","0.61 (0.12)","0.97 (0.02)","0.79 (0.03)"),
+  aRand_out = c("0.38 (0.15)","0.24 (0.08)","0.89 (0.06)","0.41 (0.07)","0.35 (0.14)","0.92 (0.05)","0.65 (0.05)")
+)
+
+knitr::kable(df,
+             # digits = 3,
+             col.names = c("Method","CCR","aRand","CCR","aRand"),
+             align = "c",
+             escape = FALSE,
+             caption = "Table 3. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed $k$-means clustering using 2 FPCs from 50 repetitions.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "Outlier X" = 2,
+                       "Outlier O" = 2))
+```
+
+```{r, fig.cap = "Figure 2. Scatter plot between 1st and 2nd FPC scores, and its CCR from 1st simulated data. Each cluster is assigned by the trimmed $k$-means clustering algorithm, and trimmed points are excluded from the plot."}
+# knitr::include_graphics("../figure/2021_0513/clustering.png")
+```
+
+```{r, fig.cap = "Figure 3. Scatter plot between 1st and 2nd FPC scores, and its CCR from 1st simulated data after pre-smoothing is performed. Each cluster is assigned by the trimmed $k$-means clustering algorithm, and trimmed points are excluded from the plot."}
+# knitr::include_graphics("../figure/2021_0513/clustering_sm.png")
+```
+

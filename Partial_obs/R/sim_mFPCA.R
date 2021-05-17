@@ -86,21 +86,21 @@ sim_mFPCA <- function(n, type = 1, out.prop = 0.2, out.type = 1, m = 51) {
 }
 
 
-# ## Example
-# set.seed(1000)
-# m <- 101
-# x.2 <- sim_mFPCA(n = 100, type = 1, out.prop = 0, out.type = 1, m = m)
-# df <- data.frame(
-#   id = factor(unlist(sapply(1:length(x.2$Lt),
-#                             function(id) {
-#                               rep(id, length(x.2$Lt[[id]]))
-#                             })
-#   )),
-#   y = unlist(x.2$Ly),
-#   t = unlist(x.2$Lt)
-# )
-# x <- list2matrix(x.2)
-# gr <- seq(0, 1, length.out = m)
-# matplot(gr, t(x), type = "l")
+## Example
+set.seed(1000)
+m <- 101
+x.2 <- sim_mFPCA(n = 100, type = 1, out.prop = 0.2, out.type = 1, m = m)
+df <- data.frame(
+  id = factor(unlist(sapply(1:length(x.2$Lt),
+                            function(id) {
+                              rep(id, length(x.2$Lt[[id]]))
+                            })
+  )),
+  y = unlist(x.2$Ly),
+  t = unlist(x.2$Lt)
+)
+x <- list2matrix(x.2)
+gr <- seq(0, 1, length.out = m)
+matplot(gr, t(x), type = "l")
 
 

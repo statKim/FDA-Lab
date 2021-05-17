@@ -48,7 +48,7 @@ pca.est <- list()
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, num_sim)   # collection of seed with no error occurs
-pre_smooth <- TRUE   # pre-smoothing
+pre_smooth <- FALSE   # pre-smoothing
 
 while (num.sim < num_sim) {
   seed <- seed + 1
@@ -167,11 +167,13 @@ while (num.sim < num_sim) {
   tryCatch({
     # Not smoothed M-est
     mu.Mest <- mean.rob.missfd(x)
-    cov.Mest <- var.rob.missfd(x)
+    # cov.Mest <- var.rob.missfd(x)
+    cov.Mest <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
     
     # smoothed M-est
     mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
-    cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+    # cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+    cov.Mest.sm <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
   }, error = function(e) { 
     print("M-est cov error")
     print(e)
@@ -216,11 +218,18 @@ while (num.sim < num_sim) {
                           work.grid, PVE = pve, K = K)
   
   # M-est
-  pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly, 
-                         mu.Mest, cov.Mest, sig2 = 1e-6, 
+  # pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly, 
+  #                        mu.Mest, cov.Mest, sig2 = 1e-6, 
+  #                        work.grid, PVE = pve, K = K)
+  # pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly, 
+  #                           mu.Mest.sm, cov.Mest.sm, sig2 = 1e-6, 
+  #                           work.grid, PVE = pve, K = K)
+  # consider noise var
+  pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly,
+                         mu.Mest, cov.Mest, sig2 = cov.huber.obj$sig2e,
                          work.grid, PVE = pve, K = K)
-  pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly, 
-                            mu.Mest.sm, cov.Mest.sm, sig2 = 1e-6, 
+  pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
+                            mu.Mest.sm, cov.Mest.sm, sig2 = cov.huber.obj$sig2e,
                             work.grid, PVE = pve, K = K)
   
   

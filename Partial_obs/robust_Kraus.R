@@ -78,7 +78,8 @@ mean.rob.missfd <- function(x, smooth = F, work.grid = NULL) {
   return(mu)
 }
 
-var.rob.missfd <- function(x, smooth = F, make.pos.semidef = TRUE) {
+var.rob.missfd <- function(x, smooth = F, 
+                           make.pos.semidef = TRUE, noise.var = 0) {
   n <- nrow(x)
   p <- ncol(x)
   rob.var <- matrix(0, p, p)
@@ -137,6 +138,9 @@ var.rob.missfd <- function(x, smooth = F, make.pos.semidef = TRUE) {
   #     }
   #   }
   # }
+  
+  # subtract noise variance
+  diag(rob.var) <- diag(rob.var) - noise.var
   
   # 2-dimensional smoothing
   if (smooth == T) {
