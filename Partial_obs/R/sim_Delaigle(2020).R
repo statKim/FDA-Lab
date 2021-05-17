@@ -85,7 +85,7 @@ sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 1,
                       Lt = x$Lt[(n-n.outlier+1):n])
     x.outlier <- make_outlier(x.outlier, out.type = out.type)
     x$Ly[(n-n.outlier+1):n] <- x.outlier$Ly
-    x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
+    # x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))
   }
@@ -131,7 +131,7 @@ sim_delaigle <- function(n = 100, model = 2, out.prop = 0.2, out.type = 1,
 
 ### Generate outlying curves
 make_outlier <- function(x, out.type = 1) {
-  n <- length(x)   # number of outlying curves
+  n <- length(x$Lt)   # number of outlying curves
   d <- 0.3
   sigma.exp <- 1
   for (k in 1:n) {

@@ -110,7 +110,7 @@ sim_kraus <- function(n = 100, out.prop = 0.2, out.type = 1,
                       grid.length = 51, model.cov = 2) {
   # generate fully observed functions
   x <- sim_delaigle(n = n, model = model.cov, frag = FALSE,
-                    out.type = out.type, out.prop = out.prop)
+                    out.type = out.type, out.prop = 0)
   gr <- sort(unique(unlist(x$Lt)))   # observed grid
   x.full <- t(sapply(x$Ly, cbind))
   
@@ -142,6 +142,36 @@ sim_kraus <- function(n = 100, out.prop = 0.2, out.type = 1,
   # generate outlier curves
   n.outlier <- ceiling(n*out.prop)   # number of outliers
   if (out.type %in% 1:3) {
+    # d <- 0.3
+    # sigma.exp <- 1
+    # for (k in (n-n.outlier+1):n) {
+    #   t <- x$Lt[[k]]
+    #   m <- length(t)   # length of time points
+    #   tmp.mat <- matrix(NA, m, m)
+    #   for (j in 1:m){
+    #     tmp.mat[j, ] <- abs(t - t[j])
+    #   }
+    #   Sigma <- exp(-tmp.mat/d) * sigma.exp^2
+    #   
+    #   mu <- rep(0, m)
+    #   I <- matrix(0, m, m)
+    #   diag(I) <- rep(1, m)
+    #   Sig_norm <- matrix(0, m, m)
+    #   diag(Sig_norm) <- rep(100, m)
+    #   
+    #   if (out.type == 1) {
+    #     err.out <- LaplacesDemon::rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
+    #   } else if (out.type == 2) {
+    #     err.out <- rmvc(1, mu, I)   # cauchy
+    #   } else {
+    #     err.out <- rmvc(1, mu, Sigma)   # cauchy
+    #   }
+    #   
+    #   # x_i <- rmvn(1, mu, Sigma) * 2 + err.out
+    #   x_i <- err.out
+    #   x$Ly[[k]] <- as.numeric(x_i)
+    # }
+    
     x.outlier <- list(Ly = x$Ly[(n-n.outlier+1):n],
                       Lt = x$Lt[(n-n.outlier+1):n])
     x.outlier <- make_outlier(x.outlier, out.type = out.type)
