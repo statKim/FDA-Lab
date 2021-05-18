@@ -1,11 +1,6 @@
 ################################################
 ### Simulation for covariance estimation
-### - Delaigle setting (Low missingness)
-### 1. PACE
-### 2. Lin & Wang (2020)
-### 3. Robust method (Huber loss)
-### 4. WRM
-### - For all methods, 5-fold CV are performed.
+### - Delaigle setting (partially observed)
 ################################################
 library(GA)   # persp plot
 library(mvtnorm)
@@ -64,7 +59,7 @@ while (num.sim < num_sim) {
   #############################
   n <- 100
   n.grid <- 51
-  x.2 <- sim_kraus(n = 100, out.prop = 0.2, out.type = 1, grid.length = n.grid)
+  x.2 <- sim_kraus(n = 100, out.prop = 0, out.type = 1, grid.length = n.grid)
   df <- data.frame(
     id = factor(unlist(sapply(1:length(x.2$Lt), 
                               function(id) { 

@@ -19,17 +19,18 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("R/sim_kraus.R")
 source("robust_Kraus.R")
+source("R/sim_doppler.R")
 
 
 #####################################################
 ### parallel computing with fixed hyperparameters
 #####################################################
 ftns <- fun2char()
-ncores <- detectCores() - 3
+ncores <- detectCores() - 4
 cl <- makeCluster(ncores)
 registerDoParallel(cl)
 
-packages <- c("fdapace","mcfda","synfd","robfpca","fields",
+packages <- c("fdapace","mcfda","synfd","robfpca","fields","LaplacesDemon",
               "mclust","tclust","doRNG","tidyverse","MASS")
 
 start_time <- Sys.time()
@@ -45,7 +46,7 @@ cluster.obj <- foreach(seed = 1:50,
   ### Data generation
   #############################
   # data generation with outlier
-  out.prop <- 0
+  out.prop <- 0.2
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
                   out.prop = out.prop, 
@@ -127,55 +128,38 @@ cluster.obj <- foreach(seed = 1:50,
                            sig2 = 1e-6, work.grid, K = K)
   
   
-  for (i in 1:100) {
+  ### inputed data by completion
+  X.yao <- x
+  X.huber <- x
+  X.Mest <- x
+  X.Mest_sm <- x
+  X.kraus <- x
+  X.kraus_M <- x
+  X.kraus_M_sm <- x
+  
+  # reconstructed curves
+  pred_yao_mat <- predict(pca.yao.obj, K = NULL)
+  pred_huber_mat <- predict(pca.huber.obj, K = NULL)
+  pred_Mest_mat <- predict(pca.Mest.obj, K = NULL)
+  pred_Mest_sm_mat <- predict(pca.Mest.sm.obj, K = NULL)
+  
+  # index of non-outlier curves having missing values
+  cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+  for (i in 1:length(cand)) {
+    ind <- cand[i]
+    NA_ind <- which(is.na(x[ind, ]))
     
+    X.yao[ind, NA_ind] <- pred_yao_mat[ind, NA_ind]
+    X.huber[ind, NA_ind] <- pred_huber_mat[ind, NA_ind]
+    X.Mest[ind, NA_ind] <- pred_Mest_mat[ind, NA_ind]
+    X.Mest_sm[ind, NA_ind] <- pred_Mest_sm_mat[ind, NA_ind]
+    X.kraus[ind, NA_ind] <- pred.missfd(x[ind, ], x)[NA_ind]
+    X.kraus_M[ind, NA_ind] <- pred.rob.missfd(x[ind, ], x,
+                                              R = cov.Mest)[NA_ind]
+    X.kraus_M_sm[ind, NA_ind] <- pred.rob.missfd(x[ind, ], x,
+                                                 smooth = T,
+                                                 R = cov.Mest.sm)[NA_ind]
   }
-  
-  ### Kraus (2015)
-  # registerDoRNG(seed)
-  cov.kraus <- var.missfd(x)
-  eig.R <- eigen.missfd(cov.kraus)
-  # first 5 principal components
-  phi <- eig.R$vectors[, 1:K]
-  fpc.kraus <- apply(x, 1, function(row){ 
-    pred.score.missfd(row, phi = phi, x = x) 
-  })
-  fpc.kraus <- t(fpc.kraus)
-  
-  
-  ### Kraus + M-est
-  # registerDoRNG(seed)
-  mu <- mean.rob.missfd(x)
-  cov.kraus_M <- var.rob.missfd(x)
-  eig.R <- eigen.missfd(cov.kraus_M)
-  # first 5 principal components
-  phi <- eig.R$vectors[, 1:K]
-  fpc.kraus_M <- apply(x, 1, function(row){ 
-   pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
-                         mu = mu, R = cov.kraus_M) 
-  })
-  fpc.kraus_M <- t(fpc.kraus_M)
-  
-  
-  ### Kraus + M-est (smooth)
-  # registerDoRNG(seed)
-  mu <- mean.rob.missfd(x, smooth = T)
-  cov.kraus_M_sm <- var.rob.missfd(x, smooth = T)
-  eig.R <- eigen.missfd(cov.kraus_M_sm)
-  # first 5 principal components
-  phi <- eig.R$vectors[, 1:K]
-  fpc.kraus_M_sm <- apply(x, 1, function(row){ 
-   pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
-                         mu = mu, R = cov.kraus_M_sm) 
-  })
-  fpc.kraus_M_sm <- t(fpc.kraus_M_sm)
-  
-  
-  ##############################################
-  ### Completion
-  ### - completion for missing parts
-  ##############################################
-  
   
   
   
@@ -188,19 +172,19 @@ cluster.obj <- foreach(seed = 1:50,
   # registerDoRNG(seed)
   if (out.prop == 0) {
    ### No outliers => k-means clustering is performed.
-   kmeans.yao <- kmeans(x = fpc.yao, centers = n_group, 
+   kmeans.yao <- kmeans(x = X.yao, centers = n_group, 
                         iter.max = 30, nstart = 50)
-   kmeans.huber <- kmeans(x = fpc.huber, centers = n_group, 
+   kmeans.huber <- kmeans(x = X.huber, centers = n_group, 
                           iter.max = 30, nstart = 50)
-   kmeans.kraus <- kmeans(x = fpc.kraus, centers = n_group, 
+   kmeans.kraus <- kmeans(x = X.kraus, centers = n_group, 
                           iter.max = 30, nstart = 50)
-   kmeans.Mest <- kmeans(x = fpc.Mest, centers = n_group, 
+   kmeans.Mest <- kmeans(x = X.Mest, centers = n_group, 
                          iter.max = 30, nstart = 50)
-   kmeans.Mest.sm <- kmeans(x = fpc.Mest.sm, centers = n_group, 
+   kmeans.Mest.sm <- kmeans(x = X.Mest_sm, centers = n_group, 
                             iter.max = 30, nstart = 50)
-   kmeans.kraus_M <- kmeans(x = fpc.kraus_M, centers = n_group, 
+   kmeans.kraus_M <- kmeans(x = X.kraus_M, centers = n_group, 
                             iter.max = 30, nstart = 50)
-   kmeans.kraus_M_sm <- kmeans(x = fpc.kraus_M_sm, centers = n_group, 
+   kmeans.kraus_M_sm <- kmeans(x = X.kraus_M_sm, centers = n_group, 
                                iter.max = 30, nstart = 50)
   } else {
    ### Outliers => Trimmed k-means clustering is performed.
@@ -210,19 +194,19 @@ cluster.obj <- foreach(seed = 1:50,
    y_class <- ifelse(y_outlier == 1, 0, y_class)
    
    # fit trimmed k-means clustering
-   kmeans.yao <- tkmeans(x = fpc.yao, k = n_group, alpha = out.prop,
+   kmeans.yao <- tkmeans(x = X.yao, k = n_group, alpha = out.prop,
                          iter.max = 30, nstart = 50)
-   kmeans.huber <- tkmeans(x = fpc.huber, k = n_group, alpha = out.prop,
+   kmeans.huber <- tkmeans(x = X.huber, k = n_group, alpha = out.prop,
                            iter.max = 30, nstart = 50)
-   kmeans.kraus <- tkmeans(x = fpc.kraus, k = n_group, alpha = out.prop,
+   kmeans.kraus <- tkmeans(x = X.kraus, k = n_group, alpha = out.prop,
                            iter.max = 30, nstart = 50)
-   kmeans.Mest <- tkmeans(x = fpc.Mest, k = n_group, alpha = out.prop,
+   kmeans.Mest <- tkmeans(x = X.Mest, k = n_group, alpha = out.prop,
                           iter.max = 30, nstart = 50)
-   kmeans.Mest.sm <- tkmeans(x = fpc.Mest.sm, k = n_group, alpha = out.prop,
+   kmeans.Mest.sm <- tkmeans(x = X.Mest_sm, k = n_group, alpha = out.prop,
                              iter.max = 30, nstart = 50)
-   kmeans.kraus_M <- tkmeans(x = fpc.kraus_M, k = n_group, alpha = out.prop,
+   kmeans.kraus_M <- tkmeans(x = X.kraus_M, k = n_group, alpha = out.prop,
                              iter.max = 30, nstart = 50)
-   kmeans.kraus_M_sm <- tkmeans(x = fpc.kraus_M_sm, k = n_group, alpha = out.prop,
+   kmeans.kraus_M_sm <- tkmeans(x = X.kraus_M_sm, k = n_group, alpha = out.prop,
                                 iter.max = 30, nstart = 50)
   }
   
@@ -248,19 +232,50 @@ cluster.obj <- foreach(seed = 1:50,
   )
   
   
+  # ### kCFC for data with completion
+  # Lx.kraus_M <- MakeFPCAInputs(tVec = gr,
+  #                              yVec = X.kraus_M)
+  # system.time({
+  #   kcfc.obj <- FClust(Lx.kraus_M$Ly, Lx.kraus_M$Lt, 
+  #                      k = n_group+1,
+  #                      # cmethod = "kCFC",
+  #                      optnsFPCA = list(methodMuCovEst = 'smooth', userBwCov = bw, FVEthreshold = 0.90),
+  #                      optnsCS = list(methodMuCovEst = 'smooth', userBwCov = bw, FVEthreshold = 0.70))  
+  #   # kcfc.obj <- kCFC(Lx.kraus_M$Ly, Lx.kraus_M$Lt, 
+  #   #                  k = 2,
+  #   #                  optnsSW = list(methodMuCovEst = 'smooth', userBwCov = bw, FVEthreshold = 0.90),
+  #   #                  optnsCS = list(methodMuCovEst = 'smooth', userBwCov = bw, FVEthreshold = 0.70))  
+  # })
+  # classError(y_class, kcfc.obj$cluster)
+  
+  
   obj <- list(CCR = CCR,
               aRand = aRand,
               data = list(X = X,
                           gr = gr,
-                          y_class = y_class))
+                          y_class = y_class),
+              X_comp = list(X.yao = X.yao,
+                            X.huber = X.huber,
+                            X.Mest = X.Mest,
+                            X.Mest_sm = X.Mest_sm,
+                            X.kraus = X.kraus,
+                            X.kraus_M = X.kraus_M,
+                            X.kraus_M_sm = X.kraus_M_sm),
+              cluster = list(yao = kmeans.yao$cluster,
+                             huber = kmeans.huber$cluster,
+                             Mest = kmeans.Mest$cluster,
+                             Mest_sm = kmeans.Mest.sm$cluster,
+                             kraus = kmeans.kraus$cluster,
+                             kraus_M = kmeans.kraus_M$cluster,
+                             kraus_M_sm = kmeans.kraus_M_sm$cluster))
   return(obj)
 }
 end_time <- Sys.time()
 end_time - start_time
-cluster.obj
+# cluster.obj
 stopCluster(cl)
+# save(list = c("cluster.obj"), file = "RData/2021_0518_cluster_comp.RData")
 
-# save(list = c("cluster.obj"), file = "RData/2021_0516_cluster.RData")
 df <- cbind(
   CCR = sapply(cluster.obj, function(x){ x$CCR }) %>% 
     rowMeans,
@@ -270,13 +285,12 @@ df <- cbind(
 rownames(df) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
 df
 
-
-
-
-colMeans(CCR)
-colMeans(aRand)
-apply(CCR, 2, sd)
-apply(aRand, 2, sd)
+ind_null <- which(sapply(cluster.obj, function(x){ is.null(x$CCR) }))
+cluster.obj <- cluster.obj[-ind_null]
+CCR <- sapply(cluster.obj, function(x){ x$CCR }) %>% 
+  t()
+aRand <- sapply(cluster.obj, function(x){ x$aRand }) %>% 
+  t()
 
 df <- rbind(
   paste0(
@@ -384,49 +398,4 @@ for (i in 1:4) {
   matplot(t(x[kmeans.Mest$cluster == i, ]), type = "l")
 }
 par(mfrow = c(1, 1))
-
-
-
-# ### PAM
-# library(cluster)
-# pam.yao.obj <- pam(fpc.yao, n_group, metric = "manhattan")
-# table(pam.yao.obj$clustering)
-# 
-# 
-# ### match predicted cluster to true
-# match_cluster <- function(y, pred) {
-#   y_group <- sort(unique(y))
-#   n_group <- length(y_group)
-#   
-#   df <- data.frame(id = 1:length(y),
-#                    y = y,
-#                    pred = pred)
-#   df2 <- df %>%
-#     group_by(y, pred) %>%
-#     summarise(n = n(), .groups = "drop_last") %>%
-#     filter(n == max(n)) %>%
-#     dplyr::select(y, pred)
-#   
-#   if (length(unique(df2$pred)) != n_group) {
-#     permut_list <- combinat::permn(y_group)   # a list of permutation
-#     acc <- rep(NA, length(permut_list))
-#     for (i in 1:length(permut_list)) {
-#       permut_y <- data.frame(y_group = y_group,
-#                              cl = permut_list[[i]])
-#       permut_y <- data.frame(y_group = pred) %>% 
-#         left_join(permut_y, by = "y_group")
-#       
-#       acc[i] <- mean(y == permut_y$cl)
-#     }
-#     df2 <- data.frame(pred = y_group,
-#                       y = permut_list[[which.max(acc)]])
-#   }
-#   
-#   pred_matched <- df["pred"] %>% 
-#     left_join(df2, by = "pred") %>% 
-#     dplyr::select(y) 
-#   pred_matched <- as.numeric(pred_matched$y)
-#   
-#   return(pred_matched)
-# }
 
