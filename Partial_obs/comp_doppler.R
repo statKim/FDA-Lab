@@ -41,7 +41,7 @@ comp.obj <- foreach(seed = 1:50,
   ### Data generation
   #############################
   # data generation with outlier
-  out.prop <- 0
+  out.prop <- 0.2
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
                    out.prop = out.prop, 
@@ -113,28 +113,28 @@ comp.obj <- foreach(seed = 1:50,
   ### M-estimator
   # registerDoRNG(seed)
   mu.Mest <- mean.rob.missfd(x)
-  # cov.Mest <- var.rob.missfd(x)
-  # pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
-  #                        sig2 = 1e-6, work.grid, K = K)
-  # consider noise var
-  cov.Mest <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
-  pca.Mest.obj <- funPCA(X$Lt, X$Ly,
-                         mu.Mest, cov.Mest, sig2 = cov.huber.obj$sig2e,
-                         work.grid, PVE = pve, K = K)
+  cov.Mest <- var.rob.missfd(x)
+  pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
+                         sig2 = 1e-6, work.grid, K = K)
+  # # consider noise var
+  # cov.Mest <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
+  # pca.Mest.obj <- funPCA(X$Lt, X$Ly,
+  #                        mu.Mest, cov.Mest, sig2 = cov.huber.obj$sig2e,
+  #                        work.grid, PVE = pve, K = K)
   
   
   
   ### M-estimator (smooth)
   # registerDoRNG(seed)
   mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
-  # cov.Mest.sm <- var.rob.missfd(x, smooth = T)
-  # pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
-  #                           sig2 = 1e-6, work.grid, K = K)
-  # consider noise var
-  cov.Mest.sm <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
-  pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly,
-                            mu.Mest.sm, cov.Mest.sm, sig2 = cov.huber.obj$sig2e,
-                            work.grid, PVE = pve, K = K)
+  cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+  pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
+                            sig2 = 1e-6, work.grid, K = K)
+  # # consider noise var
+  # cov.Mest.sm <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
+  # pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly,
+  #                           mu.Mest.sm, cov.Mest.sm, sig2 = cov.huber.obj$sig2e,
+  #                           work.grid, PVE = pve, K = K)
   
   
   

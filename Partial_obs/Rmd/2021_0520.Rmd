@@ -49,38 +49,18 @@ knitr::opts_chunk$set(
 
 
 
-# Simulation
+# Completion - Delaigle setting
 
-## Settings
-- **Completion**
-  - Delaigle et al. (2020) setting
-  - 20% outlier + partially observed
-  - 5 FPC scores
-  - 50 repetitions
-- **Clustering**
-  - shifted Doppler signal setting
-    - 4개 true clusters
-    - 512 => 128 timepoints로 줄여서 확인
-  - 20% outliers + partially observed
-  - Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체
-  - 2 FPC scores
-  - Trimmed $k$-means clustering 적용 (outlier 비율만큼 trim되도록 설정)
-  - 50 repetitions
-- **비교 방법론**
-  - **Yao (2005)** : PCA (CE)
-  - **Huber** : Lin & Wang (2020) + Huber loss function + PCA (CE)
-  - **M-est** : Marginal M-estimator for mean and covariances + PCA (CE)
-  - **M-est (smooth)** : M-est + 2D smoothed covariance + PCA (CE)
-  - **Kraus (2015)** : PCA (Kraus)
-  - **Kraus-M** : M-est + PCA (Kraus)
-  - **Kraus-M (smooth)** : M-est (smooth) + PCA (Kraus)
-- pre-smoothing 적용 X
-
-
-<br>
-
-## Completion result - Delaigle setting
-
+- Delaigle et al. (2020) setting
+- 20% outlier + partially observed
+- 5 FPC scores
+- 50 repetitions
+- pre-smoothing X
+- M-est 기반 방법(M-est, Kraus-M 등)에서 noise variance를 가정한 경우도 요약
+  - 결과적으로, noise var을 빼주더라도 completion이 더 smooth한 경향은 보이지 않음
+    - Yao, Huber는 raw 데이터를 smoothing하지 않는 대신 covariance를 smoothing하여 결과적으로 completion이 smooth한 형태로 나오게 됨
+    - 반면, Kraus 방법은 pre-smoothing을 하지 않으면 중간에 smoothing 과정이 없어 다소 wiggly한 형태를 보이게 되는 것으로 보임
+  
 ```{r}
 df <- data.frame(
   method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
@@ -151,57 +131,99 @@ knitr::kable(df,
 # )
 ```
 
+
 <br>
 
-## Completion result - shifted Doppler signal
+# Completion - shifted Doppler signal
+
+- shifted Doppler signal setting
+  - 512 => 128 timepoints로 줄여서 확인
+  - Delaigle 세팅과 달리 wiggly한 curve로 이루어짐
+- 20% outliers + partially observed
+- Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체
+- 5 FPC scores
+- 50 repetitions
+- pre-smoothing X
 
 ```{r}
 df <- data.frame(
   method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
-  MISE.x = c("","","","","","",""),
-  MSE.x = c("","","","","","",""),
-  MISE.y = c("11.64 (71.67)","0.66 (0.08)","0.19 (0.02)","0.54 (0.06)","3.88 (21.40)","0.42 (0.08)","0.58 (0.07)"),
-  MSE.y = c("669.95 (4552.26)","3.67 (0.28)","1.18 (0.08)","3.09 (0.22)","20.94 (110.73)","2.46 (0.35)","3.35 (0.24)")
+  MISE.x = c("0.57 (0.06)","0.66 (0.07)","0.23 (0.03)","5.84 (6.89)","0.21 (0.02)","0.23 (0.03)","0.56 (0.06)"),
+  MSE.x = c("3.24 (0.21)","3.68 (0.24)","1.29 (0.08)","22.27 (24.69)","1.29 (0.09)","1.44 (0.11)","3.18 (0.22)"),
+  MISE.x1 = c("","","0.18 (0.02)","0.54 (0.06)","","0.21 (0.02)","0.60 (0.06)"),
+  MSE.x1 = c("","","1.13 (0.06)","3.07 (0.20)","","1.38 (0.13)","3.41 (0.21)"),
+  
+  MISE.y = c("11.64 (71.67)","0.66 (0.08)","0.22 (0.03)","11.91 (8.20)","3.88 (21.40)","0.30 (0.05)","0.56 (0.07)"),
+  MSE.y = c("669.95 (4552.26)","3.67 (0.28)","1.29 (0.09)","46.25 (31.31)","20.94 (110.73)","1.87 (0.18)","3.25 (0.21)"),
+  MISE.y1 = c("","","0.19 (0.02)","0.54 (0.06)","","0.42 (0.08)","0.58 (0.07)"),
+  MSE.y1 = c("","","1.18 (0.08)","3.09 (0.22)","","2.46 (0.35)","3.35 (0.24)")
 )
 
 knitr::kable(df,
              # digits = 3,
-             col.names = c("Method","MISE","MSE","MISE","MSE"),
+             col.names = c("Method","MISE","MSE","MISE","MSE","MISE","MSE","MISE","MSE"),
              align = "c",
              escape = FALSE,
-             caption = "Table 1. 100 x average MISE, MSE, and its standard errors of completion for simulated data from 50 repetitions.") %>%
+             caption = "Table 3. 100 x average MISE, MSE, and its standard errors of completion for simulated data from 50 repetitions.") %>%
     kable_styling("striped", full_width = FALSE, font_size = 14) %>%
     add_header_above(c(" " = 1,
-                       "Outlier X" = 2,
-                       "Outlier O" = 2))
+                       "Noise X (M est)" = 2,
+                       "Noise O (M est)" = 2,
+                       "Noise X (M est)" = 2,
+                       "Noise O (M est)" = 2)) %>% 
+    add_header_above(c(" " = 1,
+                       "Outlier X" = 4,
+                       "Outlier O" = 4))
 ```
 
 ```{r}
 df <- data.frame(
   method = c("Yao (2005)","Huber","M-est","M-est (smooth)"),
-  MISE.x = c("","","",""),
-  MSE.x = c("","","",""),
-  MISE.y = c("100.87 (657.80)","3.47 (0.12)","1.01 (0.02)","3.14 (0.07)"),
-  MSE.y = c("103.28 (674.27)","3.45 (0.12)","1.01 (0.02)","3.12 (0.07)")
+  MISE.x = c("3.42 (0.05)","3.50 (0.12)","1.07 (0.04)","8.88 (7.17)"),
+  MSE.x = c("3.40 (0.05)","3.48 (0.12)","1.07 (0.04)","8.95 (7.31)"),
+  MISE.x1 = c("","","0.98 (0.02)","3.12 (0.05)"),
+  MSE.x1 = c("","","0.98 (0.02)","3.11 (0.05)"),
+  
+  MISE.y = c("100.87 (657.80)","3.47 (0.12)","1.10 (0.04)","16.54 (9.10)"),
+  MSE.y = c("103.28 (674.27)","3.45 (0.12)","1.10 (0.04)","16.60 (9.16)"),
+  MISE.y1 = c("","","1.01 (0.02)","3.14 (0.07)"),
+  MSE.y1 = c("","","1.01 (0.02)","3.12 (0.07)")
 )
 
 knitr::kable(df,
              # digits = 3,
-             col.names = c("Method","MISE","MSE","MISE","MSE"),
+             col.names = c("Method","MISE","MSE","MISE","MSE","MISE","MSE","MISE","MSE"),
              align = "c",
              escape = FALSE,
-             caption = "Table 2. 100 x average MISE, MSE, and its standard errors of reconstruction for simulated data from 50 repetitions.") %>%
+             caption = "Table 4. 100 x average MISE, MSE, and its standard errors of reconstruction for simulated data from 50 repetitions.") %>%
     kable_styling("striped", full_width = FALSE, font_size = 14) %>%
     add_header_above(c(" " = 1,
-                       "Outlier X" = 2,
-                       "Outlier O" = 2))
+                       "Noise X (M est)" = 2,
+                       "Noise O (M est)" = 2,
+                       "Noise X (M est)" = 2,
+                       "Noise O (M est)" = 2)) %>% 
+    add_header_above(c(" " = 1,
+                       "Outlier X" = 4,
+                       "Outlier O" = 4))
 ```
 
 
 <br>
 
-## Clustering result
+# Clustering - shifted Doppler signal
 
+## Settings
+- shifted Doppler signal setting
+  - 4개 true clusters
+  - 512 => 128 timepoints로 줄여서 확인
+- 20% outliers + partially observed
+- Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체
+- 2 FPC scores
+- Outlier X : $k$-means clustering
+- Outlier O : Trimmed $k$-means clustering 적용 (outlier 비율만큼 trim되도록 설정)
+- 50 repetitions
+- pre-smoothing X
+  
 ```{r}
 df <- data.frame(
   method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
@@ -216,7 +238,7 @@ knitr::kable(df,
              col.names = c("Method","CCR","aRand","CCR","aRand"),
              align = "c",
              escape = FALSE,
-             caption = "Table 3. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed $k$-means clustering using 2 FPCs from 50 repetitions.") %>%
+             caption = "Table 5. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed $k$-means clustering using 2 FPCs from 50 repetitions.") %>%
     kable_styling("striped", full_width = FALSE, font_size = 14) %>%
     add_header_above(c(" " = 1,
                        "Outlier X" = 2,
@@ -231,10 +253,28 @@ knitr::kable(df,
 # knitr::include_graphics("../figure/2021_0513/clustering_sm.png")
 ```
 
+<br>
+
+## Clustering after completion
+- 같은 세팅으로 completion을 한 후에, complete한 curve를 사용하여 clustering
+- Outlier 있는 경우에만 확인
+- Trimmed $k$-means clustering (kCFC의 경우, initial clustering에서 적은 수의 cluster가 들어가게 되어 error 발생)
 
 ```{r}
-# clustering after completion
-# [1,] "1.00 (0.01)" "1.00 (0.00)" "1.00 (0.00)" "0.77 (0.14)" "0.99 (0.09)" "1.00 (0.00)" "1.00 (0.00)"
-# [2,] "0.99 (0.03)" "1.00 (0.00)" "1.00 (0.00)" "0.65 (0.19)" "0.98 (0.13)" "1.00 (0.00)" "1.00 (0.00)"
+df <- data.frame(
+  method = c("Yao (2005)","Huber","M-est","M-est (smooth)","Kraus (2015)","Kraus-M","Kraus-M (smooth)"),
+  CCR = c("1.00 (0.01)","1.00 (0.00)","1.00 (0.00)","0.77 (0.14)","0.99 (0.09)","1.00 (0.00)","1.00 (0.00)"),
+  aRand = c("0.99 (0.03)","1.00 (0.00)","1.00 (0.00)","0.65 (0.19)","0.98 (0.13)","1.00 (0.00)","1.00 (0.00)")
+)
+
+knitr::kable(df,
+             # digits = 3,
+             col.names = c("Method","CCR","aRand"),
+             align = "c",
+             escape = FALSE,
+             caption = "Table 6. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed $k$-means clustering using 2 FPCs from 50 repetitions.") %>%
+    kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+    add_header_above(c(" " = 1,
+                       "Outlier O" = 2))
 ```
 

@@ -47,12 +47,12 @@
 <div id="TOC" class="toc">
 <div class="toc-box">
 <ul>
-<li><a href="#simulation">Simulation</a>
+<li><a href="#completion---delaigle-setting">Completion - Delaigle setting</a></li>
+<li><a href="#completion---shifted-doppler-signal">Completion - shifted Doppler signal</a></li>
+<li><a href="#clustering---shifted-doppler-signal">Clustering - shifted Doppler signal</a>
 <ul>
 <li><a href="#settings">Settings</a></li>
-<li><a href="#completion-result---delaigle-setting">Completion result - Delaigle setting</a></li>
-<li><a href="#completion-result---shifted-doppler-signal-x-100">Completion result - shifted Doppler signal (x 100)</a></li>
-<li><a href="#clustering-result">Clustering result</a></li>
+<li><a href="#clustering-after-completion">Clustering after completion</a></li>
 </ul></li>
 </ul>
 </div>
@@ -77,47 +77,23 @@
     text-align: justify;
   }
 </style>
-<div id="simulation" class="section level1">
-<h1>Simulation</h1>
-<div id="settings" class="section level2">
-<h2>Settings</h2>
-<ul>
-<li><strong>Completion</strong>
+<div id="completion---delaigle-setting" class="section level1">
+<h1>Completion - Delaigle setting</h1>
 <ul>
 <li>Delaigle et al. (2020) setting</li>
 <li>20% outlier + partially observed</li>
 <li>5 FPC scores</li>
 <li>50 repetitions</li>
-</ul></li>
-<li><strong>Clustering</strong>
+<li>pre-smoothing X</li>
+<li>M-est 기반 방법(M-est, Kraus-M 등)에서 noise variance를 가정한 경우도 요약
 <ul>
-<li>shifted Doppler signal setting
+<li>결과적으로, noise var을 빼주더라도 completion이 더 smooth한 경향은 보이지 않음
 <ul>
-<li>4개 true clusters</li>
-<li>512 =&gt; 128 timepoints로 줄여서 확인</li>
+<li>Yao, Huber는 raw 데이터를 smoothing하지 않는 대신 covariance를 smoothing하여 결과적으로 completion이 smooth한 형태로 나오게 됨</li>
+<li>반면, Kraus 방법은 pre-smoothing을 하지 않으면 중간에 smoothing 과정이 없어 다소 wiggly한 형태를 보이게 되는 것으로 보임</li>
 </ul></li>
-<li>20% outliers + partially observed</li>
-<li>Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체</li>
-<li>2 FPC scores</li>
-<li>Trimmed <span class="math inline">\(k\)</span>-means clustering 적용 (outlier 비율만큼 trim되도록 설정)</li>
-<li>50 repetitions</li>
 </ul></li>
-<li><strong>비교 방법론</strong>
-<ul>
-<li><strong>Yao (2005)</strong> : PCA (CE)</li>
-<li><strong>Huber</strong> : Lin &amp; Wang (2020) + Huber loss function + PCA (CE)</li>
-<li><strong>M-est</strong> : Marginal M-estimator for mean and covariances + PCA (CE)</li>
-<li><strong>M-est (smooth)</strong> : M-est + 2D smoothed covariance + PCA (CE)</li>
-<li><strong>Kraus (2015)</strong> : PCA (Kraus)</li>
-<li><strong>Kraus-M</strong> : M-est + PCA (Kraus)</li>
-<li><strong>Kraus-M (smooth)</strong> : M-est (smooth) + PCA (Kraus)</li>
-</ul></li>
-<li>pre-smoothing 적용 X</li>
 </ul>
-<p><br></p>
-</div>
-<div id="completion-result---delaigle-setting" class="section level2">
-<h2>Completion result - Delaigle setting</h2>
 <table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption style="font-size: initial !important;">
 Table 1. Average MISE, MSE, and its standard errors of completion for simulated data from 50 repetitions.
@@ -571,30 +547,78 @@ M-est (smooth)
 </table>
 <p><br></p>
 </div>
-<div id="completion-result---shifted-doppler-signal-x-100" class="section level2">
-<h2>Completion result - shifted Doppler signal (x 100)</h2>
+<div id="completion---shifted-doppler-signal" class="section level1">
+<h1>Completion - shifted Doppler signal</h1>
+<ul>
+<li>shifted Doppler signal setting
+<ul>
+<li>512 =&gt; 128 timepoints로 줄여서 확인</li>
+<li>Delaigle 세팅과 달리 wiggly한 curve로 이루어짐</li>
+</ul></li>
+<li>20% outliers + partially observed</li>
+<li>Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체</li>
+<li>5 FPC scores</li>
+<li>50 repetitions</li>
+<li>pre-smoothing X</li>
+</ul>
 <table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption style="font-size: initial !important;">
-Table 1. 100 x average MISE, MSE, and its standard errors of completion for simulated data from 50 repetitions.
+Table 3. 100 x average MISE, MSE, and its standard errors of completion for simulated data from 50 repetitions.
 </caption>
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Outlier X
 </div>
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Outlier O
 </div>
 </th>
 </tr>
 <tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise X (M est)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise O (M est)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise X (M est)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise O (M est)
+</div>
+</th>
+</tr>
+<tr>
 <th style="text-align:center;">
 Method
+</th>
+<th style="text-align:center;">
+MISE
+</th>
+<th style="text-align:center;">
+MSE
+</th>
+<th style="text-align:center;">
+MISE
+</th>
+<th style="text-align:center;">
+MSE
 </th>
 <th style="text-align:center;">
 MISE
@@ -616,6 +640,12 @@ MSE
 Yao (2005)
 </td>
 <td style="text-align:center;">
+0.57 (0.06)
+</td>
+<td style="text-align:center;">
+3.24 (0.21)
+</td>
+<td style="text-align:center;">
 </td>
 <td style="text-align:center;">
 </td>
@@ -625,10 +655,20 @@ Yao (2005)
 <td style="text-align:center;">
 669.95 (4552.26)
 </td>
+<td style="text-align:center;">
+</td>
+<td style="text-align:center;">
+</td>
 </tr>
 <tr>
 <td style="text-align:center;">
 Huber
+</td>
+<td style="text-align:center;">
+0.66 (0.07)
+</td>
+<td style="text-align:center;">
+3.68 (0.24)
 </td>
 <td style="text-align:center;">
 </td>
@@ -640,14 +680,32 @@ Huber
 <td style="text-align:center;">
 3.67 (0.28)
 </td>
+<td style="text-align:center;">
+</td>
+<td style="text-align:center;">
+</td>
 </tr>
 <tr>
 <td style="text-align:center;">
 M-est
 </td>
 <td style="text-align:center;">
+0.23 (0.03)
 </td>
 <td style="text-align:center;">
+1.29 (0.08)
+</td>
+<td style="text-align:center;">
+0.18 (0.02)
+</td>
+<td style="text-align:center;">
+1.13 (0.06)
+</td>
+<td style="text-align:center;">
+0.22 (0.03)
+</td>
+<td style="text-align:center;">
+1.29 (0.09)
 </td>
 <td style="text-align:center;">
 0.19 (0.02)
@@ -661,8 +719,22 @@ M-est
 M-est (smooth)
 </td>
 <td style="text-align:center;">
+5.84 (6.89)
 </td>
 <td style="text-align:center;">
+22.27 (24.69)
+</td>
+<td style="text-align:center;">
+0.54 (0.06)
+</td>
+<td style="text-align:center;">
+3.07 (0.20)
+</td>
+<td style="text-align:center;">
+11.91 (8.20)
+</td>
+<td style="text-align:center;">
+46.25 (31.31)
 </td>
 <td style="text-align:center;">
 0.54 (0.06)
@@ -676,6 +748,12 @@ M-est (smooth)
 Kraus (2015)
 </td>
 <td style="text-align:center;">
+0.21 (0.02)
+</td>
+<td style="text-align:center;">
+1.29 (0.09)
+</td>
+<td style="text-align:center;">
 </td>
 <td style="text-align:center;">
 </td>
@@ -685,14 +763,32 @@ Kraus (2015)
 <td style="text-align:center;">
 20.94 (110.73)
 </td>
+<td style="text-align:center;">
+</td>
+<td style="text-align:center;">
+</td>
 </tr>
 <tr>
 <td style="text-align:center;">
 Kraus-M
 </td>
 <td style="text-align:center;">
+0.23 (0.03)
 </td>
 <td style="text-align:center;">
+1.44 (0.11)
+</td>
+<td style="text-align:center;">
+0.21 (0.02)
+</td>
+<td style="text-align:center;">
+1.38 (0.13)
+</td>
+<td style="text-align:center;">
+0.30 (0.05)
+</td>
+<td style="text-align:center;">
+1.87 (0.18)
 </td>
 <td style="text-align:center;">
 0.42 (0.08)
@@ -706,8 +802,22 @@ Kraus-M
 Kraus-M (smooth)
 </td>
 <td style="text-align:center;">
+0.56 (0.06)
 </td>
 <td style="text-align:center;">
+3.18 (0.22)
+</td>
+<td style="text-align:center;">
+0.60 (0.06)
+</td>
+<td style="text-align:center;">
+3.41 (0.21)
+</td>
+<td style="text-align:center;">
+0.56 (0.07)
+</td>
+<td style="text-align:center;">
+3.25 (0.21)
 </td>
 <td style="text-align:center;">
 0.58 (0.07)
@@ -720,26 +830,62 @@ Kraus-M (smooth)
 </table>
 <table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption style="font-size: initial !important;">
-Table 2. 100 x average MISE, MSE, and its standard errors of reconstruction for simulated data from 50 repetitions.
+Table 4. 100 x average MISE, MSE, and its standard errors of reconstruction for simulated data from 50 repetitions.
 </caption>
 <thead>
 <tr>
 <th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Outlier X
 </div>
 </th>
-<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="4">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
 Outlier O
 </div>
 </th>
 </tr>
 <tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise X (M est)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise O (M est)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise X (M est)
+</div>
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Noise O (M est)
+</div>
+</th>
+</tr>
+<tr>
 <th style="text-align:center;">
 Method
+</th>
+<th style="text-align:center;">
+MISE
+</th>
+<th style="text-align:center;">
+MSE
+</th>
+<th style="text-align:center;">
+MISE
+</th>
+<th style="text-align:center;">
+MSE
 </th>
 <th style="text-align:center;">
 MISE
@@ -761,6 +907,12 @@ MSE
 Yao (2005)
 </td>
 <td style="text-align:center;">
+3.42 (0.05)
+</td>
+<td style="text-align:center;">
+3.40 (0.05)
+</td>
+<td style="text-align:center;">
 </td>
 <td style="text-align:center;">
 </td>
@@ -770,10 +922,20 @@ Yao (2005)
 <td style="text-align:center;">
 103.28 (674.27)
 </td>
+<td style="text-align:center;">
+</td>
+<td style="text-align:center;">
+</td>
 </tr>
 <tr>
 <td style="text-align:center;">
 Huber
+</td>
+<td style="text-align:center;">
+3.50 (0.12)
+</td>
+<td style="text-align:center;">
+3.48 (0.12)
 </td>
 <td style="text-align:center;">
 </td>
@@ -785,14 +947,32 @@ Huber
 <td style="text-align:center;">
 3.45 (0.12)
 </td>
+<td style="text-align:center;">
+</td>
+<td style="text-align:center;">
+</td>
 </tr>
 <tr>
 <td style="text-align:center;">
 M-est
 </td>
 <td style="text-align:center;">
+1.07 (0.04)
 </td>
 <td style="text-align:center;">
+1.07 (0.04)
+</td>
+<td style="text-align:center;">
+0.98 (0.02)
+</td>
+<td style="text-align:center;">
+0.98 (0.02)
+</td>
+<td style="text-align:center;">
+1.10 (0.04)
+</td>
+<td style="text-align:center;">
+1.10 (0.04)
 </td>
 <td style="text-align:center;">
 1.01 (0.02)
@@ -806,8 +986,22 @@ M-est
 M-est (smooth)
 </td>
 <td style="text-align:center;">
+8.88 (7.17)
 </td>
 <td style="text-align:center;">
+8.95 (7.31)
+</td>
+<td style="text-align:center;">
+3.12 (0.05)
+</td>
+<td style="text-align:center;">
+3.11 (0.05)
+</td>
+<td style="text-align:center;">
+16.54 (9.10)
+</td>
+<td style="text-align:center;">
+16.60 (9.16)
 </td>
 <td style="text-align:center;">
 3.14 (0.07)
@@ -820,11 +1014,27 @@ M-est (smooth)
 </table>
 <p><br></p>
 </div>
-<div id="clustering-result" class="section level2">
-<h2>Clustering result</h2>
+<div id="clustering---shifted-doppler-signal" class="section level1">
+<h1>Clustering - shifted Doppler signal</h1>
+<div id="settings" class="section level2">
+<h2>Settings</h2>
+<ul>
+<li>shifted Doppler signal setting
+<ul>
+<li>4개 true clusters</li>
+<li>512 =&gt; 128 timepoints로 줄여서 확인</li>
+</ul></li>
+<li>20% outliers + partially observed</li>
+<li>Huber의 경우, variance가 0이 되는 양끝 부분은 가장 가까운 값으로 대체</li>
+<li>2 FPC scores</li>
+<li>Outlier X : <span class="math inline">\(k\)</span>-means clustering</li>
+<li>Outlier O : Trimmed <span class="math inline">\(k\)</span>-means clustering 적용 (outlier 비율만큼 trim되도록 설정)</li>
+<li>50 repetitions</li>
+<li>pre-smoothing X</li>
+</ul>
 <table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption style="font-size: initial !important;">
-Table 3. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed <span class="math inline">\(k\)</span>-means clustering using 2 FPCs from 50 repetitions.
+Table 5. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed <span class="math inline">\(k\)</span>-means clustering using 2 FPCs from 50 repetitions.
 </caption>
 <thead>
 <tr>
@@ -977,6 +1187,121 @@ Kraus-M (smooth)
 </td>
 <td style="text-align:center;">
 0.65 (0.05)
+</td>
+</tr>
+</tbody>
+</table>
+<p><br></p>
+</div>
+<div id="clustering-after-completion" class="section level2">
+<h2>Clustering after completion</h2>
+<ul>
+<li>같은 세팅으로 completion을 한 후에, complete한 curve를 사용하여 clustering</li>
+<li>Outlier 있는 경우에만 확인</li>
+<li>Trimmed <span class="math inline">\(k\)</span>-means clustering (kCFC의 경우, initial clustering에서 적은 수의 cluster가 들어가게 되어 error 발생)</li>
+</ul>
+<table class="table table-striped" style="font-size: 14px; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption style="font-size: initial !important;">
+Table 6. Average CCR (Correct classification rate), average aRand (Adjusted Rand index), and its standard errors from Trimmed <span class="math inline">\(k\)</span>-means clustering using 2 FPCs from 50 repetitions.
+</caption>
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Outlier O
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:center;">
+Method
+</th>
+<th style="text-align:center;">
+CCR
+</th>
+<th style="text-align:center;">
+aRand
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+Yao (2005)
+</td>
+<td style="text-align:center;">
+1.00 (0.01)
+</td>
+<td style="text-align:center;">
+0.99 (0.03)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Huber
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M-est
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+M-est (smooth)
+</td>
+<td style="text-align:center;">
+0.77 (0.14)
+</td>
+<td style="text-align:center;">
+0.65 (0.19)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus (2015)
+</td>
+<td style="text-align:center;">
+0.99 (0.09)
+</td>
+<td style="text-align:center;">
+0.98 (0.13)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus-M
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+Kraus-M (smooth)
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
+</td>
+<td style="text-align:center;">
+1.00 (0.00)
 </td>
 </tr>
 </tbody>

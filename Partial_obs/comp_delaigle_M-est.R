@@ -398,73 +398,73 @@ print(t(df))
 # par(mfrow = c(1, 1))
 # 
 # 
-# ### Completion
-# par(mfrow = c(3, 3))
-# cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-# cand <- cand[cand <= 80]   # exclude outlier curves
+### Completion
+par(mfrow = c(3, 3))
+cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+cand <- cand[cand <= 80]   # exclude outlier curves
 # par(mfrow = c(1, 3))
 # cand <- c(15, 32, 21)
-# for (ind in cand) {
-#   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
-#   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
-#   pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
-#   pred_Mest_sm <- predict(pca.Mest.sm.obj, K = NULL)[ind, ]
-#   pred_kraus <- pred.missfd(x[ind, ], x)
-#   pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
-#                                   R = cov.Mest)
-#   pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
-#                                      smooth = T,
-#                                      R = cov.Mest.sm)
-# 
-#   is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
-#   if (is_snippets) {
-#     obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
-# 
-#     if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
-#       # start and end
-#       obs_range <- obs_range
-#     } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
-#       if (obs_range[1] > 1) {
-#         # start periods
-#         obs_range <- obs_range[1]
-#       } else if (obs_range[2] < n.grid) {
-#         # end periods
-#         obs_range <- obs_range[2]
-#       }
-#     }
-#   } else {
-#     # missing is in the middle.
-#     obs_range <- range(which(is.na(x[ind, ])))
-#     # include last observed point
-#     obs_range <- c(obs_range[1] - 1,
-#                    obs_range[2] + 1)
-#   }
-# 
-#   df <- cbind(x.2$x.full[ind, ],
-#               pred_missing_curve(x[ind, ], pred_yao),
-#               pred_missing_curve(x[ind, ], pred_huber),
-#               pred_missing_curve(x[ind, ], pred_Mest),
-#               pred_missing_curve(x[ind, ], pred_Mest_sm),
-#               pred_kraus,
-#               pred_kraus_M,
-#               pred_kraus_M_sm)
-#   matplot(work.grid, df, type = "l",
-#           col = 1:8,
-#           lty = rep(1, 8),
-#           lwd = c(1,1,2,2,2,1,2,2),
-#           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
-#   abline(v = work.grid[obs_range],
-#          lty = 2, lwd = 2)
-#   grid()
-#   if (ind %in% cand[(0:6)*9 + 1]) {
-#     legend("topleft",
-#            c("True","Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)"),
-#            col = 1:8,
-#            lty = rep(1, 8),
-#            lwd = c(1,1,2,2,2,1,2,2))
-#   }
-# }
-# par(mfrow = c(1, 1))
+for (ind in cand) {
+  pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+  pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
+  pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
+  pred_Mest_sm <- predict(pca.Mest.sm.obj, K = NULL)[ind, ]
+  pred_kraus <- pred.missfd(x[ind, ], x)
+  pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
+                                  R = cov.Mest)
+  pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
+                                     smooth = T,
+                                     R = cov.Mest.sm)
+
+  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+
+    if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
+      # start and end
+      obs_range <- obs_range
+    } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        obs_range <- obs_range[1]
+      } else if (obs_range[2] < n.grid) {
+        # end periods
+        obs_range <- obs_range[2]
+      }
+    }
+  } else {
+    # missing is in the middle.
+    obs_range <- range(which(is.na(x[ind, ])))
+    # include last observed point
+    obs_range <- c(obs_range[1] - 1,
+                   obs_range[2] + 1)
+  }
+
+  df <- cbind(x.2$x.full[ind, ],
+              pred_missing_curve(x[ind, ], pred_yao),
+              pred_missing_curve(x[ind, ], pred_huber),
+              pred_missing_curve(x[ind, ], pred_Mest),
+              pred_missing_curve(x[ind, ], pred_Mest_sm),
+              pred_kraus,
+              pred_kraus_M,
+              pred_kraus_M_sm)
+  matplot(work.grid, df, type = "l",
+          col = 1:8,
+          lty = rep(1, 8),
+          lwd = c(1,1,2,2,2,1,2,2),
+          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  grid()
+  if (ind %in% cand[(0:6)*9 + 1]) {
+    legend("topleft",
+           c("True","Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)"),
+           col = 1:8,
+           lty = rep(1, 8),
+           lwd = c(1,1,2,2,2,1,2,2))
+  }
+}
+par(mfrow = c(1, 1))
 # 
 # 
 # 
