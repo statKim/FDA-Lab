@@ -28,18 +28,32 @@ source("robust_Kraus.R")
 ### Delaigle (2020) setting
 #####################################
 num_sim <- 50
-mise_reconstr <- matrix(NA, num_sim, 4)
-mse_reconstr <- matrix(NA, num_sim, 4)
-mise_completion <- matrix(NA, num_sim, 7)
-mse_completion <- matrix(NA, num_sim, 7)
+mise_reconstr <- matrix(NA, num_sim, 6)
+mse_reconstr <- matrix(NA, num_sim, 6)
+mise_completion <- matrix(NA, num_sim, 11)
+mse_completion <- matrix(NA, num_sim, 11)
+pve_res <- matrix(NA, num_sim, 7)
+K_res <- matrix(NA, num_sim, 7)
 
-colnames(mise_reconstr) <- c("Yao","Huber","M-est","M-est(smooth)")
-colnames(mse_reconstr) <- c("Yao","Huber","M-est","M-est(smooth)")
-colnames(mise_completion) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
-colnames(mse_completion) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
+colnames(mise_reconstr) <- c("Yao","Huber","M-est","M-est(smooth)",
+                             "M-est-noise","M-est(smooth)-noise")
+colnames(mse_reconstr) <- c("Yao","Huber","M-est","M-est(smooth)",
+                            "M-est-noise","M-est(smooth)-noise")
+colnames(mise_completion) <- c("Yao","Huber","M-est","M-est(smooth)",
+                               "Kraus","Kraus-M","Kraus-M(smooth)",
+                               "M-est-noise","M-est(smooth)-noise",
+                               "Kraus-M-noise","Kraus-M(smooth)-noise")
+colnames(mse_completion) <- c("Yao","Huber","M-est","M-est(smooth)",
+                              "Kraus","Kraus-M","Kraus-M(smooth)",
+                              "M-est-noise","M-est(smooth)-noise",
+                              "Kraus-M-noise","Kraus-M(smooth)-noise")
+colnames(pve_res) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus",
+                       "M-est-noise","M-est(smooth)-noise")
+colnames(K_res) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus",
+                     "M-est-noise","M-est(smooth)-noise")
 
 # simulation result
-pca.est <- list()
+# pca.est <- list()
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, num_sim)   # collection of seed with no error occurs
@@ -162,13 +176,13 @@ while (num.sim < num_sim) {
   tryCatch({
     # Not smoothed M-est
     mu.Mest <- mean.rob.missfd(x)
-    # cov.Mest <- var.rob.missfd(x)
-    cov.Mest <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
+    cov.Mest <- var.rob.missfd(x)
+    cov.Mest.noise <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
     
     # smoothed M-est
     mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
-    # cov.Mest.sm <- var.rob.missfd(x, smooth = T)
-    cov.Mest.sm <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
+    cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+    cov.Mest.sm.noise <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
   }, error = function(e) { 
     print("M-est cov error")
     print(e)
@@ -200,7 +214,7 @@ while (num.sim < num_sim) {
   
   ### Principal component analysis
   pve <- 0.99   # Not used if K is given
-  K <- 5   # fixed number of PCs
+  K <- NULL   # fixed number of PCs
   
   # Yao
   pca.yao.obj <- funPCA(x.2$Lt, x.2$Ly, 
@@ -213,28 +227,33 @@ while (num.sim < num_sim) {
                           work.grid, PVE = pve, K = K)
   
   # M-est
-  # pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly, 
-  #                        mu.Mest, cov.Mest, sig2 = 1e-6, 
-  #                        work.grid, PVE = pve, K = K)
-  # pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly, 
-  #                           mu.Mest.sm, cov.Mest.sm, sig2 = 1e-6, 
-  #                           work.grid, PVE = pve, K = K)
-  # consider noise var
   pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly,
-                         mu.Mest, cov.Mest, sig2 = cov.huber.obj$sig2e,
+                         mu.Mest, cov.Mest, sig2 = 1e-6,
                          work.grid, PVE = pve, K = K)
   pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
-                            mu.Mest.sm, cov.Mest.sm, sig2 = cov.huber.obj$sig2e,
+                            mu.Mest.sm, cov.Mest.sm, sig2 = 1e-6,
                             work.grid, PVE = pve, K = K)
+  # consider noise var
+  pca.Mest.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
+                               mu.Mest, cov.Mest.noise, sig2 = cov.huber.obj$sig2e,
+                               work.grid, PVE = pve, K = K)
+  pca.Mest.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
+                                  mu.Mest.sm, cov.Mest.sm.noise, sig2 = cov.huber.obj$sig2e,
+                                  work.grid, PVE = pve, K = K)
   
+  ## Kraus (2015) - just obtain PVE and K
+  cov.kraus <- var.missfd(x)
+  eig <- eigen.missfd(cov.kraus)
+  v <- eig$values[eig$values > 0]
+  pve_kraus <- cumsum(v) / sum(v)
+  if (!is_null(K)) {
+    K_kraus <- K
+    pve_kraus <- pve_kraus[K_kraus]
+  } else {
+    K_kraus <- which(pve_kraus > pve)[1]
+    pve_kraus <- pve_kraus[K_kraus]
+  }
   
-  # # WRM - 535.63 secs(guass) / 75.33 (epan)
-  # system.time({
-  #   mu.wrm <- predict(mu.wrm.obj, work.grid)
-  #   cov.wrm <- predict(cov.wrm.obj, work.grid)
-  #   pca.wrm.obj <- PCA_CE(x.2$Lt, x.2$Ly, mu.wrm, cov.wrm, 
-  #                         sig2 = cov.wrm.obj$sig2e, work.grid, K = NULL)
-  # })
   
   
   ### Curve reconstruction via PCA
@@ -247,11 +266,13 @@ while (num.sim < num_sim) {
   pred_huber_mat <- predict(pca.huber.obj, K = NULL)
   pred_Mest_mat <- predict(pca.Mest.obj, K = NULL)
   pred_Mest_sm_mat <- predict(pca.Mest.sm.obj, K = NULL)
+  pred_Mest_noise_mat <- predict(pca.Mest.noise.obj, K = NULL)
+  pred_Mest_sm_noise_mat <- predict(pca.Mest.sm.noise.obj, K = NULL)
   
-  ise_reconstr <- matrix(NA, length(cand), 4)
-  sse_reconstr <- matrix(NA, length(cand), 4)
-  ise_completion <- matrix(NA, length(cand), 7)
-  sse_completion <- matrix(NA, length(cand), 7)
+  ise_reconstr <- matrix(NA, length(cand), 6)
+  sse_reconstr <- matrix(NA, length(cand), 6)
+  ise_completion <- matrix(NA, length(cand), 11)
+  sse_completion <- matrix(NA, length(cand), 11)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
@@ -266,12 +287,21 @@ while (num.sim < num_sim) {
     pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
                                        smooth = T,
                                        R = cov.Mest.sm)
+    pred_Mest_noise <- pred_Mest_noise_mat[ind, ]
+    pred_Mest_sm_noise <- pred_Mest_sm_noise_mat[ind, ]
+    pred_kraus_M_noise <- pred.rob.missfd(x[ind, ], x,
+                                    R = cov.Mest.noise)
+    pred_kraus_M_sm_noise <- pred.rob.missfd(x[ind, ], x,
+                                       smooth = T,
+                                       R = cov.Mest.sm.noise)
     
     # ISE for reconstruction of overall interval
     df <- cbind(pred_yao,
                 pred_huber,
                 pred_Mest,
-                pred_Mest_sm)
+                pred_Mest_sm,
+                pred_Mest_noise,
+                pred_Mest_sm_noise)
     ise_reconstr[i, ] <- apply(df, 2, function(pred) { 
       get_ise(x.2$x.full[ind, ], pred, work.grid) 
     })
@@ -287,7 +317,11 @@ while (num.sim < num_sim) {
                 pred_missing_curve(x[ind, ], pred_Mest_sm, conti = FALSE),
                 pred_kraus,
                 pred_kraus_M,
-                pred_kraus_M_sm)
+                pred_kraus_M_sm,
+                pred_missing_curve(x[ind, ], pred_Mest_noise, conti = FALSE),
+                pred_missing_curve(x[ind, ], pred_Mest_sm_noise, conti = FALSE),
+                pred_kraus_M_noise,
+                pred_kraus_M_sm_noise)
     df <- df[NA_ind, ]
     if (length(NA_ind) == 1) {
       df <- matrix(df, nrow = 1)
@@ -310,24 +344,44 @@ while (num.sim < num_sim) {
   mise_completion[num.sim, ] <- colMeans(ise_completion)
   mse_completion[num.sim, ] <- colMeans(sse_completion)
   
-  pca.est[[num.sim]] <- list(seed = seed,
-                             work.grid = work.grid,
-                             # mu.obj = list(yao = mu.yao.obj,
-                             #               huber = mu.huber.obj,
-                             #               Mest = mu.Mest.obj),
-                             # cov.obj = list(yao = cov.yao.obj,
-                             #                huber = cov.huber.obj,
-                             #                Mest = cov.Mest.obj),
-                             cov = list(yao = cov.yao,
-                                        huber = cov.huber,
-                                        Mest = cov.Mest,
-                                        Mest.sm = cov.Mest.sm),
-                             pca.obj = list(yao = pca.yao.obj,
-                                            huber = pca.huber.obj,
-                                            Mest = pca.Mest.obj,
-                                            Mest.sm = pca.Mest.sm.obj))
+  pve_res[num.sim, ] <- c(
+    pca.yao.obj$PVE,
+    pca.huber.obj$PVE,
+    pca.Mest.obj$PVE,
+    pca.Mest.sm.obj$PVE,
+    pve_kraus,
+    pca.Mest.noise.obj$PVE,
+    pca.Mest.sm.noise.obj$PVE
+  )
   
-  print(colMeans(mise_reconstr, na.rm = T))
+  K_res[num.sim, ] <- c(
+    pca.yao.obj$K,
+    pca.huber.obj$K,
+    pca.Mest.obj$K,
+    pca.Mest.sm.obj$K,
+    K_kraus,
+    pca.Mest.noise.obj$K,
+    pca.Mest.sm.noise.obj$K
+  )
+  
+  # pca.est[[num.sim]] <- list(seed = seed,
+  #                            work.grid = work.grid,
+  #                            # mu.obj = list(yao = mu.yao.obj,
+  #                            #               huber = mu.huber.obj,
+  #                            #               Mest = mu.Mest.obj),
+  #                            # cov.obj = list(yao = cov.yao.obj,
+  #                            #                huber = cov.huber.obj,
+  #                            #                Mest = cov.Mest.obj),
+  #                            cov = list(yao = cov.yao,
+  #                                       huber = cov.huber,
+  #                                       Mest = cov.Mest,
+  #                                       Mest.sm = cov.Mest.sm),
+  #                            pca.obj = list(yao = pca.yao.obj,
+  #                                           huber = pca.huber.obj,
+  #                                           Mest = pca.Mest.obj,
+  #                                           Mest.sm = pca.Mest.sm.obj))
+  
+  # print(colMeans(mise_reconstr, na.rm = T))
   print(colMeans(mise_completion, na.rm = T))
 }
 # save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
@@ -383,6 +437,10 @@ t(df)
 print(t(df))
 
 
+print(colMeans(K_res))
+print(colMeans(pve_res))
+
+
 # gr <- work.grid
 # par(mfrow = c(2, 2))
 # # GA::persp3D(gr, gr, cov.true,
@@ -402,8 +460,8 @@ print(t(df))
 par(mfrow = c(3, 3))
 cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
 cand <- cand[cand <= 80]   # exclude outlier curves
-# par(mfrow = c(1, 3))
-# cand <- c(15, 32, 21)
+par(mfrow = c(2, 3))
+cand <- c(3, 24, 44)
 for (ind in cand) {
   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
@@ -451,7 +509,7 @@ for (ind in cand) {
   matplot(work.grid, df, type = "l",
           col = 1:8,
           lty = rep(1, 8),
-          lwd = c(1,1,2,2,2,1,2,2),
+          lwd = rep(1, 8),
           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
@@ -461,38 +519,67 @@ for (ind in cand) {
            c("True","Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)"),
            col = 1:8,
            lty = rep(1, 8),
-           lwd = c(1,1,2,2,2,1,2,2))
+           lwd = rep(1, 8))
+  }
+}
+for (ind in cand) {
+  pred_Mest <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
+  pred_Mest_sm <- predict(pca.Mest.sm.noise.obj, K = NULL)[ind, ]
+  pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
+                                  R = cov.Mest.noise)
+  pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
+                                     smooth = T,
+                                     R = cov.Mest.sm.noise)
+  
+  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+    
+    if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
+      # start and end
+      obs_range <- obs_range
+    } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        obs_range <- obs_range[1]
+      } else if (obs_range[2] < n.grid) {
+        # end periods
+        obs_range <- obs_range[2]
+      }
+    }
+  } else {
+    # missing is in the middle.
+    obs_range <- range(which(is.na(x[ind, ])))
+    # include last observed point
+    obs_range <- c(obs_range[1] - 1,
+                   obs_range[2] + 1)
+  }
+  
+  df <- cbind(x.2$x.full[ind, ],
+              pred_missing_curve(x[ind, ], pred_Mest),
+              pred_missing_curve(x[ind, ], pred_Mest_sm),
+              pred_kraus_M,
+              pred_kraus_M_sm)
+  matplot(work.grid, df, type = "l",
+          col = 1:5,
+          lty = rep(1, 5),
+          lwd = rep(1, 5),
+          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  grid()
+  if (ind %in% cand[(0:6)*9 + 1]) {
+    legend("topleft",
+           c("True","M-est-noise","M-est(smooth)-noise","Kraus-M-noise","Kraus-M(smooth)-noise"),
+           col = 1:8,
+           lty = rep(1, 5),
+           lwd = rep(1, 5))
   }
 }
 par(mfrow = c(1, 1))
-# 
-# 
-# 
-# par(mfrow = c(3, 3))
-# cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-# cand <- cand[cand <= 80]   # exclude outlier curves
-# for (ind in cand) {
-#   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
-#   pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
-#   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
-# 
-#   df <- cbind(x.2$x.full[ind, ],
-#               # pred_yao,
-#               # pred_Mest,
-#               # pred_huber,
-#               pred_missing_curve(x[ind, ], pred_yao),
-#               pred_missing_curve(x[ind, ], pred_Mest),
-#               pred_missing_curve(x[ind, ], pred_huber),
-#               pred.rob.missfd(x[ind, ], x),
-#               pred.rob.missfd(x[ind, ], x, smooth = T))
-#   matplot(work.grid, df, type = "l",
-#           lty = rep(1, 4),
-#           lwd = c(2,1,2,1),
-#           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
-#   lines(work.grid, x.2$x.full[ind, ])
-#   grid()
-# }
-# par(mfrow = c(1, 1))
+
+
+
 
 
 

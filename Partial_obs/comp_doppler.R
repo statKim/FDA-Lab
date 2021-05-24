@@ -41,7 +41,7 @@ comp.obj <- foreach(seed = 1:50,
   ### Data generation
   #############################
   # data generation with outlier
-  out.prop <- 0.2
+  out.prop <- 0
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
                    out.prop = out.prop, 
@@ -77,7 +77,7 @@ comp.obj <- foreach(seed = 1:50,
   kernel <- "epanechnikov"
   work.grid <- seq(0, 1, length.out = grid.length)
   pve <- 0.99
-  K <- 5
+  K <- NULL
   
   ### Yao et al. (2005)
   # registerDoRNG(seed)
@@ -116,11 +116,11 @@ comp.obj <- foreach(seed = 1:50,
   cov.Mest <- var.rob.missfd(x)
   pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
                          sig2 = 1e-6, work.grid, K = K)
-  # # consider noise var
-  # cov.Mest <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
-  # pca.Mest.obj <- funPCA(X$Lt, X$Ly,
-  #                        mu.Mest, cov.Mest, sig2 = cov.huber.obj$sig2e,
-  #                        work.grid, PVE = pve, K = K)
+  # consider noise var
+  cov.Mest.noise <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
+  pca.Mest.noise.obj <- funPCA(X$Lt, X$Ly,
+                               mu.Mest, cov.Mest.noise, sig2 = cov.huber.obj$sig2e,
+                               work.grid, PVE = pve, K = K)
   
   
   
@@ -130,11 +130,25 @@ comp.obj <- foreach(seed = 1:50,
   cov.Mest.sm <- var.rob.missfd(x, smooth = T)
   pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
                             sig2 = 1e-6, work.grid, K = K)
-  # # consider noise var
-  # cov.Mest.sm <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
-  # pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly,
-  #                           mu.Mest.sm, cov.Mest.sm, sig2 = cov.huber.obj$sig2e,
-  #                           work.grid, PVE = pve, K = K)
+  # consider noise var
+  cov.Mest.sm.noise <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
+  pca.Mest.sm.noise.obj <- funPCA(X$Lt, X$Ly,
+                                  mu.Mest.sm, cov.Mest.sm.noise, sig2 = cov.huber.obj$sig2e,
+                                  work.grid, PVE = pve, K = K)
+  
+  
+  ## Kraus (2015) - just obtain PVE and K
+  cov.kraus <- var.missfd(x)
+  eig <- eigen.missfd(cov.kraus)
+  v <- eig$values[eig$values > 0]
+  pve_kraus <- cumsum(v) / sum(v)
+  if (!is_null(K)) {
+    K_kraus <- K
+    pve_kraus <- pve_kraus[K_kraus]
+  } else {
+    K_kraus <- which(pve_kraus > pve)[1]
+    pve_kraus <- pve_kraus[K_kraus]
+  }
   
   
   
@@ -148,11 +162,13 @@ comp.obj <- foreach(seed = 1:50,
   pred_huber_mat <- predict(pca.huber.obj, K = NULL)
   pred_Mest_mat <- predict(pca.Mest.obj, K = NULL)
   pred_Mest_sm_mat <- predict(pca.Mest.sm.obj, K = NULL)
+  pred_Mest_noise_mat <- predict(pca.Mest.noise.obj, K = NULL)
+  pred_Mest_sm_noise_mat <- predict(pca.Mest.sm.noise.obj, K = NULL)
   
-  ise_reconstr <- matrix(NA, length(cand), 4)
-  sse_reconstr <- matrix(NA, length(cand), 4)
-  ise_completion <- matrix(NA, length(cand), 7)
-  sse_completion <- matrix(NA, length(cand), 7)
+  ise_reconstr <- matrix(NA, length(cand), 6)
+  sse_reconstr <- matrix(NA, length(cand), 6)
+  ise_completion <- matrix(NA, length(cand), 11)
+  sse_completion <- matrix(NA, length(cand), 11)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
@@ -167,12 +183,21 @@ comp.obj <- foreach(seed = 1:50,
     pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
                                        smooth = T,
                                        R = cov.Mest.sm)
+    pred_Mest_noise <- pred_Mest_noise_mat[ind, ]
+    pred_Mest_sm_noise <- pred_Mest_sm_noise_mat[ind, ]
+    pred_kraus_M_noise <- pred.rob.missfd(x[ind, ], x,
+                                          R = cov.Mest.noise)
+    pred_kraus_M_sm_noise <- pred.rob.missfd(x[ind, ], x,
+                                             smooth = T,
+                                             R = cov.Mest.sm.noise)
     
     # ISE for reconstruction of overall interval
     df <- cbind(pred_yao,
                 pred_huber,
                 pred_Mest,
-                pred_Mest_sm)
+                pred_Mest_sm,
+                pred_Mest_noise,
+                pred_Mest_sm_noise)
     ise_reconstr[i, ] <- apply(df, 2, function(pred) { 
       get_ise(X$x.full[ind, ], pred, work.grid) 
     })
@@ -188,7 +213,11 @@ comp.obj <- foreach(seed = 1:50,
                 pred_missing_curve(x[ind, ], pred_Mest_sm, conti = FALSE),
                 pred_kraus,
                 pred_kraus_M,
-                pred_kraus_M_sm)
+                pred_kraus_M_sm,
+                pred_missing_curve(x[ind, ], pred_Mest_noise, conti = FALSE),
+                pred_missing_curve(x[ind, ], pred_Mest_sm_noise, conti = FALSE),
+                pred_kraus_M_noise,
+                pred_kraus_M_sm_noise)
     df <- df[NA_ind, ]
     if (length(NA_ind) == 1) {
       df <- matrix(df, nrow = 1)
@@ -205,7 +234,25 @@ comp.obj <- foreach(seed = 1:50,
   obj <- list(comp = list(ise = colMeans(ise_completion),
                           mse = colMeans(sse_completion)),
               recon = list(ise = colMeans(ise_reconstr),
-                           mse = colMeans(sse_reconstr)))
+                           mse = colMeans(sse_reconstr)),
+              pve_res = c(
+                pca.yao.obj$PVE,
+                pca.huber.obj$PVE,
+                pca.Mest.obj$PVE,
+                pca.Mest.sm.obj$PVE,
+                pve_kraus,
+                pca.Mest.noise.obj$PVE,
+                pca.Mest.sm.noise.obj$PVE
+              ),
+              K_res = c(
+                pca.yao.obj$K,
+                pca.huber.obj$K,
+                pca.Mest.obj$K,
+                pca.Mest.sm.obj$K,
+                K_kraus,
+                pca.Mest.noise.obj$K,
+                pca.Mest.sm.noise.obj$K
+              ))
   return(obj)
 }
 end_time <- Sys.time()
@@ -258,7 +305,12 @@ df <- rbind(
 df
 
 
-
+K_res <- sapply(comp.obj, function(x){ x$K_res }) %>% 
+  t()
+pve_res <- sapply(comp.obj, function(x){ x$pve_res }) %>% 
+  t()
+colMeans(K_res)
+colMeans(pve_res)
 
 
 
@@ -266,8 +318,8 @@ df
 par(mfrow = c(3, 3))
 cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
 cand <- cand[cand %in% which(y_outlier == 0)]   # exclude outlier curves
-# par(mfrow = c(1, 3))
-# cand <- c(15, 32, 21)
+par(mfrow = c(2, 4))
+cand <- c(8, 37, 68, 98)
 for (ind in cand) {
   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
@@ -316,6 +368,7 @@ for (ind in cand) {
   }
 
   df <- cbind(X$x.full[ind, ],
+              x_true,
               pred_missing_curve(x[ind, ], pred_yao),
               pred_missing_curve(x[ind, ], pred_huber),
               pred_missing_curve(x[ind, ], pred_Mest),
@@ -324,20 +377,87 @@ for (ind in cand) {
               pred_kraus_M,
               pred_kraus_M_sm)
   matplot(work.grid, df, type = "l",
-          col = 1:8,
-          lty = rep(1, 8),
-          lwd = c(1,1,2,2,2,1,2,2),
+          col = c(1,1, 2:8),
+          lty = rep(1, 9),
+          lwd = c(1, 2, 1,1,1,1,1,1,1),
           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
-  lines(work.grid, x_true, col = 1, lwd = 2)
+  # lines(work.grid, x_true, col = 1, lwd = 2)
   grid()
   if (ind %in% cand[(0:6)*9 + 1]) {
     legend("topleft",
            c("True","Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)"),
            col = 1:8,
            lty = rep(1, 8),
-           lwd = c(1,1,2,2,2,1,2,2))
+           lwd = rep(1, 8))
+  }
+}
+for (ind in cand) {
+  pred_Mest <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
+  pred_Mest_sm <- predict(pca.Mest.sm.noise.obj, K = NULL)[ind, ]
+  pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
+                                  R = cov.Mest.noise)
+  pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
+                                     smooth = T,
+                                     R = cov.Mest.sm.noise)
+  
+  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+  if (is_snippets) {
+    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+    
+    if ((obs_range[1] > 1) & (obs_range[2] < grid.length)) {
+      # start and end
+      obs_range <- obs_range
+    } else if ((obs_range[1] > 1) | (obs_range[2] < grid.length)) {
+      if (obs_range[1] > 1) {
+        # start periods
+        obs_range <- obs_range[1]
+      } else if (obs_range[2] < grid.length) {
+        # end periods
+        obs_range <- obs_range[2]
+      }
+    }
+  } else {
+    # missing is in the middle.
+    obs_range <- range(which(is.na(x[ind, ])))
+    # include last observed point
+    obs_range <- c(obs_range[1] - 1,
+                   obs_range[2] + 1)
+  }
+  
+  tau <- c(0.0001, 1/3, 2/3, 1-0.0001)
+  if (ind <= 25) {
+    x_true <- doppler(gr, tau = tau[1])
+  } else if (ind <= 50) {
+    x_true <- doppler(gr, tau = tau[2])
+  } else if (ind <= 75) {
+    x_true <- doppler(gr, tau = tau[3])
+  } else {
+    x_true <- doppler(gr, tau = tau[4])
+  }
+  
+  df <- cbind(X$x.full[ind, ],
+              x_true,
+              pred_missing_curve(x[ind, ], pred_Mest),
+              pred_missing_curve(x[ind, ], pred_Mest_sm),
+              pred_kraus_M,
+              pred_kraus_M_sm)
+  matplot(work.grid, df, type = "l",
+          col = c(1, 1, 2:5),
+          lty = rep(1, 6),
+          lwd = c(1,2,1,1,1,1),
+          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  # lines(work.grid, x_true, col = 1, lwd = 2)
+  grid()
+  if (ind %in% cand[(0:6)*9 + 1]) {
+    legend("topleft",
+           c("True","M-est-noise","M-est(smooth)-noise","Kraus-M-noise","Kraus-M(smooth)-noise"),
+           col = 1:5,
+           lty = rep(1, 5),
+           lwd = rep(1, 5))
   }
 }
 par(mfrow = c(1, 1))
