@@ -50,7 +50,7 @@ cluster.obj <- foreach(seed = 1:50,
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
                   out.prop = out.prop, 
-                  out.type = 5, 
+                  out.type = 2, 
                   grid.length = grid.length)
   y_outlier <- X$y_outlier
   X <- X$X

@@ -24,7 +24,7 @@ source("R/sim_doppler.R")
 ### parallel computing with fixed hyperparameters
 #####################################################
 ftns <- fun2char()
-ncores <- detectCores() - 3
+ncores <- detectCores() - 5
 cl <- makeCluster(ncores)
 registerDoParallel(cl)
 
@@ -48,7 +48,7 @@ cluster.obj <- foreach(seed = 1:50,
   grid.length <- 128
   X <- sim.doppler(n_c = 25, 
                    out.prop = out.prop, 
-                   out.type = 5, 
+                   out.type = 2, 
                    grid.length = grid.length)
   y_outlier <- X$y_outlier
   X <- X$X
@@ -115,6 +115,40 @@ cluster.obj <- foreach(seed = 1:50,
   fpc.huber <- pca.huber.obj$pc.score[, 1:K]
   
   
+  ### M-estimator
+  # registerDoRNG(seed)
+  mu.Mest <- mean.rob.missfd(x, smooth = F)
+  cov.Mest <- var.rob.missfd(x, smooth = F)
+  pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
+                         sig2 = 1e-6, work.grid, K = K)
+  fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
+  pca.Mest.obj$eig.obj$PVE
+  
+  # consider noise var
+  cov.Mest.noise <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
+  pca.Mest.noise.obj <- funPCA(X$Lt, X$Ly,
+                               mu.Mest, cov.Mest.noise, sig2 = cov.huber.obj$sig2e,
+                               work.grid, PVE = pve, K = K)
+  fpc.Mest.noise <- pca.Mest.noise.obj$pc.score[, 1:K]
+  
+  
+  ### M-estimator (smooth)
+  # registerDoRNG(seed)
+  mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
+  cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+  pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
+                            sig2 = 1e-6, work.grid, K = K)
+  fpc.Mest.sm <- pca.Mest.sm.obj$pc.score[, 1:K]
+  pca.Mest.sm.obj$eig.obj$PVE
+  
+  # consider noise var
+  cov.Mest.sm.noise <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
+  pca.Mest.sm.noise.obj <- funPCA(X$Lt, X$Ly,
+                                  mu.Mest.sm, cov.Mest.sm.noise, sig2 = cov.huber.obj$sig2e,
+                                  work.grid, PVE = pve, K = K)
+  fpc.Mest.sm.noise <- pca.Mest.sm.noise.obj$pc.score[, 1:K]
+  
+  
   ### Kraus (2015)
   # registerDoRNG(seed)
   cov.kraus <- var.missfd(x)
@@ -127,52 +161,44 @@ cluster.obj <- foreach(seed = 1:50,
   fpc.kraus <- t(fpc.kraus)
   
   
-  ### M-estimator
-  # registerDoRNG(seed)
-  mu.Mest <- mean.rob.missfd(x, smooth = F)
-  cov.Mest <- var.rob.missfd(x, smooth = F)
-  pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
-                         sig2 = 1e-6, work.grid, K = K)
-  fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
-  pca.Mest.obj$eig.obj$PVE
-  
-  
-  ### M-estimator (smooth)
-  # registerDoRNG(seed)
-  mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
-  cov.Mest.sm <- var.rob.missfd(x, smooth = T)
-  pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
-                            sig2 = 1e-6, work.grid, K = K)
-  fpc.Mest.sm <- pca.Mest.sm.obj$pc.score[, 1:K]
-  pca.Mest.sm.obj$eig.obj$PVE
-  
-  
   ### Kraus + M-est
   # registerDoRNG(seed)
-  mu <- mean.rob.missfd(x)
-  cov.kraus_M <- var.rob.missfd(x)
-  eig.R <- eigen.missfd(cov.kraus_M)
-  # first 5 principal components
+  eig.R <- eigen.missfd(cov.Mest)
   phi <- eig.R$vectors[, 1:K]
   fpc.kraus_M <- apply(x, 1, function(row){ 
     pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
-                          mu = mu, R = cov.kraus_M) 
+                          mu = mu.Mest, R = cov.Mest) 
   })
   fpc.kraus_M <- t(fpc.kraus_M)
+  
+  # consider noise var
+  eig.R <- eigen.missfd(cov.Mest.noise)
+  phi <- eig.R$vectors[, 1:K]
+  fpc.kraus_M_noise <- apply(x, 1, function(row){ 
+    pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
+                          mu = mu.Mest, R = cov.Mest.noise) 
+  })
+  fpc.kraus_M_noise <- t(fpc.kraus_M_noise)
 
     
   ### Kraus + M-est (smooth)
   # registerDoRNG(seed)
-  mu <- mean.rob.missfd(x, smooth = T)
-  cov.kraus_M_sm <- var.rob.missfd(x, smooth = T)
-  eig.R <- eigen.missfd(cov.kraus_M_sm)
-  # first 5 principal components
+  eig.R <- eigen.missfd(cov.Mest.sm)
   phi <- eig.R$vectors[, 1:K]
   fpc.kraus_M_sm <- apply(x, 1, function(row){ 
     pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
-                          mu = mu, R = cov.kraus_M_sm) 
+                          mu = mu.Mest.sm, R = cov.Mest.sm) 
   })
   fpc.kraus_M_sm <- t(fpc.kraus_M_sm)
+  
+  # consider noise var
+  eig.R <- eigen.missfd(cov.Mest.sm.noise)
+  phi <- eig.R$vectors[, 1:K]
+  fpc.kraus_M_sm_noise <- apply(x, 1, function(row){ 
+    pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
+                          mu = mu.Mest.sm, R = cov.Mest.sm.noise) 
+  })
+  fpc.kraus_M_sm_noise <- t(fpc.kraus_M_sm_noise)
   
   
   ##############################################
@@ -184,23 +210,59 @@ cluster.obj <- foreach(seed = 1:50,
   print("clustering")
   
   # registerDoRNG(seed)
-  if (out.prop == 0) {
+  # if (out.prop == 0) {
     ### No outliers => k-means clustering is performed.
     kmeans.yao <- kmeans(x = fpc.yao, centers = n_group, 
                          iter.max = 30, nstart = 50)
     kmeans.huber <- kmeans(x = fpc.huber, centers = n_group, 
                            iter.max = 30, nstart = 50)
-    kmeans.kraus <- kmeans(x = fpc.kraus, centers = n_group, 
-                           iter.max = 30, nstart = 50)
     kmeans.Mest <- kmeans(x = fpc.Mest, centers = n_group, 
                           iter.max = 30, nstart = 50)
     kmeans.Mest.sm <- kmeans(x = fpc.Mest.sm, centers = n_group, 
                              iter.max = 30, nstart = 50)
+    kmeans.kraus <- kmeans(x = fpc.kraus, centers = n_group, 
+                           iter.max = 30, nstart = 50)
     kmeans.kraus_M <- kmeans(x = fpc.kraus_M, centers = n_group, 
                              iter.max = 30, nstart = 50)
     kmeans.kraus_M_sm <- kmeans(x = fpc.kraus_M_sm, centers = n_group, 
                                 iter.max = 30, nstart = 50)
-  } else {
+    kmeans.Mest.noise <- kmeans(x = fpc.Mest.noise, centers = n_group, 
+                                iter.max = 30, nstart = 50)
+    kmeans.Mest.sm.noise <- kmeans(x = fpc.Mest.sm.noise, centers = n_group, 
+                                   iter.max = 30, nstart = 50)
+    kmeans.kraus_M_noise <- kmeans(x = fpc.kraus_M_noise, centers = n_group, 
+                                   iter.max = 30, nstart = 50)
+    kmeans.kraus_M_sm_noise <- kmeans(x = fpc.kraus_M_sm_noise, centers = n_group, 
+                                      iter.max = 30, nstart = 50)
+    
+    # CCR (correct classification rate) and aRand (adjusted Rand index)
+    CCR_kmeans <- c(
+      1 - classError(y_class, kmeans.yao$cluster)$errorRate,
+      1 - classError(y_class, kmeans.huber$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest.noise$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest.sm.noise$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M_noise$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M_sm_noise$cluster)$errorRate
+    )
+    aRand_kmeans <- c(
+      adjustedRandIndex(y_class, kmeans.yao$cluster),
+      adjustedRandIndex(y_class, kmeans.huber$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest.noise$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest.sm.noise$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M_noise$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M_sm_noise$cluster)
+    )
+  # } else {
     ### Outliers => Trimmed k-means clustering is performed.
     ### Trimmed k-means clustering
     
@@ -222,483 +284,131 @@ cluster.obj <- foreach(seed = 1:50,
                               iter.max = 30, nstart = 50)
     kmeans.kraus_M_sm <- tkmeans(x = fpc.kraus_M_sm, k = n_group, alpha = out.prop,
                                  iter.max = 30, nstart = 50)
-  }
-  
-  
-  # CCR (correct classification rate) and aRand (adjusted Rand index)
-  CCR <- c(
-    1 - classError(y_class, kmeans.yao$cluster)$errorRate,
-    1 - classError(y_class, kmeans.huber$cluster)$errorRate,
-    1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
-    1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate
-  )
-  aRand <- c(
-    adjustedRandIndex(y_class, kmeans.yao$cluster),
-    adjustedRandIndex(y_class, kmeans.huber$cluster),
-    adjustedRandIndex(y_class, kmeans.Mest$cluster),
-    adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster)
-  )
-
+    kmeans.Mest.noise <- tkmeans(x = fpc.Mest.noise, k = n_group, alpha = out.prop,
+                                 iter.max = 30, nstart = 50)
+    kmeans.Mest.sm.noise <- tkmeans(x = fpc.Mest.sm.noise, k = n_group, alpha = out.prop,
+                                    iter.max = 30, nstart = 50)
+    kmeans.kraus_M_noise <- tkmeans(x = fpc.kraus_M_noise, k = n_group, alpha = out.prop,
+                                    iter.max = 30, nstart = 50)
+    kmeans.kraus_M_sm_noise <- tkmeans(x = fpc.kraus_M_sm_noise, k = n_group, alpha = out.prop,
+                                       iter.max = 30, nstart = 50)
     
-  obj <- list(CCR = CCR,
-              aRand = aRand)
+    # CCR (correct classification rate) and aRand (adjusted Rand index)
+    CCR_tkmeans <- c(
+      1 - classError(y_class, kmeans.yao$cluster)$errorRate,
+      1 - classError(y_class, kmeans.huber$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest.noise$cluster)$errorRate,
+      1 - classError(y_class, kmeans.Mest.sm.noise$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M_noise$cluster)$errorRate,
+      1 - classError(y_class, kmeans.kraus_M_sm_noise$cluster)$errorRate
+    )
+    aRand_tkmeans <- c(
+      adjustedRandIndex(y_class, kmeans.yao$cluster),
+      adjustedRandIndex(y_class, kmeans.huber$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest.noise$cluster),
+      adjustedRandIndex(y_class, kmeans.Mest.sm.noise$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M_noise$cluster),
+      adjustedRandIndex(y_class, kmeans.kraus_M_sm_noise$cluster)
+    )
+  # }
+  
+    
+  obj <- list(CCR_kmeans = CCR_kmeans,
+              aRand_kmeans = aRand_kmeans,
+              CCR_tkmeans = CCR_tkmeans,
+              aRand_tkmeans = aRand_tkmeans,
+              fpc.obj = list(yao = list(mu = mu.yao,
+                                        cov = cov.yao,
+                                        pca.obj = pca.yao.obj),
+                             huber = list(mu = mu.huber,
+                                          cov = cov.huber,
+                                          pca.obj = pca.huber.obj),
+                             Mest = list(mu = mu.Mest,
+                                         cov = cov.Mest,
+                                         pca.obj = pca.Mest.obj),
+                             Mest.sm = list(mu = mu.Mest.sm,
+                                            cov = cov.Mest.sm,
+                                            pca.obj = pca.Mest.sm.obj),
+                             kraus = list(mu = NULL,
+                                          cov = cov.kraus,
+                                          pca.obj = list(fpc.kraus = fpc.kraus)),
+                             kraus_M = list(mu = NULL,
+                                            cov = cov.Mest,
+                                            pca.obj = list(fpc.kraus_M = fpc.kraus_M)),
+                             kraus_M_sm = list(mu = NULL,
+                                               cov = cov.Mest.sm,
+                                               pca.obj = list(fpc.kraus_M_sm = fpc.kraus_M_sm)),
+                             
+                             Mest.noise = list(mu = mu.Mest,
+                                               cov = cov.Mest,
+                                               pca.obj = pca.Mest.noise.obj),
+                             Mest.sm.noise = list(mu = mu.Mest.sm,
+                                                  cov = cov.Mest.sm,
+                                                  pca.obj = pca.Mest.sm.noise.obj),
+                             kraus_M_noise = list(mu = NULL,
+                                                  cov = cov.Mest,
+                                                  pca.obj = list(fpc.kraus_M_noise = fpc.kraus_M_noise)),
+                             kraus_M_sm_noise = list(mu = NULL,
+                                                     cov = cov.Mest.sm.noise,
+                                                     pca.obj = list(fpc.kraus_M_sm_noise = fpc.kraus_M_sm_noise))
+              ))
   return(obj)
 }
 end_time <- Sys.time()
 end_time - start_time
-cluster.obj
+# cluster.obj
 stopCluster(cl)
 
-# save(list = c("cluster.obj"), file = "RData/2021_0516_cluster.RData")
-df <- cbind(
-  CCR = sapply(cluster.obj, function(x){ x$CCR }) %>% 
-    rowMeans,
-  aRand = sapply(cluster.obj, function(x){ x$aRand }) %>% 
-    rowMeans
+# save(list = c("cluster.obj"), file = "RData/2021_0526_cluster_outX.RData")
+
+cluster.obj <- cluster.obj[-which(sapply(cluster.obj, function(x){ is.null(x$CCR_kmeans) }))]
+
+df <- paste0(
+  cbind(
+    CCR = sapply(cluster.obj, function(x){ x$CCR_kmeans }) %>% 
+      rowMeans,
+    aRand = sapply(cluster.obj, function(x){ x$aRand_kmeans }) %>% 
+      rowMeans,
+    CCR_tk = sapply(cluster.obj, function(x){ x$CCR_tkmeans }) %>% 
+      rowMeans,
+    aRand_tk = sapply(cluster.obj, function(x){ x$aRand_tkmeans }) %>% 
+      rowMeans
+  ) %>% 
+    round(2) %>% 
+    format(2),
+  " (",
+  cbind(
+    CCR = sapply(cluster.obj, function(x){ x$CCR_kmeans }) %>% 
+      apply(1, sd),
+    aRand = sapply(cluster.obj, function(x){ x$aRand_kmeans }) %>% 
+      apply(1, sd),
+    CCR_tk = sapply(cluster.obj, function(x){ x$CCR_tkmeans }) %>% 
+      apply(1, sd),
+    aRand_tk = sapply(cluster.obj, function(x){ x$aRand_tkmeans }) %>% 
+      apply(1, sd)
+  ) %>% 
+    round(2) %>% 
+    format(2),
+  ")"
 )
-rownames(df) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
+dim(df) <- c(11, 4)
+rownames(df) <- c("Yao","Huber","M-est","M-est (smooth)","Kraus","Kraus-M","Kraus-M (smooth)",
+                  "M-est-noise","M-est (smooth)-noise","Kraus-M-noise","Kraus-M (smooth)-noise")
+colnames(df) <- c("CCR","aRand","CCR","aRand")
 df
-
-CCR <- sapply(cluster.obj, function(x){ x$CCR }) %>% 
-  t()
-aRand <- sapply(cluster.obj, function(x){ x$aRand }) %>% 
-  t()
-df <- rbind(
-  paste0(
-    format(round(colMeans(CCR), 2), digits = 2), 
-    " (",
-    format(round(apply(CCR, 2, sd), 2), digits = 2),
-    ")"
-  ),
-  paste0(
-    format(round(colMeans(aRand), 2), digits = 2), 
-    " (",
-    format(round(apply(aRand, 2, sd), 2), digits = 2),
-    ")"
-  )
-)
-df
+xtable(df)
 
 
-
-#############################################
-### While loop
-#############################################
-total_sim <- 50
-num.sim <- 0   # number of simulations
-seed <- 0   # current seed
-sim.seed <- rep(NA, total_sim)   # collection of seed with no error occurs
-pre_smooth <- FALSE   # pre-smoothing
-
-### performance measures
-CCR <- matrix(NA, total_sim, 7)
-aRand <- matrix(NA, total_sim, 7)
-colnames(CCR) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
-colnames(aRand) <- c("Yao","Huber","M-est","M-est(smooth)","Kraus","Kraus-M","Kraus-M(smooth)")
-
-while (num.sim < total_sim) {
-  seed <- seed + 1
-  set.seed(seed)
-  print(paste0("Seed: ", seed))
-  
-  #############################
-  ### Data generation
-  #############################
-  # data generattion with outlier
-  out.prop <- 0
-  grid.length <- 128
-  X <- sim.doppler(n_c = 25, 
-                   out.prop = out.prop, 
-                   out.type = 5, 
-                   grid.length = grid.length)
-  y_outlier <- X$y_outlier
-  X <- X$X
-  gr <- seq(0, 1, length.out = grid.length)
-  y_class <- rep(1:4, each = 25)
-  
-  x <- list2matrix(X)
-  
-  # pre-smoothing using penalized spline
-  if (pre_smooth == T) {
-    gr <- seq(0, 1, length.out = grid.length)
-    x <- list2matrix(X)
-    x <- apply(x, 1, function(xi){ pspline_curve(gr, xi) })
-    x <- t(x)
-    X.sm <- matrix2list(x)
-    X$Lt <- X.sm$Lt
-    X$Ly <- X.sm$Ly
-  }
-  
-  
-  # par(mfrow = c(4, 2))
-  # matplot(gr, t(list2matrix(X)[1:25, ]), type = "l")
-  # matplot(gr, t(x[1:25, ]), type = "l")
-  # matplot(gr, t(list2matrix(X)[26:50, ]), type = "l")
-  # matplot(gr, t(x[26:50, ]), type = "l")
-  # matplot(gr, t(list2matrix(X)[51:75, ]), type = "l")
-  # matplot(gr, t(x[51:75, ]), type = "l")
-  # matplot(gr, t(list2matrix(X)[76:100, ]), type = "l")
-  # matplot(gr, t(x[76:100, ]), type = "l")
-  # par(mfrow = c(1, 1))
-  
-  
-  
-  #############################################
-  ### Covariance estimation & Functional PCA
-  ### - Get FPC scores for clustering
-  #############################################
-  skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
-  bw <- 0.2
-  kernel <- "epanechnikov"
-  work.grid <- seq(0, 1, length.out = grid.length)
-  pve <- 0.99
-  K <- 2
-  
-  ### Yao et al. (2005)
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  kern <- ifelse(kernel == "epanechnikov", "epan", kernel)
-  optns <- list(methodXi = "CE", dataType = "Sparse", verbose = FALSE,
-                nRegGrid = grid.length, useBinnedData = "OFF",
-                kernel = kern, userBwMu = bw, userBwCov = bw)
-  tryCatch({
-    # cov estimation
-    mu.yao.obj <- GetMeanCurve(Ly = X$Ly, Lt = X$Lt, optns = optns)
-    cov.yao.obj <- GetCovSurface(Ly = X$Ly, Lt = X$Lt, optns = optns)
-    mu.yao <- mu.yao.obj$mu
-    cov.yao <- cov.yao.obj$cov
-    # PCA
-    pca.yao.obj <- funPCA(X$Lt, X$Ly, mu.yao, cov.yao, PVE = pve,
-                          sig2 = cov.yao.obj$sigma2, work.grid, K = K)
-    pca.yao.obj$eig.obj$PVE
-    fpc.yao <- pca.yao.obj$pc.score[, 1:K]
-  }, error = function(e) { 
-    print("Yao error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  mu.yao <- mu.yao.obj$mu
-  cov.yao <- cov.yao.obj$cov
-  end_time <- Sys.time()
-  print(paste0("Yao et al. : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  # user  system elapsed 
-  # 264.66   99.29  364.27 
-  
-  
-  # system.time({
-  #   # kernel <- "gauss"
-  #   kernel <- "epanechnikov"
-  #   # estimate mean, variance, covariance
-  #   mu.lin.obj <- meanfunc(X$Lt, X$Ly, method = "PACE", kernel = kernel,
-  #                          bw = bw)   # It occurs error or very slow.
-  #   var.lin.obj <- varfunc(X$Lt, X$Ly, method = "PACE", kernel = kernel,
-  #                          mu = mu.lin.obj, bw = bw)
-  # })
-  # # user  system elapsed 
-  # # 144.05    5.03  149.13 
-  # system.time({
-  #   cov.lin.obj <- covfunc(X$Lt, X$Ly, method = "SP",
-  #                          mu = mu.lin.obj, sig2x = var.lin.obj)
-  # })
-  # # user  system elapsed 
-  # # 4295.06    1.71 4297.84 
-  # system.time({
-  #   cov.lin <- predict(cov.lin.obj, gr)
-  # })
-  
-  
-  ### Huber loss
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    # cov estimation
-    mu.huber.obj <- meanfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
-                                 bw = bw, delta = 1.345)
-    cov.huber.obj <- covfunc.rob(X$Lt, X$Ly, method = "huber", kernel = kernel, 
-                                 mu = mu.huber.obj, 
-                                 bw = bw, delta = 1.345)
-    mu.huber <- predict(mu.huber.obj, work.grid)
-    cov.huber <- predict(cov.huber.obj, work.grid)
-    # PCA
-    pca.huber.obj <- funPCA(X$Lt, X$Ly, mu.huber, cov.huber, PVE = pve,
-                            sig2 = cov.huber.obj$sig2e, work.grid, K = K)
-    pca.huber.obj$eig.obj$PVE
-    fpc.huber <- pca.huber.obj$pc.score[, 1:K]
-  }, error = function(e) { 
-    print("Huber error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("Robust (Huber loss) : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  # user  system elapsed 
-  # 515.44    1.28  516.84 
-  
-  
-  
-  ### Kraus (2015)
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    cov.kraus <- var.missfd(x)
-    eig.R <- eigen.missfd(cov.kraus)
-    # first 5 principal components
-    phi <- eig.R$vectors[, 1:K]
-    fpc.kraus <- apply(x, 1, function(row){ 
-      pred.score.missfd(row, phi = phi, x = x) 
-    })
-    fpc.kraus <- t(fpc.kraus)
-  }, error = function(e) { 
-    print("Kraus error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("Kraus : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  
-  
-  ### M-estimator
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    mu.Mest <- mean.rob.missfd(x, smooth = F)
-    cov.Mest <- var.rob.missfd(x, smooth = F)
-    pca.Mest.obj <- funPCA(X$Lt, X$Ly, mu.Mest, cov.Mest, PVE = pve,
-                           sig2 = 1e-6, work.grid, K = K)
-    fpc.Mest <- pca.Mest.obj$pc.score[, 1:K]
-    pca.Mest.obj$eig.obj$PVE
-  }, error = function(e) { 
-    print("M-est error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("M-est : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  
-  
-  ### M-estimator (smooth)
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
-    cov.Mest.sm <- var.rob.missfd(x, smooth = T)
-    pca.Mest.sm.obj <- funPCA(X$Lt, X$Ly, mu.Mest.sm, cov.Mest.sm, PVE = pve,
-                              sig2 = 1e-6, work.grid, K = K)
-    fpc.Mest.sm <- pca.Mest.sm.obj$pc.score[, 1:K]
-    pca.Mest.sm.obj$eig.obj$PVE
-  }, error = function(e) { 
-    print("M-est(smooth) error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("M-est(smooth) : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  
-  
-  ### Kraus + M-est
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    mu <- mean.rob.missfd(x)
-    cov.kraus_M <- var.rob.missfd(x)
-    eig.R <- eigen.missfd(cov.kraus_M)
-    # first 5 principal components
-    phi <- eig.R$vectors[, 1:K]
-    fpc.kraus_M <- apply(x, 1, function(row){ 
-      pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
-                            mu = mu, R = cov.kraus_M) 
-    })
-    fpc.kraus_M <- t(fpc.kraus_M)
-  }, error = function(e) { 
-    print("Kraus-M error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("Kraus-M : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  # user  system elapsed 
-  # 295.07    0.11  295.30 
-  
-  
-  ### Kraus + M-est (smooth)
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    mu <- mean.rob.missfd(x, smooth = T)
-    cov.kraus_M_sm <- var.rob.missfd(x, smooth = T)
-    eig.R <- eigen.missfd(cov.kraus_M_sm)
-    # first 5 principal components
-    phi <- eig.R$vectors[, 1:K]
-    fpc.kraus_M_sm <- apply(x, 1, function(row){ 
-      pred.score.rob.missfd(row, phi = phi, x = x, n = 100,
-                            mu = mu, R = cov.kraus_M_sm) 
-    })
-    fpc.kraus_M_sm <- t(fpc.kraus_M_sm)
-  }, error = function(e) { 
-    print("Kraus-M(smooth) error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("Kraus-M(smooth) : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-
-    
-  # par(mfrow = c(2, 2))
-  # GA::persp3D(gr, gr, cov.yao,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.huber,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.kraus,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.Mest,
-  #             theta = -70, phi = 30, expand = 1)
-  # par(mfrow = c(1, 1))
-  
-  
-  
-  ##############################################
-  ### Clustering
-  ### - k-means clustering based on FPC scores
-  ##############################################
-  n_group <- 4   # number of clusters
-  
-  set.seed(seed)
-  if (out.prop == 0) {
-    ### No outliers => k-means clustring is performed.
-    kmeans.yao <- kmeans(x = fpc.yao, centers = n_group, 
-                         iter.max = 30, nstart = 50)
-    kmeans.huber <- kmeans(x = fpc.huber, centers = n_group, 
-                           iter.max = 30, nstart = 50)
-    kmeans.kraus <- kmeans(x = fpc.kraus, centers = n_group, 
-                           iter.max = 30, nstart = 50)
-    kmeans.Mest <- kmeans(x = fpc.Mest, centers = n_group, 
-                          iter.max = 30, nstart = 50)
-    kmeans.Mest.sm <- kmeans(x = fpc.Mest.sm, centers = n_group, 
-                             iter.max = 30, nstart = 50)
-    kmeans.kraus_M <- kmeans(x = fpc.kraus_M, centers = n_group, 
-                             iter.max = 30, nstart = 50)
-    kmeans.kraus_M_sm <- kmeans(x = fpc.kraus_M_sm, centers = n_group, 
-                                iter.max = 30, nstart = 50)
-  } else {
-    ### Outliers => Trimmed k-means clustering is performed.
-    ### Trimmed k-means clustering
-    
-    # substitute trimmed cluster to 0
-    y_class <- ifelse(y_outlier == 1, 0, y_class)
-    
-    # fit trimmed k-means clustering
-    kmeans.yao <- tkmeans(x = fpc.yao, k = n_group, alpha = out.prop,
-                          iter.max = 30, nstart = 50)
-    kmeans.huber <- tkmeans(x = fpc.huber, k = n_group, alpha = out.prop,
-                            iter.max = 30, nstart = 50)
-    kmeans.kraus <- tkmeans(x = fpc.kraus, k = n_group, alpha = out.prop,
-                            iter.max = 30, nstart = 50)
-    kmeans.Mest <- tkmeans(x = fpc.Mest, k = n_group, alpha = out.prop,
-                           iter.max = 30, nstart = 50)
-    kmeans.Mest.sm <- tkmeans(x = fpc.Mest.sm, k = n_group, alpha = out.prop,
-                              iter.max = 30, nstart = 50)
-    kmeans.kraus_M <- tkmeans(x = fpc.kraus_M, k = n_group, alpha = out.prop,
-                              iter.max = 30, nstart = 50)
-    kmeans.kraus_M_sm <- tkmeans(x = fpc.kraus_M_sm, k = n_group, alpha = out.prop,
-                                 iter.max = 30, nstart = 50)
-  }
-  
-  
-  num.sim <- num.sim + 1
-  sim.seed[num.sim] <- seed
-  
-  # CCR (correct classification rate) and aRand (adjusted Rand index)
-  CCR[num.sim, ] <- c(
-    1 - classError(y_class, kmeans.yao$cluster)$errorRate,
-    1 - classError(y_class, kmeans.huber$cluster)$errorRate,
-    1 - classError(y_class, kmeans.Mest$cluster)$errorRate,
-    1 - classError(y_class, kmeans.Mest.sm$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus_M$cluster)$errorRate,
-    1 - classError(y_class, kmeans.kraus_M_sm$cluster)$errorRate
-  )
-  aRand[num.sim, ] <- c(
-    adjustedRandIndex(y_class, kmeans.yao$cluster),
-    adjustedRandIndex(y_class, kmeans.huber$cluster),
-    adjustedRandIndex(y_class, kmeans.Mest$cluster),
-    adjustedRandIndex(y_class, kmeans.Mest.sm$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus_M$cluster),
-    adjustedRandIndex(y_class, kmeans.kraus_M_sm$cluster)
-  )
-  
-  print(colMeans(CCR, na.rm = T))
-}
-
-# save(list = c("CCR","aRand","sim.seed"),
-#      file = "RData/20210512_cluster_0_2_bw.RData")
-# save(list = c("CCR","aRand","sim.seed"),
-#      file = "RData/20210512_cluster_0_2_bw_presmooth.RData")
-
-
-colnames(CCR)[apply(CCR, 1, which.max)]
-
-colMeans(CCR)
-colMeans(aRand)
-apply(CCR, 2, sd)
-apply(aRand, 2, sd)
-
-df <- rbind(
-  paste0(
-    format(round(colMeans(CCR), 2), digits = 2), 
-    " (",
-    format(round(apply(CCR, 2, sd), 2), digits = 2),
-    ")"
-  ),
-  paste0(
-    format(round(colMeans(aRand), 2), digits = 2), 
-    " (",
-    format(round(apply(aRand, 2, sd), 2), digits = 2),
-    ")"
-  )
-)
-df
 
 
 # 1st FPC vs 2nd FPC (k-means)

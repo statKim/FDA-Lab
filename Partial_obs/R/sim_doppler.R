@@ -12,7 +12,7 @@ doppler <- function(t, tau = 0.0001) {
 
 
 ### generate shifted Doppler signal with outliers
-sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4, 
+sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 2, 
                         grid.length = 512) {
   n <- n_c*4
   # n_c <- 25   # number of curves for each cluster
@@ -52,7 +52,7 @@ sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4,
   out.ind <- sample(1:n, n.outlier)
   y_outlier <- ifelse(1:n %in% out.ind, 1, 0)   # indicate outlers
   
-  if (out.type %in% 4:6) {
+  if (out.type %in% 1:3) {
     d <- 0.3
     sigma.exp <- 1
     for (k in out.ind) {
@@ -70,9 +70,9 @@ sim.doppler <- function(n_c = 25, out.prop = 0.2, out.type = 4,
       Sig_norm <- matrix(0, m, m)
       diag(Sig_norm) <- rep(100, m)
       
-      if (out.type == 4) {
+      if (out.type == 1) {
         err.out <- LaplacesDemon::rmvt(1, mu, I, df = 3) * rmvn(1, rep(2, m), Sig_norm)   # t with df=3
-      } else if (out.type == 5) {
+      } else if (out.type == 2) {
         err.out <- LaplacesDemon::rmvc(1, mu, I)   # cauchy
       } else {
         err.out <- LaplacesDemon::rmvc(1, mu, Sigma)   # cauchy
