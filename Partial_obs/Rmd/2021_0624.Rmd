@@ -110,15 +110,25 @@ knitr::include_graphics("../figure/2021_0624/out_X_sm.png")
 - 이전 세팅과 동일하나, 1번은 생략하고 2번(M-est로 바꾼 경우)만 고려
 
 ## Covariance surfaces
+### 1. Lounici (2014)
+```{r}
+knitr::include_graphics("../figure/2021_0624/out_cov_Kraus.png")
+```
+
+### 2. (1.4)에서 M-est로 바꾼 경우
 ```{r}
 knitr::include_graphics("../figure/2021_0624/out_cov_M.png")
 ```
 
-
 ## Completion
+### 1. Lounici (2014)
+```{r}
+knitr::include_graphics("../figure/2021_0624/out_sm_Kraus.png")
+```
+
+### 2. (1.4)에서 M-est로 바꾼 경우
 ```{r}
 knitr::include_graphics("../figure/2021_0624/out_sm.png")
 ```
-
 
 

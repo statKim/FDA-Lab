@@ -172,73 +172,14 @@ v <- eig$values[eig$values > 0]
 pve_kraus <- cumsum(v) / sum(v)
 
 
-### Frubenius norm
-frobenius_norm <- function(A) {
-  # svd_fit <- svd(A)
-  # return( sqrt(sum(svd_fit$d^2)) )
-  return( sqrt(sum(A^2)) )
-}
-
-### Nuclear norm
-nuclear_norm <- function(A) {
-  return( sum(diag(A)) )
-}
-
-### Sup-norm (Infinite norm)
-sup_norm <- function(A) {
-  svd_fit <- svd(A)
-  return(svd_fit$d[1])
-}
-
-### Covariance LASSO estimator via Singular Value Theresholding (SVT) algorithm
-### Matrix LASSO
-cov.lasso <- function(X, lambda = NULL, robust = T, 
-                      smooth = FALSE, noise.var = 0, C = 10) {
-  if (robust == TRUE) {
-    Sigma_delta <- var.rob.missfd(X, smooth = smooth, noise.var = noise.var)
-  } else {
-    Sigma_delta <- var.missfd(X)
-  }
-  
-  delta <- 1 - sum(is.na(X)) / length(X)   # missingness
-  Sigma_tilde <- (1/delta - 1/delta^2)*diag(diag(Sigma_delta)) + 1/delta^2*Sigma_delta
-  
-  if (is.null(lambda)) {
-    lambda <- C*sqrt(sum(diag(Sigma_tilde))*sup_norm(Sigma_tilde))/delta * sqrt(log(2*ncol(X)) / nrow(X))
-  }
-  
-  # Singular value thresholding (SVT) algorithm
-  cov_svt <- filling::fill.SVT(Sigma_n, lambda = lambda/2)$X
-  
-  # make symmetric (very unique case)
-  if (!isSymmetric.matrix(cov_svt)) {
-    cov_svt <- (cov_svt + t(cov_svt)) / 2
-  }
-  
-  return(cov_svt)
-}
-
-Sigma_n <- (1/delta - 1/delta^2)*diag(diag(cov.kraus)) + 1/delta^2*cov.kraus
-cov.svt <- fill.SVT(Sigma_n, lambda = lambda/2)$X
-
-cov.test <- cov.lasso(x, lambda = 1, robust = T, noise.var = cov.huber.obj$sig2e)
-identical(cov.svt, cov.test)
-diag(cov.svt)
-diag(cov.test)
-
-
-
-
-library(filling)
-delta <- 1 - sum(is.na(x)) / length(x)
-# delta <- 1
-lambda <- 30
-
-Sigma_n <- (1/delta - 1/delta^2)*diag(diag(cov.Mest.noise)) + 1/delta^2*cov.Mest.noise
-cov.svt <- fill.SVT(Sigma_n, lambda = lambda/2)$X
-
-Sigma_n <- (1/delta - 1/delta^2)*diag(diag(cov.Mest.sm.noise)) + 1/delta^2*cov.Mest.sm.noise
-cov.svt.sm <- fill.SVT(Sigma_n, lambda = lambda/2)$X
+### Lounici (2014) + M-est
+lambda <- 3
+cov.svt <- cov.lasso(x, lambda = lambda, 
+                     cov = cov.Mest.noise, robust = T, smooth = T,
+                     noise.var = cov.huber.obj$sig2e) 
+cov.svt.sm <- cov.lasso(x, lambda = lambda, 
+                        cov = cov.Mest.sm.noise, robust = T, smooth = T,
+                        noise.var = cov.huber.obj$sig2e) 
 
 pca.svt.obj <- funPCA(x.2$Lt, x.2$Ly,
                       mu.Mest, cov.svt, sig2 = cov.huber.obj$sig2e,
@@ -273,17 +214,18 @@ GA::persp3D(gr, gr, cov.true,
             main = "True", xlab = "", ylab = "", zlab = "",
             theta = -70, phi = 30, expand = 1)
 GA::persp3D(gr, gr, 
-            # cov.kraus,
             cov.Mest.sm.noise,
             main = "M-est", xlab = "", ylab = "", zlab = "",
             theta = -70, phi = 30, expand = 1)
-lamb <- 10^seq(-2, 1.5, length.out = 7)
+lamb <- 10^seq(-2, 2.3, length.out = 7)
 for (i in lamb) {
   # Sigma_delta <- cov.kraus
-  Sigma_delta <- cov.Mest.sm.noise
-  Sigma_tilde <- (1/delta - 1/delta^2)*diag(diag(Sigma_delta)) + 1/delta^2*Sigma_delta
-
-  cov.svt <- fill.SVT(Sigma_tilde, lambda = i/2)$X
+  # # Sigma_delta <- cov.Mest.sm.noise
+  # Sigma_tilde <- (1/delta - 1/delta^2)*diag(diag(Sigma_delta)) + 1/delta^2*Sigma_delta
+  # 
+  # cov.svt <- fill.SVT(Sigma_tilde, lambda = i/2)$X
+  
+  cov.svt <- cov.lasso(X, lambda = i, robust = FALSE) 
   
   if (sum(cov.svt == 0)) {
     print("All values are 0.")
@@ -387,11 +329,11 @@ par(mfrow = c(1, 1))
 
 
 
-par(mfcol = c(3, 3))
+par(mfcol = c(2, 3))
 # cand <- c(51, 16, 1)
 cand <- c(1, 3, 8, 14, 16, 29, 30, 51, 73)
 for (ind in cand) {
-  # pred_Mest <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
+  pred_Mest <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
   pred_Mest_sm <- predict(pca.Mest.sm.noise.obj, K = NULL)[ind, ]
   pred_kraus <- pred.missfd(x[ind, ], x)
   
@@ -420,54 +362,54 @@ for (ind in cand) {
   }
 
   
-  # df <- cbind(x.2$x.full[ind, ],
-  #             pred_missing_curve(x[ind, ], pred_Mest))
+  df <- cbind(x.2$x.full[ind, ],
+              pred_kraus,
+              pred_missing_curve(x[ind, ], pred_Mest))
   df.sm <- cbind(x.2$x.full[ind, ],
                  pred_kraus,
                  pred_missing_curve(x[ind, ], pred_Mest_sm))
   
-  lamb <- 10^seq(-2, 1, length.out = 5)
+  lamb <- 10^seq(-2, 1.5, length.out = 5)
   for (i in lamb) {
-    # # SVT
-    # Sigma_n <- (1/delta - 1/delta^2)*diag(diag(cov.Mest.noise)) + 1/delta^2*cov.Mest.noise
-    # cov.svt <- fill.SVT(Sigma_n, lambda = i/2)$X
-    # pca.svt.obj <- funPCA(x.2$Lt, x.2$Ly,
-    #                       mu.Mest, cov.svt, sig2 = cov.huber.obj$sig2e,
-    #                       work.grid, PVE = pve, K = K)
-    # 
-    # pred_svt <- predict(pca.svt.obj, K = NULL)[ind, ]
-    # df <- cbind(df,
-    #             pred_missing_curve(x[ind, ], pred_svt))
+    # Lounici (2014) + M-est
+    cov.svt <- cov.lasso(x, lambda = i, 
+                         cov = cov.Mest.noise, robust = T, smooth = F,
+                         noise.var = cov.huber.obj$sig2e) 
+    pca.svt.obj <- funPCA(x.2$Lt, x.2$Ly,
+                          mu.Mest, cov.svt, sig2 = cov.huber.obj$sig2e,
+                          work.grid, PVE = pve, K = K)
+    pred_svt <- predict(pca.svt.obj, K = NULL)[ind, ]
+    df <- cbind(df,
+                pred_missing_curve(x[ind, ], pred_svt))
     
-    # SVT for smooth
-    # Sigma_n <- (1/delta - 1/delta^2)*diag(diag(cov.Mest.sm.noise)) + 1/delta^2*cov.Mest.sm.noise
-    Sigma_n <- cov.kraus
-    cov.svt.sm <- fill.SVT(Sigma_n, lambda = i/2)$X
+    # Lounici (2014) + M-est(smooth)
+    cov.svt.sm <- cov.lasso(x, lambda = i, 
+                            cov = cov.Mest.sm.noise, robust = T, smooth = T,
+                            noise.var = cov.huber.obj$sig2e) 
     pca.svt.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
                              mu.Mest.sm, cov.svt.sm, sig2 = cov.huber.obj$sig2e,
                              work.grid, PVE = pve, K = K)
-    
     pred_svt <- predict(pca.svt.sm.obj, K = NULL)[ind, ]
     df.sm <- cbind(df.sm,
                    pred_missing_curve(x[ind, ], pred_svt))
   }
   
-  # matplot(work.grid, df, type = "l",
-  #         col = 1:ncol(df),
-  #         lty = rep(1, ncol(df)),
-  #         lwd = rep(2, ncol(df)),
-  #         xlab = "", ylab = "", main = paste0(ind, "th Trajectory"),
-  #         cex.main = 2)
-  # abline(v = work.grid[obs_range],
-  #        lty = 2, lwd = 2)
-  # grid()
-  # legend("topleft",
-  #        c("True", "M-est", round(lamb, 3)),
-  #        # cex = 2,
-  #        col = 1:ncol(df),
-  #        lty = rep(1, ncol(df)),
-  #        lwd = rep(3, ncol(df)),
-  #        bty = "n")
+  matplot(work.grid, df, type = "l",
+          col = 1:ncol(df),
+          lty = rep(1, ncol(df)),
+          lwd = rep(2, ncol(df)),
+          xlab = "", ylab = "", main = paste0(ind, "th Trajectory"),
+          cex.main = 2)
+  abline(v = work.grid[obs_range],
+         lty = 2, lwd = 2)
+  grid()
+  legend("topleft",
+         c("True","Kraus","M-est", round(lamb, 3)),
+         # cex = 2,
+         col = 1:ncol(df),
+         lty = rep(1, ncol(df)),
+         lwd = rep(3, ncol(df)),
+         bty = "n")
   
   matplot(work.grid, df.sm, type = "l",
           col = 1:ncol(df.sm),
@@ -479,11 +421,12 @@ for (ind in cand) {
          lty = 2, lwd = 2)
   grid()
   legend("topleft",
-         c("True","Kraus","M-est", round(lamb, 3)),
+         c("True","Kraus","M-est(sm)", round(lamb, 3)),
          # cex = 2,
          col = 1:ncol(df.sm),
          lty = rep(1, ncol(df.sm)),
          lwd = rep(3, ncol(df.sm)),
          bty = "n")
 }
+
 
