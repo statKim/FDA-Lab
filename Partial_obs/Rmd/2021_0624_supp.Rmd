@@ -1,0 +1,214 @@
+---
+title: "Robust covariance estimation for partially observed functional data"
+author: "Hyunsung Kim"
+date: '2021-06-24'
+output: 
+  pdf_document:
+    toc: true
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", 
+  out.width = "100%"
+  # fig.width = 3, fig.height = 1.5
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+
+
+# 1. Covariance estimation from Lounici (2014) 
+> Lounici, K. (2014). High-dimensional covariance matrix estimation with missing observations. Bernoulli, 20(3), 1029-1058.
+
+The proposed covariance estimation from Lounici (2014) is given by
+$$ \tilde{\Sigma}_n = (\delta^{-1} - \delta^{-2})\text{diag}(\Sigma_n^{(\delta)}) + \delta^{-2}\Sigma_n^{(\delta)}, \tag{1.4}$$
+$$ \hat{\Sigma}^{\lambda} = \underset{S \in \mathcal{S}_p}{\arg\min} \lVert \tilde{\Sigma}_n - S \rVert_2^2 + \lambda \lVert S \rVert_1 \tag{1.5}, $$
+where $\lVert A \rVert_2$ is the Frobenius norm and $\lVert A \rVert_1$ is the nuclear norm.
+
+## Solution of equation (1.5)
+### 1. Exact solution (Convex optimization)
+
+- Lounici (2014) paper 1040쪽 equation (5.4)
+
+$$ \hat{\Sigma}^{\lambda} = \sum_j \left( \sigma_j(\tilde{\Sigma}_n) - \frac{\lambda}{2} \right)_+ u_j(\tilde{\Sigma}_n) \otimes u_j(\tilde{\Sigma}_n), \tag{5.4} $$
+where $x_+ = \max\{0,x\}$ and $\tilde{\Sigma}_n = \sum_j \sigma_j(\tilde{\Sigma}_n) u_j(\tilde{\Sigma}_n) \otimes u_j(\tilde{\Sigma}_n)$.
+
+
+### 2. Iterative solution (Singular Value Thresholding (SVT) algorithm)
+
+> Cai, J. F., Candès, E. J., & Shen, Z. (2010). [A singular value thresholding algorithm for matrix completion. SIAM Journal on optimization](https://authors.library.caltech.edu/18606/1/Cai2010p10180Siam_J_Optimiz.pdf), 20(4), 1956-1982.
+
+- [*filling*](https://cran.r-project.org/web/packages/filling/filling.pdf) 패키지의 `fill.SVT()`으로 다음 식의 솔루션을 구할 수 있음
+- 다음의 식을 iterative하게 계산하여 솔루션 얻음
+  $$ \mathrm{minimize}\quad \frac{1}{2}\|P_{\Omega}(X-A) \|_F^2 + \lambda \| X \|_* $$
+- 여기서 $P_\Omega(X) = \mathbf{1}_{ \{X \text{ is observed} \} }$이고, $\lambda = \frac{\lambda^{\text{Lounich}}}{2}$로 둘 경우, Exact solution과 동일한 결과를 얻을 수 있음.
+
+
+  
+
+- $\delta$는 known이라 가정하고 이론이 전개되었으나, simulation에서는 다음과 같이 empirical한 값을 사용
+$$ \hat\delta = \frac{\sum_{i=1}^n\sum_{j=1}^p \mathbf{1}_{ \{Y(t_{ij}) \text{ is observed} \} } }{np},$$ 
+wherer $p$ is the dimension of covariance. (**이전 자료에서 분모가 $p^2$이었던 것은 오타였습니다...**)
+
+- Lounici (2014) paper의 식 (3.8)에서 regularization parameter $\lambda$를 선택하는 방법이 소개되어 있으나, 이는 constant $C$에 depend하며 그냥 충분히 큰 상수라고만 언급되어있음....
+$$ \lambda = C \frac{\sqrt{\text{tr}(\tilde\Sigma_n) \lVert \tilde\Sigma_n \rVert_\infty }}{\delta} \sqrt{\frac{\log(2p)}{n}}, \tag{3.8} $$
+where $C>0$ is a large enough constant.
+
+
+# 2. Simulation settings
+
+## Non-contaminated case
+- Setting은 이전부터 계속 해왔던 Delaigle (2020) setting을 활용
+- regularization parameter $\lambda$에 따른 completion 형태를 확인
+- 5가지 경우 고려
+  1. `Lounici` : Lounici (2014)
+  2. `Lounici + M-est` : (1.4)에서 $\Sigma_n^{(\delta)}$을 M-est로 바꾼 경우
+  3. `Lounici + M-est + raw` : (1.4)에서 $\tilde\Sigma_n$을 M-est로 바꾼 경우
+  4. `Lounici + M-est (sm)` : (1.4)에서 $\Sigma_n^{(\delta)}$을 M-est (sm)로 바꾼 경우
+  5. `Lounici + M-est (sm) + raw` : (1.4)에서 $\tilde\Sigma_n$을 M-est (sm)로 바꾼 경우
+- missing 정도는 Kraus (2015)의 세팅을 사용했으며, $\hat\delta \approx 0.9$
+  \newline (따라서, 한 timepoint에서 observed된 관측치가 1개만 있는 경우는 없었습니다. fully observed curve의 비율도 36%정도입니다.)
+
+## Contaminated case
+- 이전 세팅과 동일하나, 1번은 생략하고 2번(M-est로 바꾼 경우)만 고려
+
+
+\newpage
+
+# 3. Covariace surfaces
+
+## Non-contaminated case
+
+```{r, fig.cap="Covariance surfaces for non-contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/cov_out_X.pdf")
+```
+
+\newpage
+
+## Contaminated case
+
+```{r, fig.cap="Covariance surfaces for contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/cov_out_O.pdf")
+```
+
+\newpage
+
+# 4. Completion
+
+- 5개 FPC로 completion
+
+## Non-contaminated case
+
+```{r, fig.cap="Completion for missing parts for non-contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/comp_out_X_2.pdf")
+```
+
+\newpage
+
+\begin{table}[ht]
+\centering
+\caption{MISE}
+\begin{tabular}{rrrrrrr}
+  \hline
+  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
+  \hline
+  Yao & 0.171 &&&&& \\
+  Huber & 0.075 &&&&& \\
+  Kraus & 0.093 &&&&& \\
+  M-est & 0.022 &&&&& \\
+  M-est (sm) & 0.004 &&&&& \\
+  Lounici && 0.008 & 0.008 & 0.006 & 0.006 & 0.187 \\ 
+  Lounici + M-est && 0.018 & 0.018 & 0.016 & 0.014 & 0.191 \\ 
+  Lounici + M-est + raw && 0.021 & 0.019 & 0.016 & 0.014 & 0.185 \\ 
+  Lounici + M-est (sm) && 0.006 & 0.006 & 0.016 & 0.027 & 0.179 \\ 
+  Lounici + M-est (sm) + raw && 0.005 & 0.005 & 0.014 & 0.043 & 0.179 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\caption{MSE}
+\begin{tabular}{rrrrrrr}
+  \hline
+  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
+  \hline
+  Yao & 0.598 &&&&& \\
+  Huber & 0.422 &&&&& \\
+  Kraus & 0.717 &&&&& \\
+  M-est & 0.102 &&&&& \\
+  M-est (sm) & 0.034 &&&&& \\
+  Lounici && 0.037 & 0.037 & 0.025 & 0.029 & 1.338 \\ 
+  Lounici + M-est && 0.086 & 0.085 & 0.085 & 0.074 & 1.441 \\ 
+  Lounici + M-est + raw && 0.098 & 0.090 & 0.080 & 0.073 & 1.203 \\ 
+  Lounici + M-est (sm) && 0.043 & 0.044 & 0.093 & 0.131 & 1.144 \\ 
+  Lounici + M-est (sm) + raw && 0.035 & 0.036 & 0.086 & 0.187 & 1.144 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+\newpage
+
+## Contaminated case
+
+```{r, fig.cap="Completion for missing parts for contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/comp_out_O_2.pdf")
+```
+
+\newpage
+
+\begin{table}[ht]
+\centering
+\caption{MISE}
+\begin{tabular}{rrrrrrr}
+  \hline
+  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
+  \hline
+  Yao & 0.238 &&&&& \\
+  Huber & 0.078 &&&&& \\
+  Kraus & 0.303 &&&&& \\
+  M-est & 0.054 &&&&& \\
+  M-est (sm) & 0.035 &&&&& \\
+  Lounici && 0.266 & 0.266 & 0.269 & 0.270 & 0.291 \\ 
+  Lounici + M-est && 0.051 & 0.051 & 0.053 & 0.074 & 0.185 \\ 
+  Lounici + M-est + raw && 0.053 & 0.053 & 0.054 & 0.073 & 0.185 \\ 
+  Lounici + M-est (sm) && 0.034 & 0.034 & 0.042 & 0.160 & 0.180 \\ 
+  Lounici + M-est (sm) + raw && 0.034 & 0.035 & 0.043 & 0.157 & 0.180 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\caption{MSE}
+\begin{tabular}{rrrrrrr}
+  \hline
+  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
+  \hline
+  Yao & 1.504 &&&&& \\
+  Huber & 0.442 &&&&& \\
+  Kraus & 1.846 &&&&& \\
+  M-est & 0.278 &&&&& \\
+  M-est (sm) & 0.184 &&&&& \\
+  Lounici && 1.723 & 1.724 & 1.738 & 1.744 & 1.835 \\ 
+  Lounici + M-est && 0.264 & 0.264 & 0.271 & 0.372 & 1.204 \\ 
+  Lounici + M-est + raw && 0.273 & 0.272 & 0.274 & 0.373 & 1.204 \\ 
+  Lounici + M-est (sm) && 0.179 & 0.182 & 0.246 & 0.923 & 1.141 \\ 
+  Lounici + M-est (sm) + raw && 0.180 & 0.183 & 0.250 & 0.912 & 1.141 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+

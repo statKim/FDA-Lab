@@ -69,6 +69,53 @@ cov.lasso <- function(X, lambda = NULL,
 }
 
 
+cov.lasso.raw <- function(X, lambda = NULL, 
+                          cov = NULL,
+                          robust = FALSE, smooth = FALSE, noise.var = 0) {
+  # proportion of observed entries
+  delta <- 1 - sum(is.na(X)) / length(X)
+  
+  if (is.null(cov)) {
+    if (robust == TRUE) {
+      Sigma_delta <- var.rob.missfd(X, smooth = smooth, noise.var = noise.var)
+    } else {
+      X[is.na(X)] <- 0
+      Sigma_delta <- cov(X)
+      diag(Sigma_delta) <- diag(Sigma_delta) - noise.var
+    }
+  } else {
+    Sigma_delta <- cov
+    diag(Sigma_delta) <- diag(Sigma_delta) - noise.var
+  }
+  
+  # equation (1.4)
+  Sigma_tilde <- Sigma_delta
+  
+  if (is.null(lambda)) {
+    C <- 10
+    lambda <- C*sqrt(sum(diag(Sigma_tilde))*sup_norm(Sigma_tilde))/delta * sqrt(log(2*ncol(X)) / nrow(X))
+  }
+  
+  # # Singular value thresholding (SVT) algorithm
+  # Sigma_hat <- filling::fill.SVT(Sigma_tilde,
+  #                                maxiter = 1000,
+  #                                lambda = lambda/2)$X
+  
+  # Optimal solution of equation (5.4) in page 1040 of paper
+  eig_obj <- eigen(Sigma_tilde)
+  ind_pos <- 1:max(which(eig_obj$values > 0))
+  d <- eig_obj$values[ind_pos]
+  u <- eig_obj$vectors[, ind_pos]
+  
+  Sigma_hat <- u %*% diag(ifelse(d > lambda/2, d-lambda/2, 0)) %*% t(u)
+  
+  return(Sigma_hat)
+}
+
+
+
+
+### 박연주 교수님 코드로 짠 부분
 cov.lasso2 <- function(X, lambda = NULL, robust = FALSE, 
                        smooth = FALSE, noise.var = 0, C = 10) {
   delta <- 1 - sum(is.na(X)) / length(X)   # missingness
@@ -117,46 +164,45 @@ cov.lasso2 <- function(X, lambda = NULL, robust = FALSE,
 
 
 
-####################
-### Test
-####################
-
-lambda <- 0.01
-par(mfcol = c(2, 3))
-# GA::persp3D(gr, gr, cov.true,
-#             main = "True", xlab = "", ylab = "", zlab = "",
+# ####################
+# ### Test
+# ####################
+# lambda <- 0.01
+# par(mfcol = c(2, 3))
+# # GA::persp3D(gr, gr, cov.true,
+# #             main = "True", xlab = "", ylab = "", zlab = "",
+# #             theta = -70, phi = 30, expand = 1)
+# 
+# cov.kraus <- var.missfd(x)
+# GA::persp3D(gr, gr, cov.kraus,
+#             main = "Kraus", xlab = "", ylab = "", zlab = "",
 #             theta = -70, phi = 30, expand = 1)
-
-cov.kraus <- var.missfd(x)
-GA::persp3D(gr, gr, cov.kraus,
-            main = "Kraus", xlab = "", ylab = "", zlab = "",
-            theta = -70, phi = 30, expand = 1)
-
-cov.lounici <- cov.lasso(x, lambda = lambda, robust = F) 
-GA::persp3D(gr, gr, cov.lounici,
-            main = "Lounici", xlab = "", ylab = "", zlab = "",
-            theta = -70, phi = 30, expand = 1)
-
-cov.Mest <- var.rob.missfd(x, smooth = F)
-GA::persp3D(gr, gr, cov.Mest,
-            main = "M-est", xlab = "", ylab = "", zlab = "",
-            theta = -70, phi = 30, expand = 1)
-
-cov.svt <- cov.lasso(x, lambda = lambda, 
-                     cov = cov.Mest, robust = T) 
-GA::persp3D(gr, gr, cov.svt,
-            main = "M-Lounici", xlab = "", ylab = "", zlab = "",
-            theta = -70, phi = 30, expand = 1)
-
-cov.Mest.sm <- var.rob.missfd(x, smooth = T)
-GA::persp3D(gr, gr, cov.Mest.sm,
-            main = "M-est(smooth)", xlab = "", ylab = "", zlab = "",
-            theta = -70, phi = 30, expand = 1)
-
-cov.svt.sm <- cov.lasso(x, lambda = lambda, 
-                        cov = cov.Mest.sm, robust = T, smooth = T) 
-GA::persp3D(gr, gr, cov.svt.sm,
-            main = "M-Lounici(smooth)", xlab = "", ylab = "", zlab = "",
-            theta = -70, phi = 30, expand = 1)
-
-
+# 
+# cov.lounici <- cov.lasso(x, lambda = lambda, robust = F) 
+# GA::persp3D(gr, gr, cov.lounici,
+#             main = "Lounici", xlab = "", ylab = "", zlab = "",
+#             theta = -70, phi = 30, expand = 1)
+# 
+# cov.Mest <- var.rob.missfd(x, smooth = F)
+# GA::persp3D(gr, gr, cov.Mest,
+#             main = "M-est", xlab = "", ylab = "", zlab = "",
+#             theta = -70, phi = 30, expand = 1)
+# 
+# cov.svt <- cov.lasso(x, lambda = lambda, 
+#                      cov = cov.Mest, robust = T) 
+# GA::persp3D(gr, gr, cov.svt,
+#             main = "M-Lounici", xlab = "", ylab = "", zlab = "",
+#             theta = -70, phi = 30, expand = 1)
+# 
+# cov.Mest.sm <- var.rob.missfd(x, smooth = T)
+# GA::persp3D(gr, gr, cov.Mest.sm,
+#             main = "M-est(smooth)", xlab = "", ylab = "", zlab = "",
+#             theta = -70, phi = 30, expand = 1)
+# 
+# cov.svt.sm <- cov.lasso(x, lambda = lambda, 
+#                         cov = cov.Mest.sm, robust = T, smooth = T) 
+# GA::persp3D(gr, gr, cov.svt.sm,
+#             main = "M-Lounici(smooth)", xlab = "", ylab = "", zlab = "",
+#             theta = -70, phi = 30, expand = 1)
+# 
+# 

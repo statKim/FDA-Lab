@@ -1,0 +1,92 @@
+% packages
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{times}
+\usepackage{setspace}
+\usepackage{indentfirst}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{latexsym}
+\usepackage{amscd}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{rotating}
+\usepackage{subfig}
+\usepackage{color}
+\usepackage{natbib}
+\usepackage{lscape}
+\usepackage{graphics}
+\usepackage{fancyvrb,enumerate}
+\usepackage{mathtools}
+\usepackage{verbatim}
+\usepackage{afterpage}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{hyperref}
+\usepackage[flushleft]{threeparttable}
+\usepackage{rotating}
+\usepackage{kotex}   % for Korean
+
+% new commands
+\DeclarePairedDelimiter\abs{\lvert}{\rvert}
+\DeclarePairedDelimiter\norm{\lVert}{\rVert}
+\long\def\comment#1{}
+
+%\newtheorem*{thm}{Theorem}
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{cor}[thm]{Corollary}
+\newtheorem{lem}[thm]{Lemma}
+\newcommand{\rb}[1]{\raisebox{-.5em}[0pt]{#1}}
+% \renewcommand{\baselinestretch}{1.8}
+\renewcommand{\mid}{\, | \ }
+\newcommand{\eighth}{{\textstyle \frac{1}{8}}}
+
+\def \bY { \mathbf{ Y } }
+\def \bX { \mathbf{ X } }
+\def \bU { \mathbf{ U } }
+\def \bmu { \boldsymbol{ \mu } }
+\def \bSigma { \boldsymbol{ \Sigma } }
+\def \bphi { \boldsymbol{ \phi } }
+\def \bepsilon { \boldsymbol{ \epsilon } }
+\def \bD { \boldsymbol{\mathcal{D}} }
+
+\newcommand{\eqdis}{\overset{\mathrm{d}}{=\joinrel=}}
+\newcommand{\ba}{\mbox{\boldmath $a$}}
+\newcommand{\bg}{\mbox{\boldmath $g$}}
+\newcommand{\bx}{\mbox{\boldmath $x$}}
+\newcommand{\by}{\mbox{\boldmath $y$}}
+\newcommand{\bd}{\mbox{\boldmath $d$}}
+\newcommand{\bff}{\mbox{\boldmath $f$}}
+\newcommand{\bz}{\mbox{\boldmath $z$}}
+\newcommand{\bu}{\mbox{\boldmath $u$}}
+\newcommand{\bv}{\mbox{\boldmath $v$}}
+\newcommand{\bW}{\mbox{\boldmath $W$}}
+\newcommand{\bI}{\mbox{\boldmath $I$}}
+\newcommand{\bJ}{\mbox{\boldmath $J$}}
+\newcommand{\bL}{\mbox{\boldmath $L$}}
+\newcommand{\bQ}{\mbox{\boldmath $Q$}}
+\newcommand{\bZ}{\mbox{\boldmath $Z$}}
+\newcommand{\bV}{\mbox{\boldmath $V$}}
+\newcommand{\bG}{\mbox{\boldmath $G$}}
+\newcommand{\bdm}{\begin{displaymath}}
+\newcommand{\edm}{\end{displaymath}}
+\newcommand{\bnu}{\mbox{\boldmath $\nu$}}
+\newcommand{\btau}{\mbox{\boldmath $\tau$}}
+\newcommand{\biota}{\mbox{\boldmath $\iota$}}
+\newcommand{\bbeta}{\mbox{\boldmath $\beta$}}
+\newcommand{\bomega}{\mbox{\boldmath $\omega$}}
+\newcommand{\btheta}{\mbox{\boldmath $\theta$}}
+\newcommand{\bep}{\mbox{\boldmath $\epsilon$}}
+\newcommand{\bdelta}{\mbox{\boldmath $\delta$}}
+\newcommand{\balpha}{\mbox{\boldmath $\alpha$}}
+\newcommand{\bxi}{\mbox{\boldmath $\xi$}}
+\newcommand{\bgamma}{\mbox{\boldmath $\gamma$}}
+\newcommand{\bOmega}{\mbox{\boldmath $\Omega$}}
+\newcommand{\bPi}{\mbox{\boldmath $\Pi$}}
+\newcommand{\bzeta}{\mbox{\boldmath $\zeta$}}
+\newcommand{\bpsi}{\mbox{\boldmath $\psi$}}
+\newcommand{\bPsi}{\mbox{\boldmath $\Psi$}}
+\newcommand{\bl}{\mbox{\boldmath $l$}}
+\newcommand{\C}{{\rm Cov}}
+\newcommand{\bH}{\bold H}
+\newcommand{\blambda}{\mbox{\boldmath $\lambda$}}
+\newcommand{\bbh}{\bld h}
