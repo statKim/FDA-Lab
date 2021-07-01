@@ -79,6 +79,7 @@ mean.rob.missfd <- function(x, smooth = F, work.grid = NULL) {
 }
 
 var.rob.missfd <- function(x, smooth = F, 
+                           bw = 0.1,
                            make.pos.semidef = TRUE, noise.var = 0) {
   n <- nrow(x)
   p <- ncol(x)
@@ -147,7 +148,7 @@ var.rob.missfd <- function(x, smooth = F,
     gr <- seq(0, 1, length.out = p)
     rob.var <- fields::smooth.2d(as.numeric(rob.var),
                                  x = expand.grid(gr, gr), surface = F,
-                                 theta = 0.1, nrow = p, ncol = p)
+                                 theta = bw, nrow = p, ncol = p)
   }
   
   # make positive-semi-definite

@@ -36,9 +36,10 @@ print(paste0("Seed: ", seed))
 #############################
 # data generation with outlier
 n <- 100
+out.prop <- 0.2
 grid.length <- 128
 x.2 <- sim.doppler(n_c = 25, 
-                   out.prop = 0, 
+                   out.prop = out.prop, 
                    out.type = 2, 
                    grid.length = grid.length)
 y_outlier <- x.2$y_outlier   # outlier index
@@ -108,7 +109,8 @@ cov.Mest.noise <- var.rob.missfd(x, noise.var = cov.huber.obj$sig2e)
 # smoothed M-est
 mu.Mest.sm <- mean.rob.missfd(x, smooth = T)
 # cov.Mest.sm <- var.rob.missfd(x, smooth = T)
-cov.Mest.sm.noise <- var.rob.missfd(x, smooth = T, noise.var = cov.huber.obj$sig2e)
+cov.Mest.sm.noise <- var.rob.missfd(x, smooth = T, bw = 0.02,
+                                    noise.var = cov.huber.obj$sig2e)
 end_time <- Sys.time()
 print(paste0("M-est : ", 
              round(difftime(end_time, start_time, units = "secs"), 3),
@@ -330,14 +332,14 @@ for (i in lamb) {
 # }
 # par(mfrow = c(1, 1))
 
+n.grid <- grid.length
 
-
-par(mfcol = c(5, 5),
+par(mfcol = c(5, 4),
     mar = c(2, 2, 2, 2))
 # cand <- c(51, 16, 1)
 # cand <- c(1, 3, 8, 14, 16, 29, 30, 51, 73)
 # cand <- c(1, 3, 8, 14)
-cand <- c(1, 8, 14, 30, 73)
+cand <- c(14, 37, 61, 99)
 for (ind in cand) {
   pred_Mest <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
   pred_Mest_sm <- predict(pca.Mest.sm.noise.obj, K = NULL)[ind, ]
@@ -367,11 +369,29 @@ for (ind in cand) {
                    obs_range[2] + 1)
   }
 
+  # True shifted Doppler signal
+  tau <- c(0.0001, 1/3, 2/3, 1-0.0001)
+  if (ind <= 25) {
+    x_true <- doppler(gr, tau = tau[1])
+  } else if (ind <= 50) {
+    x_true <- doppler(gr, tau = tau[2])
+  } else if (ind <= 75) {
+    x_true <- doppler(gr, tau = tau[3])
+  } else {
+    x_true <- doppler(gr, tau = tau[4])
+  }
   
   df.lounici <- cbind(x.2$x.full[ind, ],
+                      # x_true,
                       pred_kraus,
                       pred_missing_curve(x[ind, ], pred_Mest),
                       pred_missing_curve(x[ind, ], pred_Mest_sm))
+  legend_list <- c("True","Kraus","M-est","M-est(sm)", round(lamb, 3))
+  # for contaminated case, remove Kraus
+  if (out.prop > 0) {
+    df.lounici <- df.lounici[, -2]
+    legend_list <- legend_list[-2]
+  }
   df.lounici.Mest <- df.lounici
   df.lounici.Mest.raw <- df.lounici
   df.lounici.Mest.sm <- df.lounici
@@ -445,17 +465,20 @@ for (ind in cand) {
   }
 
   # Lounici (2014)
-  matplot(work.grid, df.lounici, type = "l",
+  matplot(work.grid, df.lounici, 
+          type = "l",
           col = 1:ncol(df.lounici),
           lty = rep(1, ncol(df.lounici)),
-          lwd = rep(2, ncol(df.lounici)),
+          lwd = c(1, rep(2, ncol(df.lounici)-1)),
+          ylim = c(-0.5, 0.5),
           xlab = "", ylab = "", main = paste0(ind, "th curve", method_name[1]),
           cex.main = 2)
+  lines(work.grid, x_true, col = 1, lwd = 2)
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
   grid()
   legend("topleft",
-         c("True","Kraus","M-est","M-est(sm)", round(lamb, 3)),
+         legend_list,
          # cex = 2,
          col = 1:ncol(df.lounici),
          lty = rep(1, ncol(df.lounici)),
@@ -463,17 +486,20 @@ for (ind in cand) {
          bty = "n")
   
   # Lounici (2014) + Mest
-  matplot(work.grid, df.lounici.Mest, type = "l",
+  matplot(work.grid, df.lounici.Mest, 
+          type = "l",
           col = 1:ncol(df.lounici.Mest),
           lty = rep(1, ncol(df.lounici.Mest)),
-          lwd = rep(2, ncol(df.lounici.Mest)),
+          lwd = c(1, rep(2, ncol(df.lounici.Mest)-1)),
+          ylim = c(-0.5, 0.5),
           xlab = "", ylab = "", main = method_name[2],
           cex.main = 2)
+  lines(work.grid, x_true, col = 1, lwd = 2)
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
   grid()
   legend("topleft",
-         c("True","Kraus","M-est","M-est(sm)", round(lamb, 3)),
+         legend_list,
          # cex = 2,
          col = 1:ncol(df.lounici.Mest),
          lty = rep(1, ncol(df.lounici.Mest)),
@@ -481,17 +507,20 @@ for (ind in cand) {
          bty = "n")
   
   # Lounici (2014) + Mest + Not use eq (1.4)
-  matplot(work.grid, df.lounici.Mest.raw, type = "l",
+  matplot(work.grid, df.lounici.Mest.raw, 
+          type = "l",
           col = 1:ncol(df.lounici.Mest.raw),
           lty = rep(1, ncol(df.lounici.Mest.raw)),
-          lwd = rep(2, ncol(df.lounici.Mest.raw)),
+          lwd = c(1, rep(2, ncol(df.lounici.Mest.raw)-1)),
+          ylim = c(-0.5, 0.5),
           xlab = "", ylab = "", main = method_name[3],
           cex.main = 2)
+  lines(work.grid, x_true, col = 1, lwd = 2)
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
   grid()
   legend("topleft",
-         c("True","Kraus","M-est","M-est(sm)", round(lamb, 3)),
+         legend_list,
          # cex = 2,
          col = 1:ncol(df.lounici.Mest.raw),
          lty = rep(1, ncol(df.lounici.Mest.raw)),
@@ -499,17 +528,20 @@ for (ind in cand) {
          bty = "n")
   
   # Lounici (2014) + Mest(smooth)
-  matplot(work.grid, df.lounici.Mest.sm, type = "l",
+  matplot(work.grid, df.lounici.Mest.sm, 
+          type = "l",
           col = 1:ncol(df.lounici.Mest.sm),
           lty = rep(1, ncol(df.lounici.Mest.sm)),
-          lwd = rep(2, ncol(df.lounici.Mest.sm)),
+          lwd = c(1, rep(2, ncol(df.lounici.Mest.sm)-1)),
+          ylim = c(-0.5, 0.5),
           xlab = "", ylab = "", main = method_name[4],
           cex.main = 2)
+  lines(work.grid, x_true, col = 1, lwd = 2)
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
   grid()
   legend("topleft",
-         c("True","Kraus","M-est","M-est(sm)", round(lamb, 3)),
+         legend_list,
          # cex = 2,
          col = 1:ncol(df.lounici.Mest.sm),
          lty = rep(1, ncol(df.lounici.Mest.sm)),
@@ -517,17 +549,20 @@ for (ind in cand) {
          bty = "n")
   
   # Lounici (2014) + Mest(smooth) + Not use eq (1.4)
-  matplot(work.grid, df.lounici.Mest.sm.raw, type = "l",
+  matplot(work.grid, df.lounici.Mest.sm.raw, 
+          type = "l",
           col = 1:ncol(df.lounici.Mest.sm.raw),
           lty = rep(1, ncol(df.lounici.Mest.sm.raw)),
-          lwd = rep(2, ncol(df.lounici.Mest.sm.raw)),
+          lwd = c(1, rep(2, ncol(df.lounici.Mest.sm.raw)-1)),
+          ylim = c(-0.5, 0.5),
           xlab = "", ylab = "", main = method_name[5],
           cex.main = 2)
+  lines(work.grid, x_true, col = 1, lwd = 2)
   abline(v = work.grid[obs_range],
          lty = 2, lwd = 2)
   grid()
   legend("topleft",
-         c("True","Kraus","M-est","M-est(sm)", round(lamb, 3)),
+         legend_list,
          # cex = 2,
          col = 1:ncol(df.lounici.Mest.sm.raw),
          lty = rep(1, ncol(df.lounici.Mest.sm.raw)),
@@ -541,7 +576,7 @@ for (ind in cand) {
 ### Curve reconstruction via PCA
 # index of non-outlier curves having missing values
 cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-cand <- cand[cand <= 80]   # exclude outlier curves
+cand <- cand[cand %in% which(y_outlier == 0)]   # exclude outlier curves
 
 # reconstructed curves
 pred_yao_mat <- predict(pca.yao.obj, K = NULL)
@@ -551,10 +586,25 @@ pred_Mest_sm_noise_mat <- predict(pca.Mest.sm.noise.obj, K = NULL)
 
 ise_completion <- matrix(NA, length(cand), 5)
 sse_completion <- matrix(NA, length(cand), 5)
+ise_completion_true <- matrix(NA, length(cand), 5)
+sse_completion_true <- matrix(NA, length(cand), 5)
 
 for (i in 1:length(cand)) {
   ind <- cand[i]
   
+  # True doppler signal
+  tau <- c(0.0001, 1/3, 2/3, 1-0.0001)
+  if (ind <= 25) {
+    x_true <- doppler(gr, tau = tau[1])
+  } else if (ind <= 50) {
+    x_true <- doppler(gr, tau = tau[2])
+  } else if (ind <= 75) {
+    x_true <- doppler(gr, tau = tau[3])
+  } else {
+    x_true <- doppler(gr, tau = tau[4])
+  }
+  
+  # predictions
   pred_yao <- pred_yao_mat[ind, ]
   pred_huber <- pred_huber_mat[ind, ]
   pred_kraus <- pred.missfd(x[ind, ], x)
@@ -574,29 +624,46 @@ for (i in 1:length(cand)) {
   if (length(NA_ind) == 1) {
     df <- matrix(df, nrow = 1)
   }
+  
+  # observed signal
   ise_completion[i, ] <- apply(df, 2, function(pred) { 
-    get_ise(x.2$x.full[ind, NA_ind], pred, work.grid[NA_ind]) 
+    get_ise(x.2$x.full[ind, NA_ind], pred, work.grid[NA_ind])
   })
   sse_completion[i, ] <- apply(df, 2, function(pred) { 
     mean((x.2$x.full[ind, NA_ind] - pred)^2)
   })
+  
+  # true signal
+  ise_completion_true[i, ] <- apply(df, 2, function(pred) { 
+    get_ise(x_true[NA_ind], pred, work.grid[NA_ind]) 
+  })
+  sse_completion_true[i, ] <- apply(df, 2, function(pred) { 
+    mean((x_true[NA_ind] - pred)^2)
+  })
 }
-colMeans(ise_completion)
-colMeans(sse_completion)
 
 method_name <- c("Yao","Huber","Kraus","Mest","Mest(sm)")
 res_1 <- rbind(
   colMeans(ise_completion),
   colMeans(sse_completion)
 )
+res_2 <- rbind(
+  colMeans(ise_completion_true),
+  colMeans(sse_completion_true)
+)
 colnames(res_1) <- method_name
 rownames(res_1) <- c("MISE","MSE")
-res_1
+colnames(res_2) <- method_name
+rownames(res_2) <- c("MISE","MSE")
+res_1*100
+res_2*100
 
 
 ### MISE of completion based on Lounici (2014) method for different lambda
 mise_lounici <- matrix(NA, 5, 5)
 mse_lounici <- matrix(NA, 5, 5)
+mise_lounici_true <- matrix(NA, 5, 5)
+mse_lounici_true <- matrix(NA, 5, 5)
 
 lamb <- seq(0.01, 0.5, length.out = 5)
 for (i in 1:length(lamb)) {
@@ -652,9 +719,23 @@ for (i in 1:length(lamb)) {
   ## calculate ISE
   ise_comp_lounici <- matrix(NA, length(cand), 5)
   sse_comp_lounici <- matrix(NA, length(cand), 5)
+  ise_comp_lounici_true <- matrix(NA, length(cand), 5)
+  sse_comp_lounici_true <- matrix(NA, length(cand), 5)
   
   for (j in 1:length(cand)) {
     ind <- cand[j]
+    
+    # True doppler signal
+    tau <- c(0.0001, 1/3, 2/3, 1-0.0001)
+    if (ind <= 25) {
+      x_true <- doppler(gr, tau = tau[1])
+    } else if (ind <= 50) {
+      x_true <- doppler(gr, tau = tau[2])
+    } else if (ind <= 75) {
+      x_true <- doppler(gr, tau = tau[3])
+    } else {
+      x_true <- doppler(gr, tau = tau[4])
+    }
     
     # ISE for completion
     NA_ind <- which(is.na(x[ind, ]))
@@ -669,23 +750,40 @@ for (i in 1:length(lamb)) {
     if (length(NA_ind) == 1) {
       df <- matrix(df, nrow = 1)
     }
+    # observed signals
     ise_comp_lounici[j, ] <- apply(df, 2, function(pred) { 
       get_ise(x.2$x.full[ind, NA_ind], pred, work.grid[NA_ind]) 
     })
     sse_comp_lounici[j, ] <- apply(df, 2, function(pred) { 
       mean((x.2$x.full[ind, NA_ind] - pred)^2)
     })
+    
+    # true signals
+    ise_comp_lounici_true[j, ] <- apply(df, 2, function(pred) { 
+      get_ise(x_true[NA_ind], pred, work.grid[NA_ind]) 
+    })
+    sse_comp_lounici_true[j, ] <- apply(df, 2, function(pred) { 
+      mean((x_true[NA_ind] - pred)^2)
+    })
   }
   mise_lounici[, i] <- colMeans(ise_comp_lounici)
   mse_lounici[, i] <- colMeans(sse_comp_lounici)
+  mise_lounici_true[, i] <- colMeans(ise_comp_lounici_true)
+  mse_lounici_true[, i] <- colMeans(sse_comp_lounici_true)
 }
 
 method_name <- c("Lounici","Lounici + M-est","Lounici + M-est + raw",
                  "Lounici + M-est (sm)","Lounici + M-est (sm) + raw")
 rownames(mise_lounici) <- method_name
 rownames(mse_lounici) <- method_name
+rownames(mise_lounici_true) <- method_name
+rownames(mse_lounici_true) <- method_name
 colnames(mise_lounici) <- round(lamb, 2)
 colnames(mse_lounici) <- round(lamb, 2)
+colnames(mise_lounici_true) <- round(lamb, 2)
+colnames(mse_lounici_true) <- round(lamb, 2)
 
-mise_lounici
-mse_lounici
+mise_lounici*100
+mse_lounici*100
+mise_lounici_true*100
+mse_lounici_true*100

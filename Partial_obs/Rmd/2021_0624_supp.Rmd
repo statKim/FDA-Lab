@@ -1,6 +1,6 @@
 ---
 title: "Robust covariance estimation for partially observed functional data"
-author: "Hyunsung Kim"
+# author: "Hyunsung Kim"
 date: '2021-06-24'
 output: 
   pdf_document:
@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
   echo = FALSE, message = FALSE, warning = FALSE, 
   # cache = T,
   fig.align = "center", 
-  out.width = "100%"
+  out.width = "95%"
   # fig.width = 3, fig.height = 1.5
 )
 # Set working directory
@@ -32,7 +32,7 @@ knitr::opts_chunk$set(
 The proposed covariance estimation from Lounici (2014) is given by
 $$ \tilde{\Sigma}_n = (\delta^{-1} - \delta^{-2})\text{diag}(\Sigma_n^{(\delta)}) + \delta^{-2}\Sigma_n^{(\delta)}, \tag{1.4}$$
 $$ \hat{\Sigma}^{\lambda} = \underset{S \in \mathcal{S}_p}{\arg\min} \lVert \tilde{\Sigma}_n - S \rVert_2^2 + \lambda \lVert S \rVert_1 \tag{1.5}, $$
-where $\lVert A \rVert_2$ is the Frobenius norm and $\lVert A \rVert_1$ is the nuclear norm.
+where $\lVert A \rVert_2$ is the frobenius norm and $\lVert A \rVert_1$ is the nuclear norm.
 
 ## Solution of equation (1.5)
 ### 1. Exact solution (Convex optimization)
@@ -50,14 +50,11 @@ where $x_+ = \max\{0,x\}$ and $\tilde{\Sigma}_n = \sum_j \sigma_j(\tilde{\Sigma}
 - [*filling*](https://cran.r-project.org/web/packages/filling/filling.pdf) 패키지의 `fill.SVT()`으로 다음 식의 솔루션을 구할 수 있음
 - 다음의 식을 iterative하게 계산하여 솔루션 얻음
   $$ \mathrm{minimize}\quad \frac{1}{2}\|P_{\Omega}(X-A) \|_F^2 + \lambda \| X \|_* $$
-- 여기서 $P_\Omega(X) = \mathbf{1}_{ \{X \text{ is observed} \} }$이고, $\lambda = \frac{\lambda^{\text{Lounich}}}{2}$로 둘 경우, Exact solution과 동일한 결과를 얻을 수 있음.
+- 여기서 $P_\Omega(X) = X_{ij}$ if observed, or 0 otherwise 이고, $\lambda = \frac{\lambda^{\text{Lounici}}}{2}$로 둘 경우, Exact solution과 동일한 결과를 얻음.
 
-
-  
-
-- $\delta$는 known이라 가정하고 이론이 전개되었으나, simulation에서는 다음과 같이 empirical한 값을 사용
+- $\delta$는 다음과 같이 empirical하게 구하여 사용
 $$ \hat\delta = \frac{\sum_{i=1}^n\sum_{j=1}^p \mathbf{1}_{ \{Y(t_{ij}) \text{ is observed} \} } }{np},$$ 
-wherer $p$ is the dimension of covariance. (**이전 자료에서 분모가 $p^2$이었던 것은 오타였습니다...**)
+wherer $n$ is the number of observations and $p$ is the number of variables. (**이전 자료에서 분모가 $p^2$이었던 것은 오타였습니다...**)
 
 - Lounici (2014) paper의 식 (3.8)에서 regularization parameter $\lambda$를 선택하는 방법이 소개되어 있으나, 이는 constant $C$에 depend하며 그냥 충분히 큰 상수라고만 언급되어있음....
 $$ \lambda = C \frac{\sqrt{\text{tr}(\tilde\Sigma_n) \lVert \tilde\Sigma_n \rVert_\infty }}{\delta} \sqrt{\frac{\log(2p)}{n}}, \tag{3.8} $$
@@ -66,27 +63,32 @@ where $C>0$ is a large enough constant.
 
 # 2. Simulation settings
 
-## Non-contaminated case
-- Setting은 이전부터 계속 해왔던 Delaigle (2020) setting을 활용
-- regularization parameter $\lambda$에 따른 completion 형태를 확인
-- 5가지 경우 고려
+- Lounici (2014) based method 고려
   1. `Lounici` : Lounici (2014)
   2. `Lounici + M-est` : (1.4)에서 $\Sigma_n^{(\delta)}$을 M-est로 바꾼 경우
   3. `Lounici + M-est + raw` : (1.4)에서 $\tilde\Sigma_n$을 M-est로 바꾼 경우
   4. `Lounici + M-est (sm)` : (1.4)에서 $\Sigma_n^{(\delta)}$을 M-est (sm)로 바꾼 경우
   5. `Lounici + M-est (sm) + raw` : (1.4)에서 $\tilde\Sigma_n$을 M-est (sm)로 바꾼 경우
-- missing 정도는 Kraus (2015)의 세팅을 사용했으며, $\hat\delta \approx 0.9$
-  \newline (따라서, 한 timepoint에서 observed된 관측치가 1개만 있는 경우는 없었습니다. fully observed curve의 비율도 36%정도입니다.)
-
-## Contaminated case
-- 이전 세팅과 동일하나, 1번은 생략하고 2번(M-est로 바꾼 경우)만 고려
+- regularization parameter $\lambda$에 따라 covariance를 estimate한 후에 completion을 진행
+- PCA based completion의 경우 5개의 PC를 사용
+- MSE로 completion performance를 비교
+- missing 정도는 Kraus (2015)의 세팅을 사용 ($\hat\delta \approx 0.9$)
+  \newline 따라서, 한 timepoint에서 observed된 관측치가 1개만 있는 경우는 없었고, fully observed curve의 비율도 36%정도입니다.
+- Frequency 정도에 따라 2가지 세팅 고려
+  - Delaigle (2020) setting
+  - Shifted Doppler signals
+- 이하 결과는 1번 시뮬레이션한 결과 요약 (반복 X)
 
 
 \newpage
 
-# 3. Covariace surfaces
+# 3. Delaigle (2020) setting
+## Covariance surfaces
 
-## Non-contaminated case
+- 맨 윗줄부터 각각 `Lounici`, `Lounici + M-est`, `Lounici + M-est + raw`, `Lounici + M-est (sm)`, `Lounici + M-est (sm) + raw`를 나타냄
+- 각 column은 regularization parameter $\lambda$를 나타냄
+
+### Non-contaminated case
 
 ```{r, fig.cap="Covariance surfaces for non-contaminated data"}
 knitr::include_graphics("../figure/2021_0624_supp/cov_out_X.pdf")
@@ -94,7 +96,7 @@ knitr::include_graphics("../figure/2021_0624_supp/cov_out_X.pdf")
 
 \newpage
 
-## Contaminated case
+### Contaminated case
 
 ```{r, fig.cap="Covariance surfaces for contaminated data"}
 knitr::include_graphics("../figure/2021_0624_supp/cov_out_O.pdf")
@@ -102,53 +104,50 @@ knitr::include_graphics("../figure/2021_0624_supp/cov_out_O.pdf")
 
 \newpage
 
-# 4. Completion
+## Completion
 
-- 5개 FPC로 completion
-
-## Non-contaminated case
+### Non-contaminated case
 
 ```{r, fig.cap="Completion for missing parts for non-contaminated data"}
 knitr::include_graphics("../figure/2021_0624_supp/comp_out_X_2.pdf")
 ```
 
-\newpage
+
+<!-- \begin{table}[ht] -->
+<!-- \centering -->
+<!-- \caption{MISE} -->
+<!-- \begin{tabular}{rrrrrrr} -->
+<!--   \hline -->
+<!--   $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\  -->
+<!--   \hline -->
+<!--   Yao & 0.171 &&&&& \\ -->
+<!--   Huber & 0.075 &&&&& \\ -->
+<!--   Kraus & 0.093 &&&&& \\ -->
+<!--   M-est & 0.022 &&&&& \\ -->
+<!--   M-est (sm) & 0.004 &&&&& \\ -->
+<!--   Lounici && 0.008 & 0.008 & 0.006 & 0.006 & 0.187 \\  -->
+<!--   Lounici + M-est && 0.018 & 0.018 & 0.016 & 0.014 & 0.191 \\  -->
+<!--   Lounici + M-est + raw && 0.021 & 0.019 & 0.016 & 0.014 & 0.185 \\  -->
+<!--   Lounici + M-est (sm) && 0.006 & 0.006 & 0.016 & 0.027 & 0.179 \\  -->
+<!--   Lounici + M-est (sm) + raw && 0.005 & 0.005 & 0.014 & 0.043 & 0.179 \\  -->
+<!--    \hline -->
+<!-- \end{tabular} -->
+<!-- \end{table} -->
 
 \begin{table}[ht]
 \centering
-\caption{MISE}
+\caption{MSE for non-contaminated case}
 \begin{tabular}{rrrrrrr}
   \hline
-  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
-  \hline
-  Yao & 0.171 &&&&& \\
-  Huber & 0.075 &&&&& \\
-  Kraus & 0.093 &&&&& \\
-  M-est & 0.022 &&&&& \\
-  M-est (sm) & 0.004 &&&&& \\
-  Lounici && 0.008 & 0.008 & 0.006 & 0.006 & 0.187 \\ 
-  Lounici + M-est && 0.018 & 0.018 & 0.016 & 0.014 & 0.191 \\ 
-  Lounici + M-est + raw && 0.021 & 0.019 & 0.016 & 0.014 & 0.185 \\ 
-  Lounici + M-est (sm) && 0.006 & 0.006 & 0.016 & 0.027 & 0.179 \\ 
-  Lounici + M-est (sm) + raw && 0.005 & 0.005 & 0.014 & 0.043 & 0.179 \\ 
-   \hline
-\end{tabular}
-\end{table}
-
-
-\begin{table}[ht]
-\centering
-\caption{MSE}
-\begin{tabular}{rrrrrrr}
-  \hline
-  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
+  & \multicolumn{6}{c}{$\lambda$} \\
+  Method & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
   \hline
   Yao & 0.598 &&&&& \\
   Huber & 0.422 &&&&& \\
   Kraus & 0.717 &&&&& \\
   M-est & 0.102 &&&&& \\
   M-est (sm) & 0.034 &&&&& \\
-  Lounici && 0.037 & 0.037 & 0.025 & 0.029 & 1.338 \\ 
+  Lounici && 0.037 & 0.037 & {\bf 0.025} & 0.029 & 1.338 \\ 
   Lounici + M-est && 0.086 & 0.085 & 0.085 & 0.074 & 1.441 \\ 
   Lounici + M-est + raw && 0.098 & 0.090 & 0.080 & 0.073 & 1.203 \\ 
   Lounici + M-est (sm) && 0.043 & 0.044 & 0.093 & 0.131 & 1.144 \\ 
@@ -160,42 +159,41 @@ knitr::include_graphics("../figure/2021_0624_supp/comp_out_X_2.pdf")
 
 \newpage
 
-## Contaminated case
+### Contaminated case
 
 ```{r, fig.cap="Completion for missing parts for contaminated data"}
 knitr::include_graphics("../figure/2021_0624_supp/comp_out_O_2.pdf")
 ```
 
-\newpage
-
-\begin{table}[ht]
-\centering
-\caption{MISE}
-\begin{tabular}{rrrrrrr}
-  \hline
-  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
-  \hline
-  Yao & 0.238 &&&&& \\
-  Huber & 0.078 &&&&& \\
-  Kraus & 0.303 &&&&& \\
-  M-est & 0.054 &&&&& \\
-  M-est (sm) & 0.035 &&&&& \\
-  Lounici && 0.266 & 0.266 & 0.269 & 0.270 & 0.291 \\ 
-  Lounici + M-est && 0.051 & 0.051 & 0.053 & 0.074 & 0.185 \\ 
-  Lounici + M-est + raw && 0.053 & 0.053 & 0.054 & 0.073 & 0.185 \\ 
-  Lounici + M-est (sm) && 0.034 & 0.034 & 0.042 & 0.160 & 0.180 \\ 
-  Lounici + M-est (sm) + raw && 0.034 & 0.035 & 0.043 & 0.157 & 0.180 \\ 
-   \hline
-\end{tabular}
-\end{table}
+<!-- \begin{table}[ht] -->
+<!-- \centering -->
+<!-- \caption{MISE} -->
+<!-- \begin{tabular}{rrrrrrr} -->
+<!--   \hline -->
+<!--   $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\  -->
+<!--   \hline -->
+<!--   Yao & 0.238 &&&&& \\ -->
+<!--   Huber & 0.078 &&&&& \\ -->
+<!--   Kraus & 0.303 &&&&& \\ -->
+<!--   M-est & 0.054 &&&&& \\ -->
+<!--   M-est (sm) & 0.035 &&&&& \\ -->
+<!--   Lounici && 0.266 & 0.266 & 0.269 & 0.270 & 0.291 \\  -->
+<!--   Lounici + M-est && 0.051 & 0.051 & 0.053 & 0.074 & 0.185 \\  -->
+<!--   Lounici + M-est + raw && 0.053 & 0.053 & 0.054 & 0.073 & 0.185 \\  -->
+<!--   Lounici + M-est (sm) && 0.034 & 0.034 & 0.042 & 0.160 & 0.180 \\  -->
+<!--   Lounici + M-est (sm) + raw && 0.034 & 0.035 & 0.043 & 0.157 & 0.180 \\  -->
+<!--    \hline -->
+<!-- \end{tabular} -->
+<!-- \end{table} -->
 
 
 \begin{table}[ht]
 \centering
-\caption{MSE}
+\caption{MSE for contaminated case}
 \begin{tabular}{rrrrrrr}
   \hline
-  $\lambda$ & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
+  & \multicolumn{6}{c}{$\lambda$} \\
+  Method & 0 & 0.01 & 0.07 & 0.56 & 4.22 & 31.62 \\ 
   \hline
   Yao & 1.504 &&&&& \\
   Huber & 0.442 &&&&& \\
@@ -205,10 +203,156 @@ knitr::include_graphics("../figure/2021_0624_supp/comp_out_O_2.pdf")
   Lounici && 1.723 & 1.724 & 1.738 & 1.744 & 1.835 \\ 
   Lounici + M-est && 0.264 & 0.264 & 0.271 & 0.372 & 1.204 \\ 
   Lounici + M-est + raw && 0.273 & 0.272 & 0.274 & 0.373 & 1.204 \\ 
-  Lounici + M-est (sm) && 0.179 & 0.182 & 0.246 & 0.923 & 1.141 \\ 
+  Lounici + M-est (sm) && {\bf 0.179} & 0.182 & 0.246 & 0.923 & 1.141 \\ 
   Lounici + M-est (sm) + raw && 0.180 & 0.183 & 0.250 & 0.912 & 1.141 \\ 
    \hline
 \end{tabular}
 \end{table}
 
 
+
+\newpage
+
+# 4. Shifted Doppler signal
+
+## Covariance surfaces
+
+### Non-contaminated case
+
+```{r, fig.cap="Covariance surfaces for non-contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/cov_doppler_out_X.pdf")
+```
+
+\newpage
+
+### Contaminated case
+
+```{r, fig.cap="Covariance surfaces for contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/cov_doppler_out_O.pdf")
+```
+
+\newpage
+
+## Completion
+
+### Non-contaminated case
+
+```{r, fig.cap="Completion for missing parts for non-contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/comp_doppler_out_X_2.pdf")
+```
+
+\newpage
+
+### MSE of Observed trajectories
+
+- Shifted Doppler signals의 경우는 true signal에 random noise를 추가하여 만든 데이터임
+- 따라서 random noise가 추가된 observed curve와 true curve에 대해 모두 MSE를 계산하였음
+
+\begin{table}[ht]
+\centering
+\caption{100 $\times$ MSE of observed signals}
+\begin{tabular}{rrrrrrr}
+  \hline
+  & \multicolumn{6}{c}{$\lambda$} \\
+  Method & 0 & 0.01 & 0.13 & 0.26 & 0.38 & 0.5 \\ 
+  \hline
+  Yao & 3.073 &&&&& \\
+  Huber & 3.363 &&&&& \\
+  Kraus & 1.366 &&&&& \\
+  M-est & 1.135 &&&&& \\
+  M-est (sm) & 2.169 &&&&& \\
+  Lounici && 1.187 & 1.152 & 1.153 & 1.154 & 1.155 \\ 
+  Lounici + M-est && 1.121 & {\bf 1.118} & {\bf 1.118} & 1.119 & 1.119 \\ 
+  Lounici + M-est + raw && 1.122 & 1.120 & 1.120 & 1.121 & 1.122 \\ 
+  Lounici + M-est (sm) && 2.171 & 2.170 & 2.176 & 2.227 & 2.532 \\ 
+  Lounici + M-est (sm) + raw && 2.168 & 2.171 & 2.202 & 2.522 & 2.708 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+
+### MSE of True shifted doppler signals
+
+\begin{table}[ht]
+\centering
+\caption{100 $\times$ MSE of true signals}
+\begin{tabular}{rrrrrrr}
+  \hline
+  & \multicolumn{6}{c}{$\lambda$} \\
+  Method & 0 & 0.01 & 0.13 & 0.26 & 0.38 & 0.5 \\ 
+  \hline
+  Yao & 2.051 &&&&& \\
+  Huber & 2.329 &&&&& \\
+  Kraus & 0.325 &&&&& \\
+  M-est & 0.137 &&&&& \\
+  M-est (sm) & 1.129 &&&&& \\
+  Lounici && 0.176 & 0.125 & 0.126 & 0.127 & 0.128 \\ 
+  Lounici + M-est && 0.123 & {\bf 0.117} & {\bf 0.117} & 0.118 & 0.118 \\ 
+  Lounici + M-est + raw && 0.123 & 0.118 & 0.119 & 0.120 & 0.120 \\ 
+  Lounici + M-est (sm) && 1.130 & 1.130 & 1.137 & 1.188 & 1.486 \\ 
+  Lounici + M-est (sm) + raw && 1.128 & 1.132 & 1.163 & 1.477 & 1.651 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+
+\newpage
+
+### Contaminated case
+
+```{r, fig.cap="Completion for missing parts for contaminated data"}
+knitr::include_graphics("../figure/2021_0624_supp/comp_doppler_out_O_2.pdf")
+```
+
+\newpage
+
+### MSE of Observed trajectories
+
+\begin{table}[ht]
+\centering
+\caption{100 $\times$ MSE of observed signals}
+\begin{tabular}{rrrrrrr}
+  \hline
+  & \multicolumn{6}{c}{$\lambda$} \\
+  Method & 0 & 0.01 & 0.13 & 0.26 & 0.38 & 0.5 \\ 
+  \hline
+  Yao & 4.868 &&&&& \\
+  Huber & 5.175 &&&&& \\
+  Kraus & 72.625 &&&&& \\
+  M-est & 1.347 &&&&& \\
+  M-est (sm) & 2.511 &&&&& \\
+  Lounici && 3.589 & 3.589 & 3.591 & 3.590 & 3.590 \\ 
+  Lounici + M-est && 1.221 & {\bf 1.220} & 1.221 & 1.223 & 1.226 \\ 
+  Lounici + M-est + raw && 1.224 & 1.224 & 1.226 & 1.229 & 1.233 \\ 
+  Lounici + M-est (sm) && 2.167 & 2.175 & 2.202 & 2.312 & 2.650 \\ 
+  Lounici + M-est (sm) + raw && 2.170 & 2.191 & 2.270 & 2.626 & 2.769 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+### MSE of True shifted doppler signals
+
+\begin{table}[ht]
+\centering
+\caption{100 $\times$ MSE of true signals}
+\begin{tabular}{rrrrrrr}
+  \hline
+  & \multicolumn{6}{c}{$\lambda$} \\
+  Method & 0 & 0.01 & 0.13 & 0.26 & 0.38 & 0.5 \\ 
+  \hline
+  Yao & 3.731 &&&&& \\
+  Huber & 4.071 &&&&& \\
+  Kraus & 73.065 &&&&& \\
+  M-est & 0.241 &&&&& \\
+  M-est (sm) & 1.279 &&&&& \\
+  Lounici && 2.619 & 2.619 & 2.620 & 2.620 & 2.620 \\ 
+  Lounici + M-est && {\bf 0.213} & 0.214 & {\bf 0.213} & {\bf 0.213} & 0.209 \\ 
+  Lounici + M-est + raw && 0.215 & 0.216 & 0.217 & 0.214 & 0.215 \\ 
+  Lounici + M-est (sm) && 1.138 & 1.146 & 1.173 & 1.282 & 1.607 \\ 
+  Lounici + M-est (sm) + raw && 1.141 & 1.162 & 1.240 & 1.586 & 1.717 \\ 
+   \hline
+\end{tabular}
+\end{table}
