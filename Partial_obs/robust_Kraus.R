@@ -58,15 +58,13 @@ pspline_curve <- function(t, x) {
 ### for possibly incomplete functional data
 #####################################################################
 ### M-estimator for covaraince function
-mean.rob.missfd <- function(x, smooth = F, work.grid = NULL) {
+mean.rob.missfd <- function(x, smooth = F) {
   if (smooth == T) {
     x.2 <- matrix2list(x)
-    if (is.null(work.grid)) {
-      work.grid <- seq(0, 1, length.out = ncol(x))
-    }
     mu.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", 
                            kernel = "epanechnikov",
                            bw = 0.2, delta = 1.345)
+    work.grid <- sort(unique(unlist(x.2$Lt)))
     mu <- predict(mu.obj, work.grid)
   } else {
     if (is.list(x)) {
@@ -110,8 +108,8 @@ var.rob.missfd <- function(x, smooth = F,
             ind <- 1:n
           }
           
-          mu <- mean.rob.missfd(x[ind, ], smooth = smooth, work.grid = c(s, t))
-          A <- (x[ind, s] - mu[1])*(x[ind, t] - mu[2])
+          mu <- mean.rob.missfd(x[ind, ], smooth = smooth)
+          A <- (x[ind, s] - mu[s])*(x[ind, t] - mu[t])
           rob.var[s, t] <- huber(A)$mu
         } else {
           rob.var[s, t] <- rob.var[t, s]
