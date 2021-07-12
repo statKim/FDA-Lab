@@ -44,7 +44,7 @@ double huber_cpp(NumericVector y,
 
 // Obtain column-wise M-estimator
 // [[Rcpp::export]]
-NumericVector mean_Mest(NumericMatrix X) {
+NumericVector mean_Mest_cpp(NumericMatrix X) {
   int p = X.ncol();
   NumericVector mu(p);
   for (int i = 0; i < p; i++) {
@@ -57,7 +57,7 @@ NumericVector mean_Mest(NumericMatrix X) {
 
 // Obtain marginal M-estimator for covariance
 // [[Rcpp::export]]
-NumericMatrix cov_Mest(NumericMatrix X) {
+NumericMatrix cov_Mest_cpp(NumericMatrix X) {
   int n = X.nrow();
   int p = X.ncol();
   NumericMatrix rob_var(p, p);
@@ -73,7 +73,7 @@ NumericMatrix cov_Mest(NumericMatrix X) {
   
   if (sum(is_na(X)) == 0) {
     // Complete curves
-    mu = mean_Mest(X);
+    mu = mean_Mest_cpp(X);
     for (int i = 0; i < X.nrow(); i++) {
       X(i, _) = X(i, _) - mu;   // X-mu
     }
@@ -115,7 +115,7 @@ NumericMatrix cov_Mest(NumericMatrix X) {
             X_sub(i, _) = X(ind[i], _);
           }
           
-          mu = mean_Mest(X_sub);
+          mu = mean_Mest_cpp(X_sub);
           
           A = NumericVector(ind.size());
           for (int i = 0; i < X_sub.nrow(); i++) {
@@ -141,7 +141,7 @@ NumericMatrix cov_Mest(NumericMatrix X) {
 // /*** R
 // # x <- matrix(rnorm(10000), nrow = 10)
 // system.time({
-//   cov1 <- cov_Mest(x)
+//   cov1 <- cov_Mest_cpp(x)
 // })
 // system.time({
 //   cov2 <- var.rob.missfd(x, make.pos.semidef=F)
@@ -150,7 +150,7 @@ NumericMatrix cov_Mest(NumericMatrix X) {
 // 
 // # y <- matrix(rnorm(10000), nrow = 10)
 // # system.time({
-// #   mu1 <- mean_Mest(x)
+// #   mu1 <- mean_Mest_cpp(x)
 // # })
 // # 
 // # system.time({
