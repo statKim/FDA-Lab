@@ -30,7 +30,7 @@ source("Boente_cov.R")
 ### Snippet setting
 #####################################
 num_sim <- 30
-mse_eigen <- matrix(NA, num_sim, 8)
+mse_eigen <- matrix(NA, num_sim, 6)
 mise_reconstr <- matrix(NA, num_sim, 7)
 mse_reconstr <- matrix(NA, num_sim, 7)
 mise_completion <- matrix(NA, num_sim, 12)
@@ -54,8 +54,7 @@ colnames(pve_res) <- c("Yao","Huber","Boente","M-est","M-est(smooth)","Kraus",
                        "M-est-noise","M-est(smooth)-noise")
 colnames(K_res) <- c("Yao","Huber","Boente","M-est","M-est(smooth)","Kraus",
                      "M-est-noise","M-est(smooth)-noise")
-colnames(mse_eigen) <- c("Yao","Huber","Boente","M-est","M-est(smooth)","Kraus",
-                         "M-est-noise","M-est(smooth)-noise")
+colnames(mse_eigen) <- c("Yao","Huber","Boente","M-est","M-est(smooth)","Kraus")
 
 # simulation result
 # pca.est <- list()
@@ -76,7 +75,10 @@ while (num.sim < num_sim) {
   #############################
   n <- 100
   n.grid <- 51
-  x.2 <- sim_kraus(n = n, out.prop = 0.2, out.type = 1, grid.length = n.grid)
+  # x.2 <- sim_kraus(n = n, out.prop = 0.2, out.type = 1, grid.length = n.grid)
+  x.2 <- sim_delaigle(n = n, model = 2,
+                      type = "partial",
+                      out.prop = 0.2, out.type = 1)
   df <- data.frame(
     id = factor(unlist(sapply(1:length(x.2$Lt), 
                               function(id) { 
@@ -333,9 +335,7 @@ while (num.sim < num_sim) {
     mean((check_eigen_sign(pca.boente.obj$eig.fun, eig.true) - eig.true)^2),
     mean((check_eigen_sign(pca.Mest.obj$eig.fun, eig.true) - eig.true)^2),
     mean((check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((eig$vectors[, 1:K] - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
+    mean((eig$vectors[, 1:K] - eig.true)^2)
   )
   
   
@@ -545,7 +545,8 @@ for (k in 1:3) {
             check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true)[, k]
           ),
           type = "l",
-          lty = rep(1, 9),
+          col = 1:9,
+          lty = 1:9,
           main = paste("Eigenfunction", k),
           xlab = "", ylab = "",
           lwd = rep(2, 9))
