@@ -10,7 +10,7 @@ cov_boente <- function(x, bw.mu, bw.cov) {
   ma <- matrixx(X, mh)
   
   # Compute the estimated cov function
-  cov.fun2 <- cov.fun.hat2.ls(X=X, h=bw.cov, mh=mh, ma=ma, ncov=length(gr), trace=FALSE)
+  cov.fun2 <- cov.fun.hat2(X=X, h=bw.cov, mh=mh, ma=ma, ncov=length(gr), trace=FALSE)
   # smooth it
   yy <- as.vector(cov.fun2$G)
   xx <- cov.fun2$grid

@@ -162,6 +162,19 @@ get_K <- function(s, t, model = 1) {
   return(K)
 }
 
+### Get True eigenfunction for simulation in Delaigle(2020) setting
+get_delaigle_eigen <- function(t, model = 2) {
+  if (model == 1) {
+    invisible()
+  } else if (model == 2) {
+    eig_ftn <- matrix(0, length(t), 4)
+    eig_ftn[, 1] <- rep(1, length(t))
+    eig_ftn[, 2] <- (2*t-1)*sqrt(3)
+    eig_ftn[, 3] <- (6*t^2-6*t+1)*sqrt(5)
+    eig_ftn[, 4] <- (20*t^3-30*t^2+12*t-1)*sqrt(7)
+  }
+  return(eig_ftn)
+}
 
 ### Get covariance
 # grid : observed grid

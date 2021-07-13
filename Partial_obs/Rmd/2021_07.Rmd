@@ -1,0 +1,56 @@
+---
+title: "Robust covariance estimation for partially observed functional data"
+# author: "Hyunsung Kim"
+date: '2021-06-24'
+output: 
+  pdf_document:
+    toc: false
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", 
+  out.width = "95%"
+  # fig.width = 3, fig.height = 1.5
+)
+# Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+
+
+# 1. Partially observed case
+\begin{table}[ht]
+\centering
+\caption{4 FPCs from 30 repetitions}
+\begin{tabular}{cccccc}
+  \hline
+  Type & Method & PVE & Reconstruction & Completion & Eigenfunction \\ 
+  \hline
+  \multirow{8}{*}{Not contaminated} & Yao & 1.00 & 2.17 (9.93) & 9.26 (44.28) & 0.05 (0.03) \\ 
+  & Kraus & 0.99 &  & 0.29 (0.26) & 0.06 (0.03) \\ 
+  & Huber & 0.86 & 0.08 (0.03) & 0.27 (0.12) & 0.06 (0.07) \\ 
+  & Boente & 1.00 & 26.35 (133.16) & 76.37 (369.40) & 0.12 (0.02) \\ 
+  & M-est & 0.95 & 0.08 (0.06) & 0.26 (0.19) & 0.13 (0.09) \\ 
+  & M-est-noise & 0.95 & 0.04 (0.02) & 0.14 (0.08) &  \\ 
+  & M-est(smooth) & 0.99 & 0.38 (0.83) & 1.14 (2.47) & 0.08 (0.04) \\ 
+  & M-est(smooth)-noise & 0.99 & 0.04 (0.01) & 0.10 (0.04) &  \\ 
+  \hline
+  \multirow{8}{*}{Contaminated} & Yao & 0.82 & 42.53 (102.54) & 62.78 (145.71) & 1.70 (0.17) \\ 
+  & Kraus & 0.65 &  & 2.72 (0.68) & 1.82 (0.08) \\ 
+  & Huber & 0.87 & 0.09 (0.03) & 0.33 (0.11) & 0.06 (0.05) \\ 
+  & Boente & 1.00 & 21.79 (68.31) & 59.95 (180.04) & 1.42 (0.33) \\ 
+  & M-est & 0.68 & 0.17 (0.11) & 0.49 (0.43) & 0.21 (0.13) \\ 
+  & M-est-noise & 0.71 & 0.10 (0.04) & 0.26 (0.11) &  \\ 
+  & M-est(smooth) & 0.99 & 3.72 (4.80) & 11.87 (14.63) & 0.09 (0.06) \\ 
+  & M-est(smooth)-noise & 0.99 & 0.06 (0.02) & 0.20 (0.08) &  \\ 
+   \hline
+\end{tabular}
+\end{table}
