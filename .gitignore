@@ -5,6 +5,7 @@ fda_packages/
 reference/
 paper/
 build/
+.DS_Store
 
 # RData
 daily_avg.RData
