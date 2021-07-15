@@ -29,9 +29,14 @@ source("Boente_cov.R")
 ### Simulation Parameters
 #####################################
 num_sim <- 30   # number of simulations
-data_type <- "partial"   # type of functional data
 out_prop <- 0   # proportion of outliers
+data_type <- "snippet"   # type of functional data
+# kernel <- "epanechnikov"   # kernel function for local smoothing
+kernel <- "gauss"   # kernel function for local smoothing
+bw <- 0.1   # fixed bandwidth
 n_cores <- 12   # number of threads for parallel computing
+
+
 
 #####################################
 ### Simulation
@@ -104,8 +109,6 @@ while (num.sim < num_sim) {
   ### Covariance estimation
   #############################
   skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
-  bw <- 0.1
-  kernel <- "epanechnikov"
   work.grid <- seq(0, 1, length.out = n.grid)
   
   ### Yao, Müller, and Wang (2005)
@@ -149,6 +152,10 @@ while (num.sim < num_sim) {
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
                                  ncores = n_cores,
                                  bw = NULL, delta = 1.345)
+    dd <- varfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
+                mu = mu.huber.obj, 
+                ncores = n_cores,
+                bw = NULL, delta = 1.345)
     cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
                                  mu = mu.huber.obj, 
                                  ncores = n_cores,
@@ -222,15 +229,16 @@ while (num.sim < num_sim) {
   registerDoRNG(seed)
   tryCatch({
     mu.Mest <- mean_Mest(x)
+    noise_var <- sigma2.rob(x.2$Lt, x.2$Ly)   # robust noise variance estimator
     
     # Not smoothed M-est
     cov.Mest <- cov_Mest(x)
-    cov.Mest.noise <- cov_Mest(x, noise.var = cov.huber.obj$sig2e)
+    cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
     cov.Mest.sm <- cov_Mest(x, smooth = T, bw = bw)
     cov.Mest.sm.noise <- cov_Mest(x, smooth = T, bw = bw,
-                                  noise.var = cov.huber.obj$sig2e)
+                                  noise.var = noise_var)
   }, error = function(e) { 
     print("M-est cov error")
     print(e)
@@ -306,10 +314,10 @@ while (num.sim < num_sim) {
                             work.grid, PVE = pve, K = K)
   # consider noise var
   pca.Mest.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
-                               mu.Mest, cov.Mest.noise, sig2 = cov.huber.obj$sig2e,
+                               mu.Mest, cov.Mest.noise, sig2 = noise_var,
                                work.grid, PVE = pve, K = K)
   pca.Mest.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
-                                  mu.Mest, cov.Mest.sm.noise, sig2 = cov.huber.obj$sig2e,
+                                  mu.Mest, cov.Mest.sm.noise, sig2 = noise_var,
                                   work.grid, PVE = pve, K = K)
   
   ## Kraus (2015) - just obtain PVE and K
