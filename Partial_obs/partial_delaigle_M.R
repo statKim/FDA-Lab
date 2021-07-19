@@ -1,6 +1,6 @@
 ################################################
 ### Simulation using Delaigle(2020) setting
-### - Snippet case
+### - Partially observed case
 ### - 5-fold CV is performed for hyperparameters
 ################################################
 library(GA)   # persp plot
@@ -28,38 +28,36 @@ source("Boente_cov.R")
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 30   # number of simulations
+num_sim <- 50   # number of simulations
 out_prop <- 0   # proportion of outliers
-data_type <- "snippet"   # type of functional data
-# kernel <- "epanechnikov"   # kernel function for local smoothing
-kernel <- "gauss"   # kernel function for local smoothing
-bw <- 0.1   # fixed bandwidth
+data_type <- "partial"   # type of functional data
+kernel <- "epanechnikov"   # kernel function for local smoothing
+# kernel <- "gauss"   # kernel function for local smoothing
+bw_boente <- 0.1   # bandwidth for Boente(2020) - Error occurs for small bw
+bw_M_sm <- 0.1   # bandwidth for M-est(smooth)
 n_cores <- 12   # number of threads for parallel computing
-
 
 
 #####################################
 ### Simulation
 #####################################
-mse_eigen <- matrix(NA, num_sim, 6)
+mse_eigen <- matrix(NA, num_sim, 7)
 mse_reconstr <- matrix(NA, num_sim, 7)
-mse_completion <- matrix(NA, num_sim, 8)
-pve_res <- matrix(NA, num_sim, 8)
-K_res <- matrix(NA, num_sim, 8)
+mse_completion <- matrix(NA, num_sim, 10)
+pve_res <- matrix(NA, num_sim, 7)
+K_res <- matrix(NA, num_sim, 7)
 
 colnames(mse_reconstr) <- c("Yao","Huber","Boente",
                             "M-est","M-est-noise",
                             "M-est(smooth)","M-est(smooth)-noise")
-colnames(mse_completion) <- c("Yao","Kraus","Huber","Boente",
+colnames(mse_completion) <- c("Yao","Huber",
+                              "Kraus","Kraus-M","Kraus-M(sm)",
+                              "Boente",
                               "M-est","M-est-noise",
                               "M-est(smooth)","M-est(smooth)-noise")
-colnames(pve_res) <- c("Yao","Kraus","Huber","Boente",
-                       "M-est","M-est-noise",
-                       "M-est(smooth)","M-est(smooth)-noise")
-colnames(K_res) <- c("Yao","Kraus","Huber","Boente",
-                     "M-est","M-est-noise",
-                     "M-est(smooth)","M-est(smooth)-noise")
-colnames(mse_eigen) <- c("Yao","Kraus","Huber","Boente","M-est","M-est(smooth)")
+colnames(pve_res) <- colnames(mse_reconstr) 
+colnames(K_res) <- colnames(mse_reconstr) 
+colnames(mse_eigen) <- colnames(mse_reconstr)
 
 # simulation result
 # pca.est <- list()
@@ -152,10 +150,6 @@ while (num.sim < num_sim) {
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
                                  ncores = n_cores,
                                  bw = NULL, delta = 1.345)
-    dd <- varfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
-                mu = mu.huber.obj, 
-                ncores = n_cores,
-                bw = NULL, delta = 1.345)
     cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, method = "huber", kernel = kernel, 
                                  mu = mu.huber.obj, 
                                  ncores = n_cores,
@@ -206,7 +200,8 @@ while (num.sim < num_sim) {
     # boente.obj.r <- efpca(X=x.3, ncpus=ncpus, opt.h.mu=bw, opt.h.cov=bw, rho.param=rho.param,
     #                       k = k, s = k, trace=FALSE, seed=seed, k.cv=k.cv, ncov=ncov,
     #                       max.kappa=max.kappa)
-    cov.boente.obj <- cov_boente(x.2, bw, bw)
+    
+    cov.boente.obj <- cov_boente(x.2, bw.mu = bw_boente, bw.cov = bw_boente)
   }, error = function(e) { 
     print("Boente (2020) cov error")
     print(e)
@@ -236,8 +231,8 @@ while (num.sim < num_sim) {
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
-    cov.Mest.sm <- cov_Mest(x, smooth = T, bw = bw)
-    cov.Mest.sm.noise <- cov_Mest(x, smooth = T, bw = bw,
+    cov.Mest.sm <- cov_Mest(x, smooth = T, bw = bw_M_sm)
+    cov.Mest.sm.noise <- cov_Mest(x, smooth = T, bw = bw_M_sm,
                                   noise.var = noise_var)
   }, error = function(e) { 
     print("M-est cov error")
@@ -253,16 +248,19 @@ while (num.sim < num_sim) {
                " secs"))
   
   # gr <- work.grid
-  # par(mfrow = c(2, 2))
-  # # GA::persp3D(gr, gr, cov.true,
-  # #             theta = -70, phi = 30, expand = 1)
+  # par(mfrow = c(2, 3))
+  # cov.true <- get_cov_fragm(gr)
+  # GA::persp3D(gr, gr, cov.true,
+  #             theta = -70, phi = 30, expand = 1)
   # GA::persp3D(gr, gr, cov.yao,
   #             theta = -70, phi = 30, expand = 1)
   # GA::persp3D(gr, gr, cov.huber,
   #             theta = -70, phi = 30, expand = 1)
+  # GA::persp3D(gr, gr, cov.boente,
+  #             theta = -70, phi = 30, expand = 1)
   # GA::persp3D(gr, gr, cov.Mest,
   #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.boente,
+  # GA::persp3D(gr, gr, cov.Mest.sm,
   #             theta = -70, phi = 30, expand = 1)
   # par(mfrow = c(1, 1))
   
@@ -294,17 +292,14 @@ while (num.sim < num_sim) {
   pca.yao.obj <- funPCA(x.2$Lt, x.2$Ly, 
                         mu.yao, cov.yao, sig2 = cov.yao.obj$sigma2, 
                         work.grid, PVE = pve, K = K)
-  
   # Huber
   pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, 
                           mu.huber, cov.huber, sig2 = cov.huber.obj$sig2e, 
                           work.grid, PVE = pve, K = K)
-  
   # Boente
   pca.boente.obj <- funPCA(x.2$Lt, x.2$Ly, 
                            mu.boente, cov.boente, sig2 = 1e-6, 
                            work.grid, PVE = pve, K = K)
-  
   # M-est
   pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly,
                          mu.Mest, cov.Mest, sig2 = 1e-6,
@@ -320,18 +315,18 @@ while (num.sim < num_sim) {
                                   mu.Mest, cov.Mest.sm.noise, sig2 = noise_var,
                                   work.grid, PVE = pve, K = K)
   
-  ## Kraus (2015) - just obtain PVE and K
-  cov.kraus <- var.missfd(x)
-  eig <- eigen.missfd(cov.kraus)
-  v <- eig$values[eig$values > 0]
-  pve_kraus <- cumsum(v) / sum(v)
-  if (!is_null(K)) {
-    K_kraus <- K
-    pve_kraus <- pve_kraus[K_kraus]
-  } else {
-    K_kraus <- which(pve_kraus > pve)[1]
-    pve_kraus <- pve_kraus[K_kraus]
-  }
+  # ## Kraus (2015) - just obtain PVE and K
+  # cov.kraus <- var.missfd(x)
+  # eig <- eigen.missfd(cov.kraus)
+  # v <- eig$values[eig$values > 0]
+  # pve_kraus <- cumsum(v) / sum(v)
+  # if (!is_null(K)) {
+  #   K_kraus <- K
+  #   pve_kraus <- pve_kraus[K_kraus]
+  # } else {
+  #   K_kraus <- which(pve_kraus > pve)[1]
+  #   pve_kraus <- pve_kraus[K_kraus]
+  # }
   
   
   ### Eigen function
@@ -339,11 +334,12 @@ while (num.sim < num_sim) {
   # calculate MSE
   mse_eigen[num.sim + 1, ] <- c(
     mean((check_eigen_sign(pca.yao.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(eig$vectors[, 1:K], eig.true) - eig.true)^2),
     mean((check_eigen_sign(pca.huber.obj$eig.fun, eig.true) - eig.true)^2),
     mean((check_eigen_sign(pca.boente.obj$eig.fun, eig.true) - eig.true)^2),
     mean((check_eigen_sign(pca.Mest.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true) - eig.true)^2)
+    mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
+    mean((check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true) - eig.true)^2),
+    mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
   )
   
   
@@ -351,7 +347,9 @@ while (num.sim < num_sim) {
   ### Curve reconstruction via PCA
   # index of non-outlier curves having missing values
   cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-  cand <- cand[cand <= 80]   # exclude outlier curves
+  if (out_prop != 0) {
+    cand <- cand[cand <= 80]   # exclude outlier curves
+  }
   
   # reconstructed curves
   pred_yao_mat <- predict(pca.yao.obj, K = NULL)
@@ -363,19 +361,25 @@ while (num.sim < num_sim) {
   pred_Mest_sm_noise_mat <- predict(pca.Mest.sm.noise.obj, K = NULL)
   
   sse_reconstr <- matrix(NA, length(cand), 7)
-  sse_completion <- matrix(NA, length(cand), 8)
+  sse_completion <- matrix(NA, length(cand), 10)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
     
     pred_yao <- pred_yao_mat[ind, ]
     pred_huber <- pred_huber_mat[ind, ]
+    pred_kraus <- pred.missfd(x[ind, ], x)
+    pred_kraus_M <- pred.rob.missfd(x[ind, ], x,
+                                    R = cov.Mest)
+    pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,
+                                       smooth = T,
+                                       R = cov.Mest.sm)
     pred_boente <- pred_boente_mat[ind, ]
     pred_Mest <- pred_Mest_mat[ind, ]
     pred_Mest_sm <- pred_Mest_sm_mat[ind, ]
-    pred_kraus <- pred.missfd(x[ind, ], x)
     pred_Mest_noise <- pred_Mest_noise_mat[ind, ]
     pred_Mest_sm_noise <- pred_Mest_sm_noise_mat[ind, ]
+    
     
     # ISE for reconstruction of overall interval
     df <- cbind(
@@ -395,8 +399,10 @@ while (num.sim < num_sim) {
     NA_ind <- which(is.na(x[ind, ]))
     df <- cbind(
       pred_missing_curve(x[ind, ], pred_yao, conti = FALSE),
-      pred_kraus,
       pred_missing_curve(x[ind, ], pred_huber, conti = FALSE),
+      pred_kraus,
+      pred_kraus_M,
+      pred_kraus_M_sm,
       pred_missing_curve(x[ind, ], pred_boente, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_Mest, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_Mest_noise, conti = FALSE),
@@ -422,7 +428,6 @@ while (num.sim < num_sim) {
   
   pve_res[num.sim, ] <- c(
     pca.yao.obj$PVE,
-    pve_kraus,
     pca.huber.obj$PVE,
     pca.boente.obj$PVE,
     pca.Mest.obj$PVE,
@@ -433,7 +438,6 @@ while (num.sim < num_sim) {
   
   K_res[num.sim, ] <- c(
     pca.yao.obj$K,
-    K_kraus,
     pca.huber.obj$K,
     pca.boente.obj$K,
     pca.Mest.obj$K,
@@ -461,10 +465,7 @@ while (num.sim < num_sim) {
   
   print(colMeans(mse_completion, na.rm = T))
 }
-# save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
-#      file = "RData/20210512_comp_0_2_bw.RData")
-# save(list = c("pca.est","mise_reconstr","mse_reconstr","mise_completion","mse_completion"),
-#      file = "RData/20210512_comp_0_2_bw_presmooth.RData")
+
 
 colMeans(mse_eigen)
 colMeans(mse_reconstr)
@@ -477,7 +478,9 @@ apply(mse_completion, 2, sd)
 colMeans(K_res)
 colMeans(pve_res)
 
-data.frame(Method = c("Yao","Kraus","Huber","Boente",
+data.frame(Method = c("Yao","Huber",
+                      "Kraus","Kraus-M","Kraus-M(sm)",
+                      "Boente",
                       "M-est","M-est-noise",
                       "M-est(smooth)","M-est(smooth)-noise")) %>% 
   left_join(data.frame(
@@ -566,7 +569,7 @@ cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
 cand <- cand[cand <= 80]   # exclude outlier curves
 par(mfrow = c(2, 3))
 cand <- c(1, 15, 19)
-cand <- cand[c(2, 33, 49)]
+cand <- cand[c(17, 51)]
 for (ind in cand) {
   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
@@ -630,9 +633,5 @@ for (ind in cand) {
   }
 }
 par(mfrow = c(1, 1))
-
-
-
-
 
 
