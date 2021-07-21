@@ -3,6 +3,7 @@
 ### Delaigle et al. (2020) simulation
 ############################################
 require(LaplacesDemon)
+require(mvtnorm)
 
 ### Generate functional data with outliers
 # model = 1~2 avaliable (In the paper, 1~4 models are shown)
