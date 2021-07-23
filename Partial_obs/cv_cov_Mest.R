@@ -22,7 +22,7 @@ matplot(work.grid, phi_sm, type = "l")
 all.equal(eig.obj$phi[, 1:4], phi_sm)
 
 
-bw.cov_Mest <- function(x,
+cv.cov_Mest <- function(x,
                         bw_cand = NULL,
                         K = 5,
                         ncores = 1,
@@ -152,4 +152,78 @@ bw.cov_Mest <- function(x,
 #   cv.obj <- bw.cov_Mest(x)
 # })
 # cv.obj
+
+
+
+
+
+gr <- work.grid
+yy <- gr^2 + rnorm(51, 0, 0.1)
+plot(gr, yy)
+
+fit <- smooth.spline(gr, yy)
+fit$y
+lines(gr, fit$y, lwd = 2)
+
+# yy <- eigen(cov.Mest.noise)$vectors
+yy <- pca.Mest.noise.obj$eig.fun
+dim(yy)
+yy <- yy[, 1:4]
+matplot(gr, yy, pch = 1)
+fit <- apply(yy, 2, function(x){ smooth.spline(gr, x)$y })
+matlines(gr, fit, type = "l", lwd = 2)
+
+fit2 <- pracma::gramSchmidt(fit)$Q
+fit2 <- far::orthonormalization(fit, basis = FALSE)
+
+yy[, 1] %*% yy[, 2]
+fit[, 1] %*% fit[, 2]
+
+t(yy) %*% yy
+t(fit) %*% fit
+t(fit2) %*% fit2
+
+matplot(gr, yy, pch = 1)
+matlines(gr, fit2, type = "l", lwd = 2)
+
+fit3 <- fit2 %*% diag( sqrt(diag(t(yy) %*% yy)) )
+matlines(gr, fit3, type = "l", lwd = 2)
+
+
+
+eig.obj <- get_eigen(cov.Mest, work.grid)
+eig.obj$lambda
+eig.obj$phi <- apply(eig.obj$phi, 2, function(x){ smooth.spline(work.grid, x)$y })
+yy <- eig.obj$phi %*% diag(eig.obj$lambda) %*% t(eig.obj$phi)
+
+diag(cov.Mest)
+diag(yy)
+
+par(mfrow = c(1, 2))
+GA::persp3D(gr, gr, cov.Mest,
+            theta = -70, phi = 30, expand = 1)
+GA::persp3D(gr, gr, yy,
+            theta = -70, phi = 30, expand = 1)
+
+
+rob.var <- cov_Mest_cpp(x)
+eig <- eigen(rob.var)
+k <- which(eig$values > 0)
+lambda <- eig$values[k]
+phi <- matrix(eig$vectors[, k],
+              ncol = length(k))
+
+dim(phi)
+# smoothing spline is performed for each eigenfunction
+if (smooth == TRUE) {
+  gr <- seq(0, 1, length.out = p)
+  phi <- apply(phi, 2, function(u_i){
+    stats::smooth.spline(gr, u_i)$y
+  })
+  # phi <- pracma::householder(phi)$Q
+  phi <- far::orthonormalization(phi, basis = FALSE)
+}
+rob.var <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
+
+
 

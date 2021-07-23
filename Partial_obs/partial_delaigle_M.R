@@ -11,11 +11,9 @@ library(synfd)   # 7
 library(doParallel)   # parallel computing
 library(doRNG)   # set.seed for foreach
 library(MASS)   # huber, rlm
-library(latex2exp)
 library(tidyverse)
-library(robfilter)
-# source("R/functions.R")
-# source("R/utills.R")
+library(latex2exp)
+library(xtable)
 library(robfpca)
 source("R/sim_delaigle.R")
 source("R/sim_Lin_Wang(2020).R")
@@ -30,12 +28,15 @@ source("Boente_cov.R")
 #####################################
 num_sim <- 50   # number of simulations
 out_prop <- 0   # proportion of outliers
+out_type <- 2   # type of outliers
 data_type <- "partial"   # type of functional data
 kernel <- "epanechnikov"   # kernel function for local smoothing
 # kernel <- "gauss"   # kernel function for local smoothing
 bw_boente <- 0.1   # bandwidth for Boente(2020) - Error occurs for small bw
 bw_M_sm <- 0.1   # bandwidth for M-est(smooth)
 n_cores <- 12   # number of threads for parallel computing
+pve <- 0.95   # Not used if K is given
+K <- NULL   # fixed number of PCs (If NULL, it is selected by PVE)
 
 
 #####################################
@@ -83,7 +84,7 @@ while (num.sim < num_sim) {
                       model = 2,
                       type = data_type,
                       out.prop = out_prop, 
-                      out.type = 1)
+                      out.type = out_type)
   df <- data.frame(
     id = factor(unlist(sapply(1:length(x.2$Lt), 
                               function(id) { 
@@ -285,9 +286,6 @@ while (num.sim < num_sim) {
   
   
   ### Principal component analysis
-  pve <- 0.99   # Not used if K is given
-  K <- 4   # fixed number of PCs
-  
   # Yao
   pca.yao.obj <- funPCA(x.2$Lt, x.2$Ly, 
                         mu.yao, cov.yao, sig2 = cov.yao.obj$sigma2, 
@@ -329,19 +327,22 @@ while (num.sim < num_sim) {
   # }
   
   
-  ### Eigen function
-  eig.true <- get_delaigle_eigen(work.grid, model = 2)
-  # calculate MSE
-  mse_eigen[num.sim + 1, ] <- c(
-    mean((check_eigen_sign(pca.yao.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.huber.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.boente.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true) - eig.true)^2),
-    mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
-  )
-  
+  ### Eigen function - Compute for fixed K
+  if (is.null(K)) {
+    mse_eigen[num.sim + 1, ] <- rep(NA, 7)
+  } else {
+    eig.true <- get_delaigle_eigen(work.grid, model = 2)
+    # calculate MSE
+    mse_eigen[num.sim + 1, ] <- c(
+      mean((check_eigen_sign(pca.yao.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.huber.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.boente.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.Mest.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
+    )
+  }
   
   
   ### Curve reconstruction via PCA
@@ -471,12 +472,19 @@ colMeans(mse_eigen)
 colMeans(mse_reconstr)
 colMeans(mse_completion)
 
-apply(mse_eigen, 2, sd)
-apply(mse_reconstr, 2, sd)
-apply(mse_completion, 2, sd)
+# apply(mse_eigen, 2, sd)
+# apply(mse_reconstr, 2, sd)
+# apply(mse_completion, 2, sd)
+# 
+# colMeans(K_res)
+# colMeans(pve_res)
 
-colMeans(K_res)
-colMeans(pve_res)
+if (is.null(K)) {
+  PVE_K <- K_res
+} else {
+  PVE_K <- pve_res
+}
+
 
 data.frame(Method = c("Yao","Huber",
                       "Kraus","Kraus-M","Kraus-M(sm)",
@@ -484,8 +492,8 @@ data.frame(Method = c("Yao","Huber",
                       "M-est","M-est-noise",
                       "M-est(smooth)","M-est(smooth)-noise")) %>% 
   left_join(data.frame(
-    Method = colnames(pve_res),
-    PVE = format(round(colMeans(pve_res), 2), 2)
+    Method = colnames(PVE_K),
+    PVE = format(round(colMeans(PVE_K), 2), 2)
   ), by = "Method") %>% 
   left_join(data.frame(
     Method = colnames(mse_reconstr),
@@ -513,125 +521,126 @@ data.frame(Method = c("Yao","Huber",
       format(round(apply(mse_eigen, 2, sd), 2), 2),
       ")"
     )
-  ), by = "Method")
+  ), by = "Method") %>% 
+  xtable()
 
 
 
-### Eigen function trajectories
-par(mfrow = c(2, 2))
-for (k in 1:4) {
-  matplot(work.grid,
-          cbind(
-            eig.true[, k],
-            check_eigen_sign(pca.yao.obj$eig.fun, eig.true)[, k],
-            check_eigen_sign(eig$vectors[, k], eig.true[, k]),
-            check_eigen_sign(pca.huber.obj$eig.fun, eig.true)[, k],
-            check_eigen_sign(pca.boente.obj$eig.fun, eig.true)[, k],
-            check_eigen_sign(pca.Mest.obj$eig.fun, eig.true)[, k],
-            check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true)[, k]
-          ),
-          type = "l",
-          col = 1:7,
-          lty = 1:7,
-          main = paste("Eigenfunction", k),
-          xlab = "", ylab = "",
-          lwd = rep(2, 7))
-  if (k == 1) {
-    legend("topleft",
-           c("True","Yao","Kraus","Huber","Boente","M-est","M-est(smooth)"),
-           col = 1:7,
-           lty = 1:7,
-           lwd = rep(2, 7))
-  }
-}
-
-
-# gr <- work.grid
+# ### Eigen function trajectories
 # par(mfrow = c(2, 2))
-# # GA::persp3D(gr, gr, cov.true,
+# for (k in 1:4) {
+#   matplot(work.grid,
+#           cbind(
+#             eig.true[, k],
+#             check_eigen_sign(pca.yao.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(eig$vectors[, k], eig.true[, k]),
+#             check_eigen_sign(pca.huber.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(pca.boente.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(pca.Mest.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true)[, k]
+#           ),
+#           type = "l",
+#           col = 1:7,
+#           lty = 1:7,
+#           main = paste("Eigenfunction", k),
+#           xlab = "", ylab = "",
+#           lwd = rep(2, 7))
+#   if (k == 1) {
+#     legend("topleft",
+#            c("True","Yao","Kraus","Huber","Boente","M-est","M-est(smooth)"),
+#            col = 1:7,
+#            lty = 1:7,
+#            lwd = rep(2, 7))
+#   }
+# }
+# 
+# 
+# # gr <- work.grid
+# # par(mfrow = c(2, 2))
+# # # GA::persp3D(gr, gr, cov.true,
+# # #             theta = -70, phi = 30, expand = 1)
+# # GA::persp3D(gr, gr, cov.yao,
 # #             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.yao,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.huber,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.boente,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.Mest,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.Mest.sm,
-#             theta = -70, phi = 30, expand = 1)
+# # GA::persp3D(gr, gr, cov.huber,
+# #             theta = -70, phi = 30, expand = 1)
+# # GA::persp3D(gr, gr, cov.boente,
+# #             theta = -70, phi = 30, expand = 1)
+# # GA::persp3D(gr, gr, cov.Mest,
+# #             theta = -70, phi = 30, expand = 1)
+# # GA::persp3D(gr, gr, cov.Mest.sm,
+# #             theta = -70, phi = 30, expand = 1)
+# # par(mfrow = c(1, 1))
+# 
+# 
+# ### Completion
+# par(mfrow = c(3, 3))
+# cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+# cand <- cand[cand <= 80]   # exclude outlier curves
+# par(mfrow = c(2, 3))
+# cand <- c(1, 15, 19)
+# cand <- cand[c(17, 51)]
+# for (ind in cand) {
+#   pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
+#   pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
+#   pred_boente <- predict(pca.boente.obj, K = NULL)[ind, ]
+#   pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
+#   pred_Mest_sm <- predict(pca.Mest.sm.obj, K = NULL)[ind, ]
+#   pred_kraus <- pred.missfd(x[ind, ], x)
+#   pred_Mest_noise <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
+#   pred_Mest_sm_noise <- predict(pca.Mest.sm.noise.obj, K = NULL)[ind, ]
+#   
+#   is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
+#   if (is_snippets) {
+#     obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
+#     
+#     if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
+#       # start and end
+#       obs_range <- obs_range
+#     } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
+#       if (obs_range[1] > 1) {
+#         # start periods
+#         obs_range <- obs_range[1]
+#       } else if (obs_range[2] < n.grid) {
+#         # end periods
+#         obs_range <- obs_range[2]
+#       }
+#     }
+#   } else {
+#     # missing is in the middle.
+#     obs_range <- range(which(is.na(x[ind, ])))
+#     # include last observed point
+#     obs_range <- c(obs_range[1] - 1,
+#                    obs_range[2] + 1)
+#   }
+#   
+#   df <- cbind(
+#     x.2$x.full[ind, ],
+#     pred_missing_curve(x[ind, ], pred_yao),
+#     pred_kraus,
+#     pred_missing_curve(x[ind, ], pred_huber),
+#     pred_missing_curve(x[ind, ], pred_boente),
+#     pred_missing_curve(x[ind, ], pred_Mest),
+#     pred_missing_curve(x[ind, ], pred_Mest_noise),
+#     pred_missing_curve(x[ind, ], pred_Mest_sm),
+#     pred_missing_curve(x[ind, ], pred_Mest_sm_noise)
+#   )
+#   matplot(work.grid, df, type = "l",
+#           col = 1:9,
+#           lty = 1:9,
+#           lwd = rep(3, 9),
+#           xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
+#   abline(v = work.grid[obs_range],
+#          lty = 2, lwd = 2)
+#   grid()
+#   if (ind %in% cand[(0:6)*9 + 1]) {
+#     legend("topleft",
+#            c("True","Yao","Kraus","Huber","Boente",
+#              "M-est","M-est-noise","M-est(smooth)","M-est(smooth)-noise"),
+#            col = 1:9,
+#            lty = 1:9,
+#            lwd = rep(3, 9))
+#   }
+# }
 # par(mfrow = c(1, 1))
-
-
-### Completion
-par(mfrow = c(3, 3))
-cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-cand <- cand[cand <= 80]   # exclude outlier curves
-par(mfrow = c(2, 3))
-cand <- c(1, 15, 19)
-cand <- cand[c(17, 51)]
-for (ind in cand) {
-  pred_yao <- predict(pca.yao.obj, K = NULL)[ind, ]
-  pred_huber <- predict(pca.huber.obj, K = NULL)[ind, ]
-  pred_boente <- predict(pca.boente.obj, K = NULL)[ind, ]
-  pred_Mest <- predict(pca.Mest.obj, K = NULL)[ind, ]
-  pred_Mest_sm <- predict(pca.Mest.sm.obj, K = NULL)[ind, ]
-  pred_kraus <- pred.missfd(x[ind, ], x)
-  pred_Mest_noise <- predict(pca.Mest.noise.obj, K = NULL)[ind, ]
-  pred_Mest_sm_noise <- predict(pca.Mest.sm.noise.obj, K = NULL)[ind, ]
-  
-  is_snippets <- (max( diff( which(!is.na(x[ind, ])) ) ) == 1)
-  if (is_snippets) {
-    obs_range <- range(which(!is.na(x[ind, ])))   # index range of observed periods
-    
-    if ((obs_range[1] > 1) & (obs_range[2] < n.grid)) {
-      # start and end
-      obs_range <- obs_range
-    } else if ((obs_range[1] > 1) | (obs_range[2] < n.grid)) {
-      if (obs_range[1] > 1) {
-        # start periods
-        obs_range <- obs_range[1]
-      } else if (obs_range[2] < n.grid) {
-        # end periods
-        obs_range <- obs_range[2]
-      }
-    }
-  } else {
-    # missing is in the middle.
-    obs_range <- range(which(is.na(x[ind, ])))
-    # include last observed point
-    obs_range <- c(obs_range[1] - 1,
-                   obs_range[2] + 1)
-  }
-  
-  df <- cbind(
-    x.2$x.full[ind, ],
-    pred_missing_curve(x[ind, ], pred_yao),
-    pred_kraus,
-    pred_missing_curve(x[ind, ], pred_huber),
-    pred_missing_curve(x[ind, ], pred_boente),
-    pred_missing_curve(x[ind, ], pred_Mest),
-    pred_missing_curve(x[ind, ], pred_Mest_noise),
-    pred_missing_curve(x[ind, ], pred_Mest_sm),
-    pred_missing_curve(x[ind, ], pred_Mest_sm_noise)
-  )
-  matplot(work.grid, df, type = "l",
-          col = 1:9,
-          lty = 1:9,
-          lwd = rep(3, 9),
-          xlab = "", ylab = "", main = paste0(ind, "th trajectory"))
-  abline(v = work.grid[obs_range],
-         lty = 2, lwd = 2)
-  grid()
-  if (ind %in% cand[(0:6)*9 + 1]) {
-    legend("topleft",
-           c("True","Yao","Kraus","Huber","Boente",
-             "M-est","M-est-noise","M-est(smooth)","M-est(smooth)-noise"),
-           col = 1:9,
-           lty = 1:9,
-           lwd = rep(3, 9))
-  }
-}
-par(mfrow = c(1, 1))
 
 
