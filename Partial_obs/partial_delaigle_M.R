@@ -21,13 +21,14 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
+source("cov_local_M.R")
 
 
 #####################################
 ### Simulation Parameters
 #####################################
 num_sim <- 50   # number of simulations
-out_prop <- 0   # proportion of outliers
+out_prop <- 0.2   # proportion of outliers
 out_type <- 2   # type of outliers
 data_type <- "partial"   # type of functional data
 kernel <- "epanechnikov"   # kernel function for local smoothing
@@ -36,7 +37,7 @@ bw_boente <- 0.1   # bandwidth for Boente(2020) - Error occurs for small bw
 bw_M_sm <- 0.1   # bandwidth for M-est(smooth)
 n_cores <- 12   # number of threads for parallel computing
 pve <- 0.95   # Not used if K is given
-K <- NULL   # fixed number of PCs (If NULL, it is selected by PVE)
+K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
 
 
 #####################################
@@ -85,15 +86,15 @@ while (num.sim < num_sim) {
                       type = data_type,
                       out.prop = out_prop, 
                       out.type = out_type)
-  df <- data.frame(
-    id = factor(unlist(sapply(1:length(x.2$Lt), 
-                              function(id) { 
-                                rep(id, length(x.2$Lt[[id]])) 
-                              }) 
-    )),
-    y = unlist(x.2$Ly),
-    t = unlist(x.2$Lt)
-  )
+  # df <- data.frame(
+  #   id = factor(unlist(sapply(1:length(x.2$Lt), 
+  #                             function(id) { 
+  #                               rep(id, length(x.2$Lt[[id]])) 
+  #                             }) 
+  #   )),
+  #   y = unlist(x.2$Ly),
+  #   t = unlist(x.2$Lt)
+  # )
   # ggplot(df, aes(t, y, color = id)) +
   #   geom_line() +
   #   theme_bw() +
@@ -201,9 +202,9 @@ while (num.sim < num_sim) {
     # boente.obj.r <- efpca(X=x.3, ncpus=ncpus, opt.h.mu=bw, opt.h.cov=bw, rho.param=rho.param,
     #                       k = k, s = k, trace=FALSE, seed=seed, k.cv=k.cv, ncov=ncov,
     #                       max.kappa=max.kappa)
-    
+
     cov.boente.obj <- cov_boente(x.2, bw.mu = bw_boente, bw.cov = bw_boente)
-  }, error = function(e) { 
+  }, error = function(e) {
     print("Boente (2020) cov error")
     print(e)
     skip_sim <<- TRUE
@@ -214,6 +215,8 @@ while (num.sim < num_sim) {
   mu.boente <- cov.boente.obj$mu
   cov.boente <- cov.boente.obj$cov
   
+  # mu.boente <- mu.huber
+  # cov.boente <- cov.huber
   end_time <- Sys.time()
   print(paste0("Boente (2020) : ", 
                round(difftime(end_time, start_time, units = "secs"), 3),
@@ -232,9 +235,11 @@ while (num.sim < num_sim) {
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
-    cov.Mest.sm <- cov_Mest(x, smooth = T, bw = bw_M_sm)
-    cov.Mest.sm.noise <- cov_Mest(x, smooth = T, bw = bw_M_sm,
-                                  noise.var = noise_var)
+    cov.Mest.sm <- cov_local_M(x, h = 0.05)
+    cov.Mest.sm.noise <- cov.Mest.sm
+    # cov.Mest.sm <- cov_Mest(x, smooth = T)
+    # cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
+    #                               noise.var = noise_var)
   }, error = function(e) { 
     print("M-est cov error")
     print(e)
@@ -331,6 +336,7 @@ while (num.sim < num_sim) {
   if (is.null(K)) {
     mse_eigen[num.sim + 1, ] <- rep(NA, 7)
   } else {
+    # cov.true <- get_cov_fragm(work.grid, model = 2)
     eig.true <- get_delaigle_eigen(work.grid, model = 2)
     # calculate MSE
     mse_eigen[num.sim + 1, ] <- c(

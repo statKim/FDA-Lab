@@ -21,14 +21,15 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
+source("cov_local_M.R")
 
 
 #####################################
 ### Simulation Parameters
 #####################################
 num_sim <- 50   # number of simulations
-out_prop <- 0   # proportion of outliers
-out_type <- 1   # type of outliers
+out_prop <- 0.2   # proportion of outliers
+out_type <- 2   # type of outliers
 data_type <- "partial"   # type of functional data
 kernel <- "epanechnikov"   # kernel function for local smoothing
 # kernel <- "gauss"   # kernel function for local smoothing
@@ -83,15 +84,15 @@ while (num.sim < num_sim) {
                    type = data_type,
                    out.prop = out_prop, 
                    out.type = out_type)
-  df <- data.frame(
-    id = factor(unlist(sapply(1:length(x.2$Lt), 
-                              function(id) { 
-                                rep(id, length(x.2$Lt[[id]])) 
-                              }) 
-    )),
-    y = unlist(x.2$Ly),
-    t = unlist(x.2$Lt)
-  )
+  # df <- data.frame(
+  #   id = factor(unlist(sapply(1:length(x.2$Lt), 
+  #                             function(id) { 
+  #                               rep(id, length(x.2$Lt[[id]])) 
+  #                             }) 
+  #   )),
+  #   y = unlist(x.2$Ly),
+  #   t = unlist(x.2$Lt)
+  # )
   # ggplot(df, aes(t, y, color = id)) +
   #   geom_line() +
   #   theme_bw() +
@@ -230,9 +231,11 @@ while (num.sim < num_sim) {
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
-    cov.Mest.sm <- cov_Mest(x, smooth = T, bw = bw_M_sm)
-    cov.Mest.sm.noise <- cov_Mest(x, smooth = T, bw = bw_M_sm,
-                                  noise.var = noise_var)
+    cov.Mest.sm <- cov_local_M(x, h = 0.05)
+    cov.Mest.sm.noise <- cov.Mest.sm
+    # cov.Mest.sm <- cov_Mest(x, smooth = T)
+    # cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
+    #                               noise.var = noise_var)
   }, error = function(e) { 
     print("M-est cov error")
     print(e)
@@ -248,7 +251,7 @@ while (num.sim < num_sim) {
   
   # gr <- work.grid
   # par(mfrow = c(2, 3))
-  # cov.true <- get_cov_fragm(gr)
+  # cov.true <- cov(x.2$x.full)
   # GA::persp3D(gr, gr, cov.true,
   #             theta = -70, phi = 30, expand = 1)
   # GA::persp3D(gr, gr, cov.yao,
