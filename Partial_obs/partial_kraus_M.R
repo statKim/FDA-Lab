@@ -21,7 +21,6 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
-source("cov_local_M.R")
 
 
 #####################################
@@ -37,7 +36,7 @@ bw_boente <- 0.1   # bandwidth for Boente(2020) - Error occurs for small bw
 bw_M_sm <- 0.1   # bandwidth for M-est(smooth)
 n_cores <- 12   # number of threads for parallel computing
 pve <- 0.95   # Not used if K is given
-K <- NULL   # fixed number of PCs (If NULL, it is selected by PVE)
+K <- 5   # fixed number of PCs (If NULL, it is selected by PVE)
 
 
 #####################################
@@ -231,7 +230,7 @@ while (num.sim < num_sim) {
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
-    cov.Mest.sm <- cov_local_M(x, h = 0.05)
+    cov.Mest.sm <- cov_local_M(x, cv = T, ncores = n_cores)
     cov.Mest.sm.noise <- cov.Mest.sm
     # cov.Mest.sm <- cov_Mest(x, smooth = T)
     # cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
@@ -332,7 +331,7 @@ while (num.sim < num_sim) {
   if (is.null(K)) {
     mse_eigen[num.sim + 1, ] <- rep(NA, 7)
   } else {
-    eig.true <- get_delaigle_eigen(work.grid, model = 2)
+    eig.true <- get_eigen(cov(x.2$x.full), work.grid)$phi[, 1:K]
     # calculate MSE
     mse_eigen[num.sim + 1, ] <- c(
       mean((check_eigen_sign(pca.yao.obj$eig.fun, eig.true) - eig.true)^2),

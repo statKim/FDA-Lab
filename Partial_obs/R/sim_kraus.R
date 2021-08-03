@@ -6,7 +6,7 @@
 
 sim_kraus <- function(n = 100,
                       type = c("partial","snippet","sparse","dense"),
-                      num.comp = 5,
+                      num.comp = 100,
                       out.prop = 0.2, out.type = 1) {
   gr <- seq(0, 1, length.out = 51)
   

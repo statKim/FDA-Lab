@@ -8,27 +8,27 @@ get_kernel <- function(t_vec, t, bw, method = "epan") {
 }
 
 
-get_raw_cov <- function(x, 
+get_raw_cov <- function(X, 
                         mu = NULL, 
                         gr,
                         diag = FALSE,
                         engine = "C++") {
   # gr <- seq(0, 1, length.out = 51)
-  n <- nrow(x)
-  p <- ncol(x)
+  n <- nrow(X)
+  p <- ncol(X)
   
   if (is.null(mu)) {
-    mu <- mean_Mest(x)
+    mu <- mean_Mest(X)
   }
   
   if (engine == "C++") {
-    raw_cov <- get_raw_cov_cpp(x, mu, gr, diag)
+    raw_cov <- get_raw_cov_cpp(X, mu, gr, diag)
     raw_cov <- as.data.frame(raw_cov)
   } else if (engine == "R") {
     for (i in 1:n) {
-      ind <- which(!is.na(x[i, ]))
+      ind <- which(!is.na(X[i, ]))
       gr_sub <- gr[ind]
-      x_sub <- x[i, ind] - mu[ind]
+      x_sub <- X[i, ind] - mu[ind]
       
       exp_grid <- expand.grid(gr_sub, gr_sub)
       exp_x <- expand.grid(x_sub, x_sub)
@@ -40,28 +40,32 @@ get_raw_cov <- function(x,
         
         if (i == 1) {
           raw_cov <- cbind(cov_i,
-                           exp_grid[-idx, ])
+                           exp_grid[-idx, ],
+                           i)
         } else {
           raw_cov <- rbind(raw_cov,
                            cbind(cov_i,
-                                 exp_grid[-idx, ]))
+                                 exp_grid[-idx, ],
+                                 i))
         }
       } else {
         cov_i <- exp_x[, 1] * exp_x[, 2]
         
         if (i == 1) {
           raw_cov <- cbind(cov_i,
-                           exp_grid)
+                           exp_grid,
+                           i)
         } else {
           raw_cov <- rbind(raw_cov,
                            cbind(cov_i,
-                                 exp_grid))
+                                 exp_grid,
+                                 i))
         }
       }
     }
   }
 
-  colnames(raw_cov) <- c("cov","s","t")
+  colnames(raw_cov) <- c("cov","s","t","ind")
   
   return(raw_cov)  
 }
@@ -72,7 +76,8 @@ cov_local_M <- function(x,
                         h = 0.02,
                         grid = NULL,
                         diag = FALSE,
-                        engine = "R") {
+                        raw_cov = NULL,
+                        engine = "C++") {
   if (is.null(grid)) {
     gr <- seq(0, 1, length.out = ncol(x))
   } else {
@@ -80,12 +85,14 @@ cov_local_M <- function(x,
   }
   p <- length(gr)
   
-  # raw covariance
-  raw_cov <- get_raw_cov(x, 
-                         mu = NULL, 
-                         gr = gr,
-                         diag = diag,
-                         engine = engine)
+  # raw covariance object from "get_raw_cov" function
+  if (is.null(raw_cov)) {
+    raw_cov <- get_raw_cov(x, 
+                           mu = NULL, 
+                           gr = gr,
+                           diag = diag,
+                           engine = engine)
+  }
   s <- raw_cov$s
   t <- raw_cov$t
   raw_cov <- raw_cov$cov
@@ -128,13 +135,13 @@ cov_local_M <- function(x,
     }
   }
 
-  # # make positive definite
-  # eig <- get_eigen(cov_mat, gr)
-  # lambda <- eig$lambda
-  # idx_positive <- which(lambda > 0)
-  # lambda <- lambda[idx_positive]
-  # phi <- eig$phi[, idx_positive]
-  # cov_mat <- phi %*% diag(lambda, ncol = length(idx_positive)) %*% t(phi)
+  # make positive definite
+  eig <- get_eigen(cov_mat, gr)
+  lambda <- eig$lambda
+  idx_positive <- which(lambda > 0)
+  lambda <- lambda[idx_positive]
+  phi <- eig$phi[, idx_positive]
+  cov_mat <- phi %*% diag(lambda, ncol = length(idx_positive)) %*% t(phi)
   
   return(cov_mat)  
 }
@@ -197,8 +204,104 @@ cov_local_M <- function(x,
 
 
 
+### Robust K-fold cross-validation
+### - Based on Huber loss
+cv.cov_local_M <- function(X,
+                           bw_cand = NULL,
+                           K = 5,
+                           ncores = 1,
+                           delta = 1.345,
+                           engine = "C++") {
+  
+  if (is.list(X)) {
+    gr <- sort(unique(unlist(X$Lt)))
+    X <- list2matrix(X)
+  } else {
+    gr <- seq(0, 1, length.out = ncol(X))
+  }
+  
+  n <- nrow(X)
+  p <- ncol(X)
+  
+  # raw covariance
+  mu <- mean_Mest(X)
+  cov_raw <- get_raw_cov(X, 
+                         mu = mu, 
+                         gr = gr,
+                         diag = FALSE,
+                         engine = engine)
+  
+  gr_expand <- expand.grid(gr, gr)   # dataframe type
+  colnames(gr_expand) <- c("s","t")
+  
+  # bandwidth candidates
+  if (is.null(bw_cand)) {
+    a <- min(gr)
+    b <- max(gr)
+    bw_cand <- seq(min(diff(gr))*1.5, (b-a)/3, length.out = 5)
+    # bw_cand <- 10^seq(-2, 0, length.out = 10) * (b - a)/3
+  }
+  
+  # get index for each folds
+  folds <- list()
+  fold_num <- n %/% K   # the number of curves for each folds
+  fold_sort <- sample(1:n, n)
+  for (k in 1:K) {
+    ind <- (fold_num*(k-1)+1):(fold_num*k)
+    if (k == K) {
+      ind <- (fold_num*(k-1)+1):n
+    }
+    folds[[k]] <- fold_sort[ind]
+  }
+  
+  # K-fold cross-validation
+  cv_error <- rep(0, length(bw_cand))
+  for (k in 1:K) {
+    # data of kth fold
+    X_train <- X[-folds[[k]], ]
+    X_test <- X[folds[[k]], ]
+    cov_train <- cov_raw[-which(cov_raw$ind %in% folds[[k]]), ]   # dataframe type
+    cov_test <- cov_raw[which(cov_raw$ind %in% folds[[k]]), ]   # dataframe type
+    
+    for (i in 1:length(bw_cand)) {
+      # smoothed covariance without ith curve
+      cov_sm <- cov_local_M(X_train, 
+                            h = bw_cand[i],
+                            grid = gr,
+                            raw_cov = cov_train,
+                            diag = FALSE,
+                            engine = engine)
+      
+      cov_sm <- cbind(gr_expand,
+                      cov_sm = as.numeric(cov_sm))   # dataframe type
+      
+      df <- dplyr::left_join(cov_test,
+                             cov_sm[cov_sm$s != cov_sm$t, ],   # remove diagonal parts
+                             by = c("s","t"))
+      
+      # robust loss (Huber loss)
+      a <- abs(df$cov - df$cov_sm)
+      err_huber <- ifelse(a > delta, delta*(a - delta/2), a^2/2)
+      cv_error[i] <- cv_error[i] + sum(err_huber)/K
+    }
+  }
+  
+  bw <- list(selected_bw = bw_cand[ which.min(cv_error) ],
+             cv.error = data.frame(bw = bw_cand,
+                                   error = cv_error))
+  
+  return(bw)
+}
+  
 
-cv.cov_local_M <- function(x,
+  
+
+
+
+
+
+
+loocv.cov_local_M <- function(x,
                            bw_cand = NULL,
                            ncores = 1) {
   if (is.list(x)) {
@@ -227,9 +330,13 @@ cv.cov_local_M <- function(x,
   for (i in 1:n) {
     print(i)
     # obtain the raw covariance of ith curve
-    curve_i <- matrix(x[i, ], nrow = 1)
+    X_i <- matrix(x[i, ], nrow = 1)
     ind_not_na <- which(!is.na(x[i, ]))
-    cov_raw <- get_raw_cov(curve_i, mu, diag = TRUE)
+    cov_raw <- get_raw_cov(X_i, 
+                           mu = mu, 
+                           gr = gr,
+                           diag = FALSE,
+                           engine = "C++")
     cov_raw <- matrix(cov_raw$cov, ncol = length(ind_not_na))
     diag(cov_raw) <- 0
     
@@ -237,7 +344,9 @@ cv.cov_local_M <- function(x,
       # smoothed covariance without ith curve
       cov_sm <- cov_local_M(x[-i, ], 
                             h = bw_cand[j],
-                            grid = gr[ind_not_na])
+                            grid = gr[ind_not_na],
+                            diag = FALSE,
+                            engine = "R")
       diag(cov_sm) <- 0
       cv_error[i, j] <- mean((cov_sm - cov_raw)^2)
     }
@@ -254,7 +363,7 @@ cv.cov_local_M <- function(x,
                                    error = cv_error))
   
   return(bw)
-  
+}
   
   # # element-wise covariances
   # st <- expand.grid(gr, gr)
@@ -357,7 +466,7 @@ cv.cov_local_M <- function(x,
   # }
   # 
   # return(bw)
-}
+
 
 
 # cv.cov_local_M(x)

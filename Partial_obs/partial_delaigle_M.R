@@ -21,7 +21,6 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
-source("cov_local_M.R")
 
 
 #####################################
@@ -235,7 +234,7 @@ while (num.sim < num_sim) {
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
-    cov.Mest.sm <- cov_local_M(x, h = 0.05)
+    cov.Mest.sm <- cov_local_M(x, cv = T, ncores = n_cores)
     cov.Mest.sm.noise <- cov.Mest.sm
     # cov.Mest.sm <- cov_Mest(x, smooth = T)
     # cov.Mest.sm.noise <- cov_Mest(x, smooth = T,

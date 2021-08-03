@@ -91,18 +91,20 @@ NumericMatrix get_raw_cov_cpp(NumericMatrix X,
                               bool diag = false) {
   int n = X.rows();
   int p = X.cols();
-  IntegerVector ind_vec = seq(0, p-1);
+  // IntegerVector ind_vec = seq(0, p-1);
+  LogicalVector ind(p);
   
   NumericMatrix raw_cov;
   for (int i = 0; i < n; i++) {
-    IntegerVector ind = ind_vec[!is_na(X.row(i))];
-    NumericVector gr_sub = gr[ind];
+    // IntegerVector ind = ind_vec[!is_na(X.row(i))];
+    ind = !is_na(X.row(i));
+    NumericVector gr_i = gr[ind];
     NumericVector X_i = X.row(i);
-    NumericVector mu_sub = mu[ind];
+    NumericVector mu_i = mu[ind];
     X_i = X_i[ind];
-    X_i = X_i - mu_sub;
+    X_i = X_i - mu_i;
     
-    NumericMatrix exp_grid = expand_grid_cpp(gr_sub, gr_sub);
+    NumericMatrix exp_grid = expand_grid_cpp(gr_i, gr_i);
     NumericMatrix exp_X_i = expand_grid_cpp(X_i, X_i);
     NumericVector exp_grid_1 = exp_grid.column(0);
     NumericVector exp_grid_2 = exp_grid.column(1);
@@ -117,10 +119,11 @@ NumericMatrix get_raw_cov_cpp(NumericMatrix X,
       NumericVector exp_grid_2_sub = exp_grid_2[idx];
       
       // We use "cbind" in Rcpp, so we should transpose it.
-      NumericMatrix raw_cov_i(3, cov_i.length());
+      NumericMatrix raw_cov_i(4, cov_i.length());
       raw_cov_i(0, _) = cov_i;
       raw_cov_i(1, _) = exp_grid_1_sub;
       raw_cov_i(2, _) = exp_grid_2_sub;
+      raw_cov_i(3, _) = rep(i+1, cov_i.length());   // index of curve
       
       if (i == 0) {
         raw_cov = raw_cov_i;
@@ -131,10 +134,11 @@ NumericMatrix get_raw_cov_cpp(NumericMatrix X,
       NumericVector cov_i = exp_X_i.column(0) * exp_X_i.column(1);
       
       // We use "cbind" in Rcpp, so we should transpose it.
-      NumericMatrix raw_cov_i(3, cov_i.length());
+      NumericMatrix raw_cov_i(4, cov_i.length());
       raw_cov_i(0, _) = cov_i;
       raw_cov_i(1, _) = exp_grid_1;
       raw_cov_i(2, _) = exp_grid_2;
+      raw_cov_i(3, _) = rep(i, cov_i.length());
       
       if (i == 0) {
         raw_cov = raw_cov_i;
@@ -159,22 +163,17 @@ NumericMatrix cov_local_M_cpp(NumericVector raw_cov,
                               NumericVector gr,
                               double h = 0.02) {
   int p = gr.length();
-  IntegerVector idx = seq(0, s.length()-1);
-  
-  // IntegerVector i_neighbor;
-  // IntegerVector j_neighbor;
-  // IntegerVector ind;
-  // NumericVector raw_cov_sub;
+  LogicalVector i_neighbor(s.length());
+  LogicalVector j_neighbor(s.length());
+  LogicalVector ind(s.length());
   NumericMatrix cov_mat(p, p);
   for (int i = 0; i < p; i++) {
-    IntegerVector i_neighbor = idx[s < gr[i] + h & s > gr[i] - h];
+    i_neighbor = abs(s - gr[i]) < h;
     
     for (int j = 0; j < p; j++) {
       if (i <= j) {
-        IntegerVector j_neighbor = idx[t < gr[j] + h & t > gr[j] - h];
-
-        IntegerVector ind = intersect(i_neighbor, j_neighbor);
-        // ind = idx[t < gr[j] + h & t > gr[j] - h & s < gr[i] + h & s > gr[i] - h];
+        j_neighbor = abs(t - gr[j]) < h;
+        ind = i_neighbor * j_neighbor;
         NumericVector raw_cov_sub = raw_cov[ind];
         
         cov_mat(i, j) = huber_cpp(raw_cov_sub);
@@ -193,15 +192,16 @@ NumericMatrix cov_local_M_cpp(NumericVector raw_cov,
 // 
 // /*** R
 // x <- matrix(c(1,NA,NA,10,2,3,4,NA), nrow = 2)
-// set.seed(100)
-// x <- matrix(rnorm(510), ncol = 51)
-// gr <- seq(0, 1, length.out = 51)
-// x.2 <- sim_delaigle(n = ,
-//                     model = 2,
-//                     type = data_type,
-//                     out.prop = out_prop,
-//                     out.type = out_type)
-// x <- list2matrix(x.2)
+// get_raw_cov_cpp(x, rep(0, 4), seq(0, 1, length.out = 4), FALSE)
+// # set.seed(100)
+// # x <- matrix(rnorm(510), ncol = 51)
+// # gr <- seq(0, 1, length.out = 51)
+// # x.2 <- sim_delaigle(n = ,
+// #                     model = 2,
+// #                     type = data_type,
+// #                     out.prop = out_prop,
+// #                     out.type = out_type)
+// # x <- list2matrix(x.2)
 // 
 // # system.time({
 // #   raw_cov <- get_raw_cov_cpp(x,
@@ -217,10 +217,20 @@ NumericMatrix cov_local_M_cpp(NumericVector raw_cov,
 // #   a2 <- test(x, 0.1, gr)
 // # })
 // 
-// all.equal(a1, a2)
+// # all.equal(a1, a2)
 // 
 // # GA::persp3D(gr, gr, a1,
 // #             theta = -70, phi = 30, expand = 1)
 // # GA::persp3D(gr, gr, a2,
 // #             theta = -70, phi = 30, expand = 1)
+// # system.time({
+// #   cov_mat <- cov_local_M_cpp(raw_cov = raw_cov,
+// #                              s = s,
+// #                              t = t,
+// #                              gr = gr,
+// #                              h = 0.05)
+// # 
+// # })
+// 
+// 
 // */
