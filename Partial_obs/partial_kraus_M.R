@@ -223,6 +223,7 @@ while (num.sim < num_sim) {
   registerDoRNG(seed)
   tryCatch({
     mu.Mest <- mean_Mest(x)
+    mu.Mest.sm <- mean_Mest(x, smooth = TRUE)
     noise_var <- sigma2.rob(x.2$Lt, x.2$Ly)   # robust noise variance estimator
     
     # Not smoothed M-est
@@ -230,11 +231,11 @@ while (num.sim < num_sim) {
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     
     # smoothed M-est
-    cov.Mest.sm <- cov_local_M(x, cv = T, ncores = n_cores)
-    cov.Mest.sm.noise <- cov.Mest.sm
-    # cov.Mest.sm <- cov_Mest(x, smooth = T)
-    # cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
-    #                               noise.var = noise_var)
+    # cov.Mest.sm <- cov_local_M(x, cv = T, ncores = n_cores)
+    # cov.Mest.sm.noise <- cov.Mest.sm
+    cov.Mest.sm <- cov_Mest(x, smooth = T)
+    cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
+                                  noise.var = noise_var)
   }, error = function(e) { 
     print("M-est cov error")
     print(e)
@@ -303,14 +304,14 @@ while (num.sim < num_sim) {
                          mu.Mest, cov.Mest, sig2 = 1e-6,
                          work.grid, PVE = pve, K = K)
   pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
-                            mu.Mest, cov.Mest.sm, sig2 = 1e-6,
+                            mu.Mest.sm, cov.Mest.sm, sig2 = 1e-6,
                             work.grid, PVE = pve, K = K)
   # consider noise var
   pca.Mest.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
                                mu.Mest, cov.Mest.noise, sig2 = noise_var,
                                work.grid, PVE = pve, K = K)
   pca.Mest.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
-                                  mu.Mest, cov.Mest.sm.noise, sig2 = noise_var,
+                                  mu.Mest.sm, cov.Mest.sm.noise, sig2 = noise_var,
                                   work.grid, PVE = pve, K = K)
   
   # ## Kraus (2015) - just obtain PVE and K
