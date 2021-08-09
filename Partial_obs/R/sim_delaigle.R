@@ -102,6 +102,27 @@ sim_delaigle <- function(n = 100, model = 2,
     x.outlier <- make_outlier(x.outlier, out.type = out.type)
     x$Ly[(n-n.outlier+1):n] <- x.outlier$Ly
     # x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
+  } else if (out.type == 4) {
+    # x.outlier <- mvtnorm::rmvt(n = n.outlier, 
+    #                            delta = rep(0, m), 
+    #                            sigma = cov_sim, 
+    #                            df = 1)
+    # idx <- lapply(x$Lt[(n-n.outlier+1):n], function(t) { 
+    #   which(t %in% gr) 
+    # })
+    # x$Ly[(n-n.outlier+1):n] <- lapply(1:n.outlier, function(i) { 
+    #   x.outlier[i, idx[[i]]] 
+    # })
+    x.outlier <- rep(gr, each = n) + mvtnorm::rmvt(n = n, 
+                                                   sigma = cov_sim, 
+                                                   df = 1)
+    idx <- lapply(x$Lt, function(t) { 
+      which(t %in% gr) 
+    })
+    x$Ly <- lapply(1:n, function(i) { 
+      x.outlier[i, idx[[i]]] 
+    })
+    x$x.full <- x.outlier
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))
   }
