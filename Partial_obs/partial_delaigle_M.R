@@ -26,9 +26,9 @@ source("Boente_cov.R")
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 50   # number of simulations
+num_sim <- 10   # number of simulations
 out_prop <- 0.2   # proportion of outliers
-out_type <- 2   # type of outliers
+out_type <- 6   # type of outliers
 data_type <- "partial"   # type of functional data
 kernel <- "epanechnikov"   # kernel function for local smoothing
 # kernel <- "gauss"   # kernel function for local smoothing
@@ -213,6 +213,8 @@ while (num.sim < num_sim) {
   }
   mu.boente <- cov.boente.obj$mu
   cov.boente <- cov.boente.obj$cov
+  # noise var from source code of sparseFPCA package
+  noise_boente <- eigen(cov.boente)$values[1] / (1e3 - 1)
   
   # mu.boente <- mu.huber
   # cov.boente <- cov.huber
@@ -301,7 +303,7 @@ while (num.sim < num_sim) {
                           work.grid, PVE = pve, K = K)
   # Boente
   pca.boente.obj <- funPCA(x.2$Lt, x.2$Ly, 
-                           mu.boente, cov.boente, sig2 = 1e-6, 
+                           mu.boente, cov.boente, sig2 = noise_boente, 
                            work.grid, PVE = pve, K = K)
   # M-est
   pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly,

@@ -123,12 +123,44 @@ sim_delaigle <- function(n = 100, model = 2,
       x.outlier[i, idx[[i]]] 
     })
     x$x.full <- x.outlier
+  } else if (out.type == 5) {
+    eps2 <- 0.3
+    x.outlier <- lapply(x$Ly[(n-n.outlier+1):n], function(y) {
+      m <- length(y)
+      W_s <- rbinom(m, 1, eps2)
+      z_s <- rnorm(m, 30, 0.1)
+      Y <- W_s*z_s
+      
+      X_i <- y + Y
+      return(X_i)
+    })
+    x$Ly[(n-n.outlier+1):n] <- x.outlier
+  } else if (out.type == 6) {
+    # l <- 1/15
+    l <- 1/10
+    M <- 30
+    for (i in (n-n.outlier+1):n) {
+      Ly <- x$Ly[[i]]
+      Lt <- x$Lt[[i]]
+      
+      D_i <- sample(c(1, -1), 1)
+      
+      out_ind <- integer(0)   # just make the variable
+      while (length(out_ind) == 0) {
+        T_i <- runif(1, 0, 1-l)
+        out_ind <- which(Lt > T_i & Lt < T_i+l)
+      }
+      
+      Ly[out_ind] <- Ly[out_ind] + D_i*M
+      x$Ly[[i]] <- Ly
+    }
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))
   }
   
   return(x)
 }
+
 
 ### Generate outlying curves
 make_outlier <- function(x, out.type = 1) {

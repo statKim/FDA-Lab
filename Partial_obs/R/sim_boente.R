@@ -109,18 +109,14 @@ sim_boente <- function(n = 100,
 boente_model_1 <- function(n, m, gr, outlier, eps1 = 0.2) {
   X <- matrix(0, n, m)
   y <- rep(0, m)   # outlier indicator (if outlier, then 1, else 0)
+  
+  mu <- 5 + 10*sin(4*pi*gr)*exp(-2*gr) + 5*sin(pi*gr/3) + 2*cos(pi*gr/2)
+  phi_1 <- sqrt(2)*cos(2*pi*gr)
+  phi_2 <- sqrt(2)*sin(2*pi*gr)
+  
   for (i in 1:n) {
     xi_1 <- rnorm(1, 0, 5/2)
     xi_2 <- rnorm(1, 0, 1/2)
-    mu <- sapply(gr, function(t) {
-      5 + 10*sin(4*pi*t)*exp(-2*t) + 5*sin(pi*t/3) + 2*cos(pi*t/2)
-    })
-    phi_1 <- sapply(gr, function(t) {
-      sqrt(2)*cos(2*pi*t)
-    })
-    phi_2 <- sapply(gr, function(t) {
-      sqrt(2)*sin(2*pi*t)
-    })
     z <- rnorm(1, 0, 1)
     
     X_i <- 10 + mu + xi_1*phi_1 + xi_2*phi_2 + z
@@ -153,18 +149,14 @@ boente_model_1 <- function(n, m, gr, outlier, eps1 = 0.2) {
 boente_model_2 <- function(n, m, gr, outlier, eps1 = 0.2) {
   X <- matrix(0, n, m)
   y <- rep(0, m)   # outlier indicator (if outlier, then 1, else 0)
+  
+  mu <- 5 + 10*sin(4*pi*gr)*exp(-2*gr) + 5*sin(pi*gr/3) + 2*cos(pi*gr/2)
+  phi_1 <- sqrt(2)*cos(2*pi*gr)
+  phi_2 <- sqrt(2)*sin(2*pi*gr)
+  
   for (i in 1:n) {
     xi_1 <- rnorm(1, 0, 5/2)
     xi_2 <- rnorm(1, 0, 1/2)
-    mu <- sapply(gr, function(t) {
-      5 + 10*sin(4*pi*t)*exp(-2*t) + 5*sin(pi*t/3) + 2*cos(pi*t/2)
-    })
-    phi_1 <- sapply(gr, function(t) {
-      sqrt(2)*cos(2*pi*t)
-    })
-    phi_2 <- sapply(gr, function(t) {
-      sqrt(2)*sin(2*pi*t)
-    })
     z <- rnorm(1, 0, 1)
     
     X_i <- 150 - 2*mu + xi_1*phi_1 + xi_2*phi_2 + z
@@ -196,6 +188,7 @@ boente_model_2 <- function(n, m, gr, outlier, eps1 = 0.2) {
 
 
 boente_model_3 <- function(n, m, gr, outlier, eps1 = 0.2) {
+  gr <- gr + 0.01   # avoid mad = 0 for 1st timepoint(t = 0)
   y <- rep(0, m)   # outlier indicator (if outlier, then 1, else 0)
   
   # covariance kernel
