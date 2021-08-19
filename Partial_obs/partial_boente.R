@@ -21,27 +21,13 @@ source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
 
-noise_var_M <- function(raw_cov, sm_cov, gr) {
-  d <- (max(gr) - min(gr))
-  t_inf <- min(gr) + d/4
-  t_sup <- max(gr) - d/4
-  
-  idx <- which(gr >= t_inf & gr <= t_sup)
-  T_1 <- gr[idx]
-  V <- diag(raw_cov) - diag(sm_cov)
-  V <- V[idx]
-  
-  noise_var <- trapzRcpp(T_1, V) * (2 / d)
-  
-  return(noise_var)
-}
 
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 10   # number of simulations
+num_sim <- 20   # number of simulations
 out_prop <- 0.2   # proportion of outliers
-model <- 1   # type of outliers
+model <- 4   # type of outliers
 data_type <- "partial"   # type of functional data
 kernel <- "epanechnikov"   # kernel function for local smoothing
 # kernel <- "gauss"   # kernel function for local smoothing
@@ -150,7 +136,8 @@ while (num.sim < num_sim) {
     cov.Mest.sm <- cov_Mest(x, smooth = T)
     
     # adjust noise
-    noise_var <- noise_var_M(cov.Mest, cov.Mest.sm, work.grid)
+    # noise_var <- noise_var_M(cov.Mest, cov.Mest.sm, work.grid)
+    noise_var <- 1
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
                                   noise.var = noise_var)
@@ -476,8 +463,7 @@ data.frame(Method = c("Yao",
       format(round(apply(mse_eigen, 2, sd), 2), 2),
       ")"
     )
-  ), by = "Method") %>% 
-  xtable()
+  ), by = "Method")
 
 
 

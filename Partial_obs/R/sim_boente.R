@@ -21,6 +21,8 @@ sim_boente <- function(n = 100,
     obj <- boente_model_2(n, m, gr, outlier, eps1)
   } else if (model == 3) {
     obj <- boente_model_3(n, m, gr, outlier, eps1)
+  } else if (model == 4) {
+    obj <- boente_model_4(n, m, gr, outlier, eps1)
   } else {
     stop(paste("model =", model, "is not supported."))
   }
@@ -222,3 +224,43 @@ boente_model_3 <- function(n, m, gr, outlier, eps1 = 0.2) {
               phi = phi))
 }
 
+
+# model1 + 아래로도 outlier 존재하도록 한 것
+boente_model_4 <- function(n, m, gr, outlier, eps1 = 0.2) {
+  X <- matrix(0, n, m)
+  y <- rep(0, m)   # outlier indicator (if outlier, then 1, else 0)
+  
+  mu <- 5 + 10*sin(4*pi*gr)*exp(-2*gr) + 5*sin(pi*gr/3) + 2*cos(pi*gr/2)
+  phi_1 <- sqrt(2)*cos(2*pi*gr)
+  phi_2 <- sqrt(2)*sin(2*pi*gr)
+  
+  for (i in 1:n) {
+    xi_1 <- rnorm(1, 0, 5/2)
+    xi_2 <- rnorm(1, 0, 1/2)
+    z <- rnorm(1, 0, 1)
+    
+    X_i <- 10 + mu + xi_1*phi_1 + xi_2*phi_2 + z
+    
+    # Contaminated trajectories
+    if (outlier == TRUE) {
+      # eps1 <- 0.2
+      eps2 <- 0.3
+      V <- rbinom(1, 1, eps1)
+      y[i] <- V   # outlier indicator
+      
+      W_s <- rbinom(m, 1, eps2)
+      z_s <- rnorm(m, 30, 0.1)
+      pm <- sample(c(-1, 1), 1)
+      Y <- W_s*z_s*pm
+      
+      X_i <- X_i + V*Y
+    }
+    
+    X[i, ] <- X_i
+  }
+  
+  return(list(X = X,
+              y = y,
+              phi = cbind(phi_1, 
+                          phi_2)))
+}
