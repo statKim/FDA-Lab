@@ -295,16 +295,19 @@ for (sim in 1:num_sim) {
   
   ### Outlier detection
   for (i in 1:6) {
+    # Outlier map (Score dist VS Orthogonal dist), See Hubert(2005)
     SD <- score_dist(pca.est[[sim]]$pca.obj[[i]])   # score distance
     OD <- orthogonal_dist(pca.boente.obj, x)   # orthogonal distance
-    mcd_fit <- covMcd(OD)
+    # mcd_fit <- covMcd(OD^(2/3))
+    mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
     cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
     cut_x <- sqrt(qchisq(0.975, k))
     
     y_hat <- rep(0, n)
     y_hat[which(SD > cut_x & OD > cut_y)] <- 1
-    # y_hat[which(SD > cut_x)] <- 1
-    
+
+    # # Boxplot for Score distance    
+    # SD <- score_dist(pca.est[[sim]]$pca.obj[[i]])   # score distance
     # cut_off <- boxplot(SD, plot = F)$stats[5, 1]
     # 
     # y_hat <- rep(0, n)
@@ -332,8 +335,8 @@ par(mfrow = c(2, 3))
 for (i in 1:6) {
   SD <- score_dist(pca.est[[sim]]$pca.obj[[i]])   # score distance
   OD <- orthogonal_dist(pca.boente.obj, x)   # orthogonal distance
-  # mcd_fit <- covMcd(OD)
-  mcd_fit <- cov.mcd(matrix(OD))
+  mcd_fit <- covMcd(OD^(2/3))
+  # mcd_fit <- cov.mcd(matrix(OD^(2/3)))
   cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
   cut_x <- sqrt(qchisq(0.975, k))
   
@@ -356,3 +359,167 @@ covMcd(OD)
 plot(sqrt(SD*OD), col = x.2$y+1)
 boxplot(SD*OD)
 adjbox(SD*OD)
+
+
+
+
+
+### Completion한 다음에 outlier detection
+# Mah, Hu 제외한 경우에 sensitivity = 0
+library(rainbow)
+sens_list <- list()
+spec_list <- list()
+for (sim in 1:num_sim) {
+  x.2 <- pca.est[[sim]]$x.2
+  x <- list2matrix(x.2)
+  k <- pca.est[[sim]]$pca.obj[[1]]$K
+  y <- x.2$y   # true outlier index
+  
+  # repeat with each PCA methods
+  for (m in 1:6) {
+    print(paste(sim, "-", m))
+    # reconstruction
+    recon_mat <- predict(pca.est[[sim]]$pca.obj[[m]], K = NULL)
+    
+    # make matrix of complete curve
+    X_comp <- x
+    rownames(X_comp) <- 1:n
+    colnames(X_comp) <- gr
+    for (i in 1:n) {
+      X_i <- x[i, ]
+      X_i_hat <- recon_mat[i, ]
+      
+      idx_miss <- which(is.na(X_i))
+      if (length(idx_miss) > 0) {
+        X_comp[i, idx_miss] <- X_i_hat[idx_miss]
+      }
+    }
+    
+    # outlier detection using complete curves
+    fds.obj <- fds(x = gr,
+                   y = t(X_comp), 
+                   xname = "Time", yname = "Value")
+    fout <- list()
+    fout[[1]] <- foutliers(data = fds.obj, method = "robMah")$outliers
+    fout[[2]] <- foutliers(data = fds.obj, method = "lrt")$outliers
+    fout[[3]] <- foutliers(data = fds.obj, method = "depth.trim")$outliers
+    fout[[4]] <- foutliers(data = fds.obj, method = "depth.pond")$outliers
+    fout[[5]] <- as.numeric( foutliers(data = fds.obj, method = "HUoutliers")$outliers )
+    
+    # summary outlier detection
+    sens <- numeric(5)
+    spec <- numeric(5)
+    for (j in 1:5) {
+      y_hat <- rep(0, n)
+      y_hat[fout[[j]]] <- 1
+      
+      sens[j] <- caret::sensitivity(factor(y_hat, levels = c(1, 0)), 
+                                    factor(y, levels = c(1, 0)))
+      spec[j] <- caret::specificity(factor(y_hat, levels = c(1, 0)), 
+                                    factor(y, levels = c(1, 0)))
+    }
+
+    # save result
+    if (sim == 1) {
+      names(sens) <- c("Mah","LRT","DTR","DWE","HU")
+      names(spec) <- c("Mah","LRT","DTR","DWE","HU")
+      sens_list[[m]] <- sens
+      spec_list[[m]] <- spec
+    } else {
+      sens_list[[m]] <- rbind(sens_list[[m]],
+                              sens)
+      spec_list[[m]] <- rbind(spec_list[[m]],
+                              spec)
+    }
+  }
+}
+
+sapply(sens_list, colMeans)[c(1, 5), ]
+sapply(spec_list, colMeans)[c(1, 5), ]
+
+
+
+
+### Outlier detection
+library(rainbow)
+sens_list <- list()
+spec_list <- list()
+for (sim in 1:num_sim) {
+  x.2 <- pca.est[[sim]]$x.2
+  x <- list2matrix(x.2)
+  k <- pca.est[[sim]]$pca.obj[[1]]$K
+  y <- x.2$y   # true outlier index
+  
+  # repeat with each PCA methods
+  for (m in 1:6) {
+    print(paste(sim, "-", m))
+    # reconstruction
+    recon_mat <- predict(pca.est[[sim]]$pca.obj[[m]], K = NULL)
+    
+    # make matrix of complete curve
+    X_comp <- x
+    rownames(X_comp) <- 1:n
+    colnames(X_comp) <- gr
+    for (i in 1:n) {
+      X_i <- x[i, ]
+      X_i_hat <- recon_mat[i, ]
+      
+      idx_miss <- which(is.na(X_i))
+      if (length(idx_miss) > 0) {
+        X_comp[i, idx_miss] <- X_i_hat[idx_miss]
+      }
+    }
+    
+    # outlier detection using complete curves
+    fds.obj <- fds(x = gr,
+                   y = t(X_comp), 
+                   xname = "Time", yname = "Value")
+    fout <- list()
+    fout[[1]] <- foutliers(data = fds.obj, method = "robMah")$outliers
+    # fout[[2]] <- foutliers(data = fds.obj, method = "lrt")$outliers
+    # fout[[3]] <- foutliers(data = fds.obj, method = "depth.trim")$outliers
+    # fout[[4]] <- foutliers(data = fds.obj, method = "depth.pond")$outliers
+    fout[[2]] <- as.numeric( foutliers(data = fds.obj, method = "HUoutliers")$outliers )
+    
+    
+    # Outlier map (Score dist VS Orthogonal dist), See Hubert(2005)
+    SD <- score_dist(pca.est[[sim]]$pca.obj[[m]])   # score distance
+    OD <- orthogonal_dist(pca.boente.obj, x)   # orthogonal distance
+    # mcd_fit <- covMcd(OD^(2/3))
+    mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
+    cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
+    cut_x <- sqrt(qchisq(0.975, k))
+    fout[[3]] <- which(SD > cut_x & OD > cut_y)
+    
+    
+    # summary outlier detection
+    sens <- numeric(length(fout))
+    spec <- numeric(length(fout))
+    for (j in 1:length(fout)) {
+      y_hat <- rep(0, n)
+      y_hat[fout[[j]]] <- 1
+      
+      sens[j] <- caret::sensitivity(factor(y_hat, levels = c(1, 0)), 
+                                    factor(y, levels = c(1, 0)))
+      spec[j] <- caret::specificity(factor(y_hat, levels = c(1, 0)), 
+                                    factor(y, levels = c(1, 0)))
+    }
+    
+    # save result
+    if (sim == 1) {
+      names(sens) <- c("Mah","HU","SOmap")
+      names(spec) <- c("Mah","HU","SOmap")
+      sens_list[[m]] <- sens
+      spec_list[[m]] <- spec
+    } else {
+      sens_list[[m]] <- rbind(sens_list[[m]],
+                              sens)
+      spec_list[[m]] <- rbind(spec_list[[m]],
+                              spec)
+    }
+  }
+}
+sapply(sens_list, colMeans)
+sapply(spec_list, colMeans)
+
+
