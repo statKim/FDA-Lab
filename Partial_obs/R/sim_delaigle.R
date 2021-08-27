@@ -12,7 +12,8 @@ require(mvtnorm)
 # out.type : 1~3 are available
 sim_delaigle <- function(n = 100, model = 2, 
                          type = c("partial","snippet","sparse","dense"),
-                         out.prop = 0.2, out.type = 1) {
+                         out.prop = 0.2, out.type = 1,
+                         noise = 0) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
   x <- list(Lt = list(),
@@ -21,8 +22,13 @@ sim_delaigle <- function(n = 100, model = 2,
   # generate dense curves
   m <- length(gr)   # legnth of observed grids
   cov_sim <- get_cov_fragm(gr, model = model)
-  
   y <- rmvnorm(n, rep(0, m), cov_sim)
+  
+  # random noise
+  if (noise > 0) {
+    y <- y + matrix(rnorm(n*m, 0, sqrt(noise)), n, m)
+  }
+  
   x$Ly <- lapply(1:n, function(i) { y[i, ] })
   x$Lt <- lapply(1:n, function(i) { gr })
   x.full <- t(sapply(x$Ly, cbind))   # matrix containing the fully observed data

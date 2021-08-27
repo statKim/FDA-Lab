@@ -20,12 +20,13 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
+source("sig2_yao_rob.R")
 
 
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 20   # number of simulations
+num_sim <- 30   # number of simulations
 out_prop <- 0.2   # proportion of outliers
 model <- 4   # type of outliers
 data_type <- "partial"   # type of functional data
@@ -130,6 +131,7 @@ while (num.sim < num_sim) {
     mu.Mest <- mean_Mest(x)
     mu.Mest.sm <- mean_Mest(x, smooth = TRUE)
     # noise_var <- sigma2.rob(x.2$Lt, x.2$Ly)   # robust noise variance estimator
+    noise_var <- sigma2.rob.yao(x)   # Yao(2005) like noise variance estimator
     
     # Not adjust noise
     cov.Mest <- cov_Mest(x)
@@ -137,7 +139,7 @@ while (num.sim < num_sim) {
     
     # adjust noise
     # noise_var <- noise_var_M(cov.Mest, cov.Mest.sm, work.grid)
-    noise_var <- 1
+    # noise_var <- 1
     cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
     cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
                                   noise.var = noise_var)

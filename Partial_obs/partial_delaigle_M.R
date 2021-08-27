@@ -21,14 +21,16 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
+source("sig2_yao_rob.R")
+source("rcov.R")
 
 
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 10   # number of simulations
+num_sim <- 20   # number of simulations
 out_prop <- 0.2   # proportion of outliers
-out_type <- 6   # type of outliers
+out_type <- 2   # type of outliers
 data_type <- "partial"   # type of functional data
 kernel <- "epanechnikov"   # kernel function for local smoothing
 # kernel <- "gauss"   # kernel function for local smoothing
@@ -37,25 +39,30 @@ bw_M_sm <- 0.1   # bandwidth for M-est(smooth)
 n_cores <- 12   # number of threads for parallel computing
 pve <- 0.95   # Not used if K is given
 K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+sig <- 0.1
 
 
 #####################################
 ### Simulation
 #####################################
-mse_eigen <- matrix(NA, num_sim, 7)
-mse_reconstr <- matrix(NA, num_sim, 7)
-mse_completion <- matrix(NA, num_sim, 10)
-pve_res <- matrix(NA, num_sim, 7)
-K_res <- matrix(NA, num_sim, 7)
+mse_eigen <- matrix(NA, num_sim, 7+4)
+mse_reconstr <- matrix(NA, num_sim, 7+4)
+mse_completion <- matrix(NA, num_sim, 10+4)
+pve_res <- matrix(NA, num_sim, 7+4)
+K_res <- matrix(NA, num_sim, 7+4)
 
 colnames(mse_reconstr) <- c("Yao","Huber","Boente",
                             "M-est","M-est-noise",
-                            "M-est(smooth)","M-est(smooth)-noise")
+                            "M-est(smooth)","M-est(smooth)-noise",
+                            "rcov","rcov-noise",
+                            "rcov(smooth)","rcov(smooth)-noise")
 colnames(mse_completion) <- c("Yao","Huber",
                               "Kraus","Kraus-M","Kraus-M(sm)",
                               "Boente",
                               "M-est","M-est-noise",
-                              "M-est(smooth)","M-est(smooth)-noise")
+                              "M-est(smooth)","M-est(smooth)-noise",
+                              "rcov","rcov-noise",
+                              "rcov(smooth)","rcov(smooth)-noise")
 colnames(pve_res) <- colnames(mse_reconstr) 
 colnames(K_res) <- colnames(mse_reconstr) 
 colnames(mse_eigen) <- colnames(mse_reconstr)
@@ -84,7 +91,8 @@ while (num.sim < num_sim) {
                       model = 2,
                       type = data_type,
                       out.prop = out_prop, 
-                      out.type = out_type)
+                      out.type = out_type,
+                      noise = sig)
   # df <- data.frame(
   #   id = factor(unlist(sapply(1:length(x.2$Lt), 
   #                             function(id) { 
@@ -102,6 +110,14 @@ while (num.sim < num_sim) {
   
   x <- list2matrix(x.2)
   # matplot(t(x), type = "l")
+  
+  
+  # random noise
+  Lt <- x.2$Lt
+  Ly <- x.2$Ly
+  Ly <- lapply(Ly, function(x){ x + rnorm(length(x), 0, sqrt(sig)) })
+  x <- list2matrix(list(Lt = Lt,
+                        Ly = Ly))
 
   
   #############################
@@ -109,6 +125,70 @@ while (num.sim < num_sim) {
   #############################
   skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
   work.grid <- seq(0, 1, length.out = n.grid)
+  
+  ### RCov
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    mu.Mest <- mean_Mest(x)
+    mu.Mest.sm <- mean_Mest(x, smooth = TRUE)
+    noise_var_rcov <- sigma2.rob.yao.rcov(x)   # Yao(2005) like noise variance estimator
+    
+    # Not smoothed RCov
+    cov.rcov <- rcov(x)
+    cov.rcov.noise <- rcov(x, noise.var = noise_var_rcov)
+    
+    # smoothed RCov
+    cov.rcov.sm <- rcov(x, smooth = T)
+    cov.rcov.sm.noise <- rcov(x, smooth = T,
+                              noise.var = noise_var_rcov)
+  }, error = function(e) { 
+    print("RCov cov error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("RCov : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  
+  
+  ### M-estimator
+  start_time <- Sys.time()
+  registerDoRNG(seed)
+  tryCatch({
+    mu.Mest <- mean_Mest(x)
+    mu.Mest.sm <- mean_Mest(x, smooth = TRUE)
+    # noise_var <- sigma2.rob(x.2$Lt, x.2$Ly)   # robust noise variance estimator
+    noise_var <- sigma2.rob.yao(x)   # Yao(2005) like noise variance estimator
+    
+    # Not smoothed M-est
+    cov.Mest <- cov_Mest(x)
+    cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
+    
+    # smoothed M-est
+    # cov.Mest.sm <- cov_local_M(x, cv = T, ncores = n_cores)
+    # cov.Mest.sm.noise <- cov.Mest.sm
+    cov.Mest.sm <- cov_Mest(x, smooth = T)
+    cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
+                                  noise.var = noise_var)
+  }, error = function(e) { 
+    print("M-est cov error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("M-est : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  
+  
   
   ### Yao, Müller, and Wang (2005)
   ## 30 secs
@@ -223,38 +303,6 @@ while (num.sim < num_sim) {
                round(difftime(end_time, start_time, units = "secs"), 3),
                " secs"))
   
-  
-  ### M-estimator
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    mu.Mest <- mean_Mest(x)
-    mu.Mest.sm <- mean_Mest(x, smooth = TRUE)
-    noise_var <- sigma2.rob(x.2$Lt, x.2$Ly)   # robust noise variance estimator
-    
-    # Not smoothed M-est
-    cov.Mest <- cov_Mest(x)
-    cov.Mest.noise <- cov_Mest(x, noise.var = noise_var)
-    
-    # smoothed M-est
-    # cov.Mest.sm <- cov_local_M(x, cv = T, ncores = n_cores)
-    # cov.Mest.sm.noise <- cov.Mest.sm
-    cov.Mest.sm <- cov_Mest(x, smooth = T)
-    cov.Mest.sm.noise <- cov_Mest(x, smooth = T,
-                                  noise.var = noise_var)
-  }, error = function(e) { 
-    print("M-est cov error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("M-est : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
-  
   # gr <- work.grid
   # par(mfrow = c(2, 3))
   # cov.true <- get_cov_fragm(gr)
@@ -307,10 +355,10 @@ while (num.sim < num_sim) {
                            work.grid, PVE = pve, K = K)
   # M-est
   pca.Mest.obj <- funPCA(x.2$Lt, x.2$Ly,
-                         mu.Mest, cov.Mest, sig2 = 1e-6,
+                         mu.Mest, cov.Mest, sig2 = 0,
                          work.grid, PVE = pve, K = K)
   pca.Mest.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
-                            mu.Mest.sm, cov.Mest.sm, sig2 = 1e-6,
+                            mu.Mest.sm, cov.Mest.sm, sig2 = 0,
                             work.grid, PVE = pve, K = K)
   # consider noise var
   pca.Mest.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
@@ -318,6 +366,21 @@ while (num.sim < num_sim) {
                                work.grid, PVE = pve, K = K)
   pca.Mest.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
                                   mu.Mest.sm, cov.Mest.sm.noise, sig2 = noise_var,
+                                  work.grid, PVE = pve, K = K)
+  
+  # rcov
+  pca.rcov.obj <- funPCA(x.2$Lt, x.2$Ly,
+                         mu.Mest, cov.rcov, sig2 = 0,
+                         work.grid, PVE = pve, K = K)
+  pca.rcov.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
+                            mu.Mest.sm, cov.rcov.sm, sig2 = 0,
+                            work.grid, PVE = pve, K = K)
+  # consider noise var
+  pca.rcov.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
+                               mu.Mest, cov.rcov.noise, sig2 = noise_var_rcov,
+                               work.grid, PVE = pve, K = K)
+  pca.rcov.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
+                                  mu.Mest.sm, cov.rcov.sm.noise, sig2 = noise_var_rcov,
                                   work.grid, PVE = pve, K = K)
   
   # ## Kraus (2015) - just obtain PVE and K
@@ -336,7 +399,7 @@ while (num.sim < num_sim) {
   
   ### Eigen function - Compute for fixed K
   if (is.null(K)) {
-    mse_eigen[num.sim + 1, ] <- rep(NA, 7)
+    mse_eigen[num.sim + 1, ] <- rep(NA, 7+4)
   } else {
     # cov.true <- get_cov_fragm(work.grid, model = 2)
     eig.true <- get_delaigle_eigen(work.grid, model = 2)
@@ -348,7 +411,12 @@ while (num.sim < num_sim) {
       mean((check_eigen_sign(pca.Mest.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
+      mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2),
+      
+      mean((check_eigen_sign(pca.rcov.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.rcov.noise.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.rcov.sm.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.rcov.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
     )
   }
   
@@ -369,8 +437,13 @@ while (num.sim < num_sim) {
   pred_Mest_noise_mat <- predict(pca.Mest.noise.obj, K = NULL)
   pred_Mest_sm_noise_mat <- predict(pca.Mest.sm.noise.obj, K = NULL)
   
-  sse_reconstr <- matrix(NA, length(cand), 7)
-  sse_completion <- matrix(NA, length(cand), 10)
+  pred_rcov_mat <- predict(pca.rcov.obj, K = NULL)
+  pred_rcov_sm_mat <- predict(pca.rcov.sm.obj, K = NULL)
+  pred_rcov_noise_mat <- predict(pca.rcov.noise.obj, K = NULL)
+  pred_rcov_sm_noise_mat <- predict(pca.rcov.sm.noise.obj, K = NULL)
+  
+  sse_reconstr <- matrix(NA, length(cand), 7+4)
+  sse_completion <- matrix(NA, length(cand), 10+4)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
@@ -389,6 +462,11 @@ while (num.sim < num_sim) {
     pred_Mest_noise <- pred_Mest_noise_mat[ind, ]
     pred_Mest_sm_noise <- pred_Mest_sm_noise_mat[ind, ]
     
+    pred_rcov <- pred_rcov_mat[ind, ]
+    pred_rcov_sm <- pred_rcov_sm_mat[ind, ]
+    pred_rcov_noise <- pred_rcov_noise_mat[ind, ]
+    pred_rcov_sm_noise <- pred_rcov_sm_noise_mat[ind, ]
+    
     
     # ISE for reconstruction of overall interval
     df <- cbind(
@@ -398,7 +476,12 @@ while (num.sim < num_sim) {
       pred_Mest,
       pred_Mest_noise,
       pred_Mest_sm,
-      pred_Mest_sm_noise
+      pred_Mest_sm_noise,
+      
+      pred_rcov,
+      pred_rcov_noise,
+      pred_rcov_sm,
+      pred_rcov_sm_noise
     )
     sse_reconstr[i, ] <- apply(df, 2, function(pred) { 
       mean((x.2$x.full[ind, ] - pred)^2)
@@ -416,7 +499,12 @@ while (num.sim < num_sim) {
       pred_missing_curve(x[ind, ], pred_Mest, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_Mest_noise, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_Mest_sm, conti = FALSE),
-      pred_missing_curve(x[ind, ], pred_Mest_sm_noise, conti = FALSE)
+      pred_missing_curve(x[ind, ], pred_Mest_sm_noise, conti = FALSE),
+      
+      pred_missing_curve(x[ind, ], pred_rcov, conti = FALSE),
+      pred_missing_curve(x[ind, ], pred_rcov_noise, conti = FALSE),
+      pred_missing_curve(x[ind, ], pred_rcov_sm, conti = FALSE),
+      pred_missing_curve(x[ind, ], pred_rcov_sm_noise, conti = FALSE)
     )
     df <- df[NA_ind, ]
     if (length(NA_ind) == 1) {
@@ -442,7 +530,12 @@ while (num.sim < num_sim) {
     pca.Mest.obj$PVE,
     pca.Mest.noise.obj$PVE,
     pca.Mest.sm.obj$PVE,
-    pca.Mest.sm.noise.obj$PVE
+    pca.Mest.sm.noise.obj$PVE,
+    
+    pca.rcov.obj$PVE,
+    pca.rcov.noise.obj$PVE,
+    pca.rcov.sm.obj$PVE,
+    pca.rcov.sm.noise.obj$PVE
   )
   
   K_res[num.sim, ] <- c(
@@ -452,7 +545,12 @@ while (num.sim < num_sim) {
     pca.Mest.obj$K,
     pca.Mest.noise.obj$K,
     pca.Mest.sm.obj$K,
-    pca.Mest.sm.noise.obj$K
+    pca.Mest.sm.noise.obj$K,
+    
+    pca.rcov.obj$K,
+    pca.rcov.noise.obj$K,
+    pca.rcov.sm.obj$K,
+    pca.rcov.sm.noise.obj$K
   )
   
   # pca.est[[num.sim]] <- list(seed = seed,
@@ -529,8 +627,7 @@ data.frame(Method = c("Yao","Huber",
       format(round(apply(mse_eigen, 2, sd), 2), 2),
       ")"
     )
-  ), by = "Method") %>% 
-  xtable()
+  ), by = "Method")
 
 
 

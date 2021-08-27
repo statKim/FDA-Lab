@@ -297,7 +297,7 @@ for (sim in 1:num_sim) {
   for (i in 1:6) {
     # Outlier map (Score dist VS Orthogonal dist), See Hubert(2005)
     SD <- score_dist(pca.est[[sim]]$pca.obj[[i]])   # score distance
-    OD <- orthogonal_dist(pca.boente.obj, x)   # orthogonal distance
+    OD <- orthogonal_dist(pca.est[[sim]]$pca.obj[[i]], x)   # orthogonal distance
     # mcd_fit <- covMcd(OD^(2/3))
     mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
     cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
@@ -324,7 +324,7 @@ round(colMeans(spec), 3)
 
 
 
-sim <- 28
+sim <- 11
 x.2 <- pca.est[[sim]]$x.2
 x <- list2matrix(x.2)
 k <- pca.est[[sim]]$pca.obj[[1]]$K
@@ -334,9 +334,9 @@ mname <- c("Yao","Boente",
 par(mfrow = c(2, 3))
 for (i in 1:6) {
   SD <- score_dist(pca.est[[sim]]$pca.obj[[i]])   # score distance
-  OD <- orthogonal_dist(pca.boente.obj, x)   # orthogonal distance
-  mcd_fit <- covMcd(OD^(2/3))
-  # mcd_fit <- cov.mcd(matrix(OD^(2/3)))
+  OD <- orthogonal_dist(pca.est[[sim]]$pca.obj[[i]], x)   # orthogonal distance
+  # mcd_fit <- covMcd(OD^(2/3))
+  mcd_fit <- cov.mcd(matrix(OD^(2/3)))
   cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
   cut_x <- sqrt(qchisq(0.975, k))
   
@@ -484,7 +484,7 @@ for (sim in 1:num_sim) {
     
     # Outlier map (Score dist VS Orthogonal dist), See Hubert(2005)
     SD <- score_dist(pca.est[[sim]]$pca.obj[[m]])   # score distance
-    OD <- orthogonal_dist(pca.boente.obj, x)   # orthogonal distance
+    OD <- orthogonal_dist(pca.est[[sim]]$pca.obj[[m]], x)   # orthogonal distance
     # mcd_fit <- covMcd(OD^(2/3))
     mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
     cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
