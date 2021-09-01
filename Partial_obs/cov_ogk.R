@@ -1,9 +1,9 @@
 library(RobStatTM)
 library(chemometrics)
-rcov <- function(dat.mat,
-                 smooth = FALSE,
-                 make.pos.semidef = TRUE,
-                 noise.var = 0) {
+cov_ogk <- function(dat.mat,
+                    smooth = FALSE,
+                    make.pos.semidef = TRUE,
+                    noise.var = 0) {
   #### M-estimates of location and dispersion - pointwise : different options for psi function is available
   ## M.loc: M-estimates of location
   ## M.disp: M-estimates of dispersion
@@ -20,23 +20,30 @@ rcov <- function(dat.mat,
       na.rm = TRUE
     )
     M.loc = c(M.loc, tmp$mu)
-    M.disp = c(M.disp, tmp$disper)
+    # M.disp = c(M.disp, tmp$disper)
+    M.disp = c(M.disp, sd_trim(dat.mat[, i][!is.na(dat.mat[, i])], 0.2))
     
   }
   
   #### standardize the data with robust mean and robust dispersion and calculate robust corr matrix
   ## calculate (6.63) in Robust Statistics (Maronna, 2006)
-  std.dat = (dat.mat - matrix(
-    M.loc,
-    nrow = nrow(dat.mat),
-    ncol = ncol(dat.mat),
-    byrow = TRUE
-  )) / matrix(
+  std.dat <- dat.mat / matrix(
     M.disp,
     nrow = nrow(dat.mat),
     ncol = ncol(dat.mat),
     byrow = TRUE
   )
+  # std.dat = (dat.mat - matrix(
+  #   M.loc,
+  #   nrow = nrow(dat.mat),
+  #   ncol = ncol(dat.mat),
+  #   byrow = TRUE
+  # )) / matrix(
+  #   M.disp,
+  #   nrow = nrow(dat.mat),
+  #   ncol = ncol(dat.mat),
+  #   byrow = TRUE
+  # )
   rcor = matrix(nrow = ncol(std.dat), ncol = ncol(std.dat))
   rcov = matrix(nrow = ncol(std.dat), ncol = ncol(std.dat))
   
@@ -60,8 +67,8 @@ rcov <- function(dat.mat,
         
       }
       
-      
-      rcor[i, j] = rcor[j, i] = min(rcor.est, 0.99)   # if cor>1, replace it by 0.99 (a few have larger than 1 but not seriously many)
+      rcor[i, j] = rcor[j, i] = rcor.est
+      # rcor[i, j] = rcor[j, i] = min(rcor.est, 0.99)   # if cor>1, replace it by 0.99 (a few have larger than 1 but not seriously many)
       # set trim proportion as the true
       
       rcov[i, j] = rcov[j, i] = M.disp[i] * M.disp[j] * rcor[i, j]  # robust covariance matrix
@@ -74,7 +81,73 @@ rcov <- function(dat.mat,
   
   
   
-  rob.var <- rcov
+  U <- rcor
+  
+  # Step 3. spectral decomposition
+  eig <- eigen(U)
+  lambda <- eig$values
+  E <- eig$vectors
+  # K <- sum(lambda > 0)
+  # lambda <- lambda[1:K]
+  # E <- eig$vectors[, 1:K]
+  
+  # Step 4. PC
+  Y <- std.dat %>% 
+    replace_na(0)
+  Z <- Y %*% E
+  
+  # Step 5.
+  p <- 51
+  nu <- rep(NA, p)
+  Gamma <- matrix(0, p, p)
+  for (i in 1:p) {
+    tmp <- locScaleM(Z[, i],
+                     psi = "huber",
+                     eff = 0.95,
+                     maxit = 50,
+                     tol = 1e-04,
+                     na.rm = TRUE)
+    nu[i] <- tmp$mu
+    Gamma[i, i] <- tmp$disper^2
+    # Gamma[i, i] <- sd_trim(Z[, i], trim = 0.2)^2
+  }
+  
+  # Step 6. Transform back to X
+  D <- diag(M.disp)
+  A <- D %*% E
+  rob.var <- A %*% Gamma %*% t(A)
+  rob.mu <- A %*% matrix(nu, ncol = 1) %>% 
+    as.numeric()
+  
+  
+  x0 <- dat.mat %>% 
+    replace_na(0)
+  z <- x0 %*% solve(A)
+  nu <- rep(NA, p)
+  Gamma <- matrix(0, p, p)
+  for (i in 1:p) {
+    tmp <- locScaleM(z[, i],
+                     psi = "huber",
+                     eff = 0.95,
+                     maxit = 50,
+                     tol = 1e-04,
+                     na.rm = TRUE)
+    nu[i] <- tmp$mu
+    Gamma[i, i] <- tmp$disper^2
+    # Gamma[i, i] <- sd_trim(Z[, i], trim = 0.2)^2
+  }
+  # D <- diag(M.disp)
+  # A <- D %*% E
+  rob.var <- A %*% Gamma %*% t(A)
+  rob.mu2 <- A %*% matrix(nu, ncol = 1) %>% 
+    as.numeric()
+  
+  
+  
+  GA::persp3D(gr, gr, rob.var,
+              theta = -70, phi = 30, expand = 1)
+  matplot(cbind(rob.mu, rob.mu2, mu.boente, mu.Mest.sm), type = "l")
+  
   
   # subtract noise variance
   diag(rob.var) <- diag(rob.var) - noise.var
@@ -86,33 +159,7 @@ rcov <- function(dat.mat,
     cov.sm.obj <- refund::fbps(rob.var, list(x = gr,
                                              z = gr))
     rob.var <- cov.sm.obj$Yhat
-    # if (is.null(bw)) {
-    #     cv.obj <- cv.cov_Mest(x, ncores = 1)   # 5-fold CV is performed
-    #     bw <- cv.obj$selected_bw
-    #     cat(paste("Optimal bandwidth=", round(bw, 3), "is selected! \n"))
-    # }
-    #
-    # # element-wise covariances
-    # gr <- seq(0, 1, length.out = p)
-    # st <- expand.grid(gr, gr)
-    # cov_st <- as.numeric(rob.var)
-    #
-    # # # remove diagonal parts from raw covariance (See Yao et al.(2005))
-    # # ind <- which(st[, 1] == st[, 2], arr.ind = T)
-    # # st <- st[-ind, ]
-    # # cov_st <- cov_st[-ind]
-    #
-    # rob.var <- fields::smooth.2d(cov_st,
-    #                              x = st,
-    #                              surface = F,
-    #                              theta = bw,
-    #                              nrow = p,
-    #                              ncol = p)
   }
-  # else {
-  #     # subtract noise variance - Need for not smoothing
-  #     diag(rob.var) <- diag(rob.var) - noise.var
-  # }
   
   # make positive-semi-definite
   if (isTRUE(make.pos.semidef)) {
@@ -139,19 +186,21 @@ rcov <- function(dat.mat,
     # }
   }
   
-  return(list(mean = M.loc,
-              cov = rob.var))
+  return(rob.var)
 }
 
 
+
+
+
 ### Yao version
-sigma2.rob.yao.rcov <- function(x, gr = NULL, cov = NULL) {
+sigma2.rob.yao.ogk <- function(x, gr = NULL, cov = NULL) {
   m <- 51
   h <- 0.02
   # 이부분 cov_Mest로 수정하기
-  cov_hat <- rcov(x,
-                  smooth = FALSE,
-                  make.pos.semidef = F)$cov
+  cov_hat <- cov_ogk(x,
+                     smooth = FALSE,
+                     make.pos.semidef = F)
   
   if (is.null(gr)) {
     gr <- seq(0, 1, length.out = m)

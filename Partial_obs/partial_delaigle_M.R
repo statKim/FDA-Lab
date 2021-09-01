@@ -596,7 +596,9 @@ data.frame(Method = c("Yao","Huber",
                       "Kraus","Kraus-M","Kraus-M(sm)",
                       "Boente",
                       "M-est","M-est-noise",
-                      "M-est(smooth)","M-est(smooth)-noise")) %>% 
+                      "M-est(smooth)","M-est(smooth)-noise",
+                      "rcov","rcov-noise",
+                      "rcov(smooth)","rcov(smooth)-noise")) %>% 
   left_join(data.frame(
     Method = colnames(PVE_K),
     PVE = format(round(colMeans(PVE_K), 2), 2)
@@ -627,7 +629,8 @@ data.frame(Method = c("Yao","Huber",
       format(round(apply(mse_eigen, 2, sd), 2), 2),
       ")"
     )
-  ), by = "Method")
+  ), by = "Method") %>% 
+  print()
 
 
 
