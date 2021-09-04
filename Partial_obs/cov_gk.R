@@ -1,16 +1,17 @@
 library(RobStatTM)
 library(chemometrics)
-rcov <- function(dat.mat,
-                 smooth = FALSE,
-                 make.pos.semidef = TRUE,
-                 noise.var = 0) {
+cov_gk <- function(dat.mat,
+                   smooth = FALSE,
+                   make.pos.semidef = TRUE,
+                   noise.var = 0) {
+  p <- ncol(dat.mat)
+  
   #### M-estimates of location and dispersion - pointwise : different options for psi function is available
   ## M.loc: M-estimates of location
   ## M.disp: M-estimates of dispersion
-  
   M.loc = c()
   M.disp = c()
-  for (i in 1:51) {
+  for (i in 1:p) {
     tmp = locScaleM(
       dat.mat[, i],
       psi = "huber",
@@ -83,31 +84,11 @@ rcov <- function(dat.mat,
   if (smooth == T) {
     p <- nrow(rob.var)
     gr <- seq(0, 1, length.out = p)
-    cov.sm.obj <- refund::fbps(rob.var, list(x = gr,
-                                             z = gr))
+    cov.sm.obj <- refund::fbps(rob.var, 
+                               knots = p/2,   # recommendation of Xiao(2013)
+                               list(x = gr,
+                                    z = gr))
     rob.var <- cov.sm.obj$Yhat
-    # if (is.null(bw)) {
-    #     cv.obj <- cv.cov_Mest(x, ncores = 1)   # 5-fold CV is performed
-    #     bw <- cv.obj$selected_bw
-    #     cat(paste("Optimal bandwidth=", round(bw, 3), "is selected! \n"))
-    # }
-    #
-    # # element-wise covariances
-    # gr <- seq(0, 1, length.out = p)
-    # st <- expand.grid(gr, gr)
-    # cov_st <- as.numeric(rob.var)
-    #
-    # # # remove diagonal parts from raw covariance (See Yao et al.(2005))
-    # # ind <- which(st[, 1] == st[, 2], arr.ind = T)
-    # # st <- st[-ind, ]
-    # # cov_st <- cov_st[-ind]
-    #
-    # rob.var <- fields::smooth.2d(cov_st,
-    #                              x = st,
-    #                              surface = F,
-    #                              theta = bw,
-    #                              nrow = p,
-    #                              ncol = p)
   }
   # else {
   #     # subtract noise variance - Need for not smoothing
@@ -145,17 +126,18 @@ rcov <- function(dat.mat,
 
 
 ### Yao version
-sigma2.rob.yao.rcov <- function(x, gr = NULL, cov = NULL) {
-  m <- 51
-  h <- 0.02
+sigma2.rob.yao.gk <- function(x, gr = NULL, cov = NULL) {
+  m <- ncol(x)
+  
   # 이부분 cov_Mest로 수정하기
-  cov_hat <- rcov(x,
-                  smooth = FALSE,
-                  make.pos.semidef = F)$cov
+  cov_hat <- cov_gk(x,
+                    smooth = FALSE,
+                    make.pos.semidef = F)$cov
   
   if (is.null(gr)) {
     gr <- seq(0, 1, length.out = m)
   }
+  h <- max(diff(gr))
   
   # 1D smoothing
   var_y <- diag(cov_hat)

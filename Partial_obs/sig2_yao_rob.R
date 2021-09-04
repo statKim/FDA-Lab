@@ -2,8 +2,7 @@
 
 ### Yao version
 sigma2.rob.yao <- function(x, gr = NULL, cov = NULL) {
-  m <- 51
-  h <- 0.02
+  m <- ncol(x)
   # 이부분 cov_Mest로 수정하기
   cov_hat <- cov_Mest(x, 
                       smooth = FALSE, 
@@ -12,6 +11,7 @@ sigma2.rob.yao <- function(x, gr = NULL, cov = NULL) {
   if (is.null(gr)) {
     gr <- seq(0, 1, length.out = m)
   }
+  h <- max(diff(gr))
   
   # 1D smoothing
   var_y <- diag(cov_hat)

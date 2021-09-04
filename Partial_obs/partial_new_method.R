@@ -20,17 +20,17 @@ source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
 source("robust_Kraus.R")
 source("Boente_cov.R")
-source("sig2_yao_rob.R")
-source("rcov.R")
-source("cov_pm.R")
 source("R/sim_delaigle.R")
 source("R/sim_Lin_Wang(2020).R")
+source("sig2_yao_rob.R")
+source("cov_gk.R")
+source("cov_pm.R")
 
 
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 100   # number of simulations
+num_sim <- 50   # number of simulations
 out_prop <- 0.2   # proportion of outliers
 model <- 4   # type of outliers
 data_type <- "partial"   # type of functional data
@@ -45,7 +45,6 @@ if (model == 3) {
 } else {
   K <- 2
 }
-K <- 4
 
 
 #####################################
@@ -79,27 +78,25 @@ while (num.sim < num_sim) {
   seed <- seed + 1
   set.seed(seed)
   print(paste0("Seed: ", seed))
-  # for (sim in 1:num_sim) {
-  #   print(paste(sim, "th simulation"))
-  #   # sim <- 1
-  #   set.seed(sim)
   
   #############################
   ### Data generation
   #############################
   n <- 100
   n.grid <- 51
-  x.2 <- sim_delaigle(n = n, 
-                      model = 2,
-                      type = data_type,
-                      out.prop = out_prop, 
-                      out.type = 2,
-                      noise = 0.1)
-  # x.2 <- sim_boente(n = n, 
-  #                   model = model,
-  #                   type = data_type,
-  #                   eps1 = out_prop,
-  #                   outlier = TRUE)
+  # x.2 <- sim_delaigle(n = n,
+  #                     model = 2,
+  #                     type = data_type,
+  #                     out.prop = out_prop,
+  #                     out.type = 2,
+  #                     noise = 0.1)
+  # K <- 4
+  x.2 <- sim_boente(n = n,
+                    model = model,
+                    type = data_type,
+                    eps1 = out_prop,
+                    outlier = TRUE)
+  K <- 2
   
   x <- list2matrix(x.2)
   # matplot(t(x), type = "l")
@@ -146,23 +143,23 @@ while (num.sim < num_sim) {
                " secs"))
   
   
-  ### GK
+  ### Gnanadesikan-Kettenring(GK) estimate
   start_time <- Sys.time()
   set.seed(seed)
   tryCatch({
-    noise.var.gk <- sigma2.rob.yao.rcov(x)   # Yao(2005) like noise variance estimator
+    noise.var.gk <- sigma2.rob.yao.gk(x)   # Yao(2005) like noise variance estimator
     print(noise.var.gk)
     # noise.var.gk <- 1
-
+    
     # Not smoothed GK
-    cov.obj <- rcov(x, noise.var = noise.var.gk)
+    cov.obj <- cov_gk(x, noise.var = noise.var.gk)
     mu.gk <- cov.obj$mean
     cov.gk.noise <- cov.obj$cov
-
+    
     # Smoothed GK
-    cov.obj <- rcov(x, 
-                    smooth = T,
-                    noise.var = noise.var.gk)
+    cov.obj <- cov_gk(x, 
+                      smooth = T,
+                      noise.var = noise.var.gk)
     mu.gk.sm <- cov.obj$mean
     cov.gk.sm.noise <- cov.obj$cov
   }, error = function(e) { 
@@ -179,7 +176,7 @@ while (num.sim < num_sim) {
                " secs"))
   
   
-  ### PM
+  ### Product moment(PM) correlation estimate
   start_time <- Sys.time()
   set.seed(seed)
   tryCatch({
@@ -245,8 +242,8 @@ while (num.sim < num_sim) {
   if (is.null(K)) {
     mse_eigen[num.sim + 1, ] <- rep(NA, 4)
   } else {
-    # eig.true <- x.2$phi[, 1:K]
-    eig.true <- get_delaigle_eigen(work.grid, model = 2)
+    eig.true <- x.2$phi[, 1:K]
+    # eig.true <- get_delaigle_eigen(work.grid, model = 2)
     # calculate MSE
     mse_eigen[num.sim + 1, ] <- c(
       mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
@@ -261,11 +258,11 @@ while (num.sim < num_sim) {
   
   ### Curve reconstruction via PCA
   # index of non-outlier curves having missing values
-  cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-  if (out_prop != 0) {
-    cand <- cand[cand <= 80]   # exclude outlier curves
-  }
-  # cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0 & x.2$y == 0)   # remove outlier
+  # cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+  # if (out_prop != 0) {
+  #   cand <- cand[cand <= 80]   # exclude outlier curves
+  # }
+  cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0 & x.2$y == 0)   # remove outlier
   
   # reconstructed curves
   pred_Mest_noise_mat <- predict(pca.Mest.noise.obj, K = NULL)

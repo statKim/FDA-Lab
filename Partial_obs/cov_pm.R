@@ -25,50 +25,130 @@
 # 
 # noise_var_pm(x)
 
+psi_hampel <- function(z) {
+  b <- 1.5
+  c <- 4
+  
+  # if (is.vector(z)) {   # input is vector
+    idx_not_na <- which(!is.na(z))
+    out <- rep(NA, length(z))
+    
+    out[idx_not_na] <- sapply(z[idx_not_na], function(a) {
+      if (abs(a) < b) {
+        return(a)
+      } else if (abs(a) >= b & abs(a) < c) {
+        q1 <- 1.540793
+        q2 <- 0.8622731
+        return(q1*tanh(q2*(c-abs(a)))*sign(a))
+      } else {
+        return(0)
+      }
+    })
+  # } else if (is.matrix(z)) {   # input is matrix
+  #   
+  # }
+  
+  return(out)
+}
+
+# X <- rnorm(100) %>% 
+#   matrix(ncol = 1)
+# rob_stat <- estLocScale(X, type = "wrap")
+# X_w <- wrap(X, rob_stat$loc, rob_stat$scale)$Xw
+# rob.mean <- colMeans(X_w)
+# rob.cov  <- cov(X_w)
+# 
+# 
+# z_star <- psi_hampel((X[, 1] - rob_stat$loc) / rob_stat$scale)*rob_stat$scale + rob_stat$loc
+# 
+# X <- x
+# rob_stat <- estLocScale(X, type = "wrap")
+# sweep()
+# 
+# n <- nrow(X)
+# p <- ncol(X)
+# X_w <- matrix(NA, n, p)
+# for (j in 1:p) {
+#   X_w[, j] <- psi_hampel((X[, j] - rob_stat$loc[j]) / rob_stat$scale[j])*rob_stat$scale[j] + rob_stat$loc[j]
+# }
+# sum(is.na(X_w))
+# 
+# cov.test <- cov(X_w, use = "pairwise.complete.obs")
+# cov.gk <- cov_gk(X)
+# 
+# par(mfrow = c(2, 2))
+# GA::persp3D(gr, gr, cov.test,
+#             theta = -70, phi = 30, expand = 1)
+# GA::persp3D(gr, gr, cov.gk$cov,
+#             theta = -70, phi = 30, expand = 1)
+# GA::persp3D(gr, gr, cov_pm(X)$cov,
+#             theta = -70, phi = 30, expand = 1)
+
+### imputation for missing parts using nearest curves
+impute_dist <- function(X) {
+  n <- nrow(X)
+  p <- ncol(X)
+  
+  # obtain index of incomplete curves
+  missing_curve <- (1:n)[ apply(X, 1, function(row){ sum(is.na(row)) > 0 }) ]
+  
+  # calculate distance by excluding the missing parts
+  for (i in missing_curve) {
+    x_i <- X[i, ]
+    idx_na <- which(is.na(x_i))
+    
+    # calculate L2 distance
+    cand <- (1:n)[ apply(X, 1, function(row){ sum(is.na(row[-idx_na])) == 0 }) ]
+    dist_cand <- apply(X[cand, -idx_na], 1, function(row){ sum((row - x_i[-idx_na])^2) })
+    cand_order <- cand[order(dist_cand)[-1]]   # remove ith curve(dist = 0)
+    
+    # impute missing parts
+    k <- 1
+    x_i_missing <- X[cand_order[k], idx_na]
+    while (is.na(sum(x_i_missing))) {
+      k <- k + 1
+      
+      if (length(idx_na) == 1) {   # only 1 missing
+        x_i_missing <- mean(X[cand_order[1:k], idx_na], na.rm = TRUE)
+      } else {
+        x_i_missing <- colMeans(X[cand_order[1:k], idx_na], na.rm = TRUE)
+      }
+    }
+    X[i, idx_na] <- x_i_missing
+  }
+  
+  return(X)
+}
+
+
 
 library(cellWise)
 cov_pm <- function(X,
                    smooth = FALSE,
                    noise.var = 0) {
-  # Raymaekers & Rousseeuw (2021), Technometrics
+  # # Raymaekers & Rousseeuw (2021), Technometrics
+  # rob_stat <- estLocScale(X, type = "wrap")
+  # X_w <- wrap(X, rob_stat$loc, rob_stat$scale)$Xw
+  # rob.mean <- colMeans(X_w)
+  # rob.cov  <- cov(X_w)
+  
+  ### 내가 짠 부분(기존 함수와 거의 비슷)
   rob_stat <- estLocScale(X, type = "wrap")
-  X_w <- wrap(X, rob_stat$loc, rob_stat$scale)$Xw
-  rob.mean <- colMeans(X_w)
-  rob.cov  <- cov(X_w)
+  
+  # wrap
+  n <- nrow(X)
+  p <- ncol(X)
+  X_w <- matrix(NA, n, p)
+  for (j in 1:p) {
+    X_w[, j] <- psi_hampel((X[, j] - rob_stat$loc[j]) / rob_stat$scale[j])*rob_stat$scale[j] + rob_stat$loc[j]
+  }
+  
+  # impute missing parts
+  X_w <- impute_dist(X_w)
 
-  # par(mfrow = c(2, 2))
-  # GA::persp3D(gr, gr, cov.boente,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, cov.Mest,
-  #             theta = -70, phi = 30, expand = 1)
-  # GA::persp3D(gr, gr, rob.cov,
-  #             theta = -70, phi = 30, expand = 1)
-
-
-  # psi_huber <- function(z) {
-  #   k <- 2.5
-  #   if (is.na(z)) {
-  #     z <- 0
-  #   }
-  #   
-  #   if (abs(z) <= k) {
-  #     psi_z <- z
-  #   } else {
-  #     psi_z <- k*sign(z)
-  #   }
-  #   return(psi_z)
-  # }
-  # 
-  # X_w2 <- sweep(X, 2, rob_stat$loc, "-")
-  # X_w2 <- sweep(X, 2, 1/rob_stat$scale, "*")
-  # X_w2 <- psi_huber(X_w2)
-  # 
-  # cor(x[, 1:2], method = "spearman")
-  # cor(rank(x[,1]), rank(x[,2]))
-  # 
-  # X_w[1, ]
-  # sapply(X_w2[1, ], psi_huber)
-  # as.numeric(X_w2[1, ])
+  # compute mean and covariance
+  rob.mean <- colMeans(X_w, na.rm = TRUE)  
+  rob.cov <- cov(X_w, use = "pairwise.complete.obs")
   
   
   # subtract noise variance
@@ -77,9 +157,12 @@ cov_pm <- function(X,
   # 2-dimensional smoothing - does not need to adjust noise variance
   if (smooth == T) {
     p <- nrow(rob.cov)
+    knots <- min(p/2, 35)   # Remark 3 from Xiao(2013)
     gr <- seq(0, 1, length.out = p)
-    cov.sm.obj <- refund::fbps(rob.cov, list(x = gr,
-                                             z = gr))
+    cov.sm.obj <- refund::fbps(rob.cov, 
+                               knots = knots,
+                               list(x = gr,
+                                    z = gr))
     rob.cov <- cov.sm.obj$Yhat
   }
 
@@ -89,19 +172,17 @@ cov_pm <- function(X,
 
 
 
-
-
 ### Yao version
 noise_var_pm <- function(x, gr = NULL, cov = NULL) {
-  m <- 51
-  h <- 0.02
-  # 이부분 cov_Mest로 수정하기
+  m <- ncol(x)
+  
   cov_hat <- cov_pm(x,
                     smooth = FALSE)$cov
   
   if (is.null(gr)) {
     gr <- seq(0, 1, length.out = m)
   }
+  h <- max(diff(gr))
   
   # 1D smoothing
   var_y <- diag(cov_hat)
