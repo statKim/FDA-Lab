@@ -1,0 +1,920 @@
+---
+title: "Product-moment covariance and PM$_{10}$ outlier detection"
+# author: "Hyunsung Kim"
+date: '2021-09-06'
+output: 
+  pdf_document:
+    toc: false
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  fig.align = "center", 
+  out.width = "100%"
+  # fig.width = 3, fig.height = 1.5
+)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+# Product-moment covariance estimation
+> Raymaekers, J., & Rousseeuw, P. J. (2021). [Fast robust correlation for high-dimensional data](https://www.tandfonline.com/doi/full/10.1080/00401706.2019.1677270). *Technometrics*, 63(2), 184-198.
+
+### Estimation procedure
+1. Obtain robust location and scale estimate $\hat\mu_j$ and $\hat\sigma_j$.
+2. Transform $x_{ij}$ to
+  $$ x_{ij}^* = g(x_{ij}) = \hat\mu_j + \hat\sigma_j\psi_{b,c}\left( \frac{x_{ij} - \hat\mu_j}{\hat\sigma_j} \right), $$
+  where
+  $$ \psi_{b,c}(z) = \begin{cases}
+  z, ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 0 \le |z| < b, \\
+  q_1\tanh\big(q_2(c-|z|)\big)\text{sign}(z), ~~~~~ b \le |z| < c, \\
+  0, ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ c \le |z|.
+  \end{cases}$$
+3. Compute covariance matrix using transformed data $x_{ij}^*$.
+
+### Missing data 
+- Raymaekers(2021)는 missing이 존재할 경우, $\hat\mu_j$으로 대체하여 사용
+- 지금처럼 missing이 많은 경우에 모두 $\hat\mu_j$으로 대체하는 경우에는 각 curve의 특성이 사라지며, 실제로 시뮬레이션 결과에서도 오히려 `M-est`보다 좋지 않았음
+- 따라서 missing을 그대로 두고, 이 값들을 제외하여 covariance를 계산할 경우 `M-est`나 `GK` 보다 좋은 결과를 보여줌
+- Imputation으로 $L_2$-distance가 가장 가까운 일부 curve들의 평균으로 imputation하여 covariance를 계산한 결과가 NA를 제외하고 한 경우보다 약간 더 좋았음
+  - 예를 들어, 1st curve의 missing을 제외한 부분과의 distance가 가까운 curve들을 순서대로 나열한 후, 차례대로 missing인 부분에 대해서만 `colMeans`를 하며 NA가 포함되지 않을 때까지의 개수만을 사용하여 평균 계산
+
+
+
+## Simulation results
+- 50 simulations
+- 모두 noise variance를 고려하였으며, Yao et al.(2005) 방법으로 계산
+- 비교 방법론
+  - `Mest` : 기존의 proposed method
+  - `GK` : Gnanadesikan and Kettenring (1972) method (박연주 교수님 코드 사용)
+  - `PM` : Product-moment method proposed by Raymaekers (2021)
+  - `PM-NA` : `PM` 방법에 NA를 그대로 두고 이를 제외하여 covariance를 계산한 방법
+  - `PM-Im` : `PM` 방법에서 전체 평균 imputation 대신, distance가 가까운 일부만을 사용한 평균으로 imputation한 방법
+  
+### Delaigle setting
+```
+   Method  PVE Reconstruction  Completion Eigenfunction
+    Mest  0.82    0.18 (0.03) 0.40 (0.13)   0.17 (0.11)
+ Mest-sm  0.97    0.15 (0.03) 0.32 (0.11)   0.14 (0.11)
+      GK  0.86    0.17 (0.03) 0.38 (0.12)   0.16 (0.11)
+   GK-sm  0.98    0.15 (0.02) 0.31 (0.10)   0.14 (0.11)
+      PM  0.86    0.16 (0.03) 0.37 (0.12)   0.16 (0.10)    
+   PM-sm  0.96    0.15 (0.03) 0.33 (0.11)   0.15 (0.10)    
+   PM-NA  0.87    0.15 (0.03) 0.33 (0.11)   0.14 (0.09)    
+PM-sm-NA  0.97    0.14 (0.02) 0.29 (0.10)   0.12 (0.09)  
+   PM-Im  0.88    0.15 (0.03) 0.31 (0.10)   0.13 (0.10)    
+PM-sm-Im  0.97    0.14 (0.02) 0.28 (0.10)   0.12 (0.10)    
+```
+
+### Boente setting
+```
+   Method  PVE Reconstruction  Completion Eigenfunction
+    Mest  0.84    0.36 (0.07) 0.49 (0.17)   0.94 (0.05)
+ Mest-sm  0.92    0.32 (0.07) 0.42 (0.16)   0.94 (0.05)
+      GK  0.88    0.39 (0.09) 0.58 (0.21)   0.89 (0.08)
+   GK-sm  0.95    0.38 (0.09) 0.54 (0.20)   0.89 (0.08)
+      PM  0.89    0.34 (0.08) 0.52 (0.21)   0.93 (0.06)
+   PM-sm  0.91    0.33 (0.08) 0.50 (0.19)   0.93 (0.06)
+   PM-NA  0.92    0.29 (0.06) 0.35 (0.11)   0.92 (0.06)
+PM-sm-NA  0.95    0.28 (0.06) 0.34 (0.10)   0.92 (0.06)
+   PM-Im  0.94    0.26 (0.05) 0.27 (0.07)   0.94 (0.05)
+PM-sm-Im  0.96    0.25 (0.05) 0.27 (0.07)   0.94 (0.05)
+```
+
+\newpage
+
+# PM$_{10}$ outlier detection
+
+```{r}
+library(GA)   # persp plot
+library(fdapace)
+# library(mcfda)   # 7
+# library(synfd)   # 7
+# library(doParallel)   # parallel computing
+# library(doRNG)   # set.seed for foreach
+# library(MASS)   # huber, rlm
+library(tidyverse)
+# library(latex2exp)
+# library(xtable)
+library(robfpca)
+source("R/sim_boente.R")
+source("Kraus(2015)/pred.missfd.R")
+source("Kraus(2015)/simul.missfd.R")
+source("robust_Kraus.R")
+source("Boente_cov.R")
+source("sig2_yao_rob.R")
+source("cov_gk.R")
+source("cov_pm.R")
+source("R/sim_delaigle.R")
+source("R/sim_Lin_Wang(2020).R")
+
+# score distance
+score_dist <- function(funPCA.obj) {
+  K <- funPCA.obj$K
+  score <- funPCA.obj$pc.score
+  lambda <- funPCA.obj$lambda
+  
+  SD <- apply(score, 1, function(row){
+    sqrt(sum(row^2 / lambda))
+  })
+  
+  return(SD)
+}
+
+# orthogonal distance
+orthogonal_dist <- function(funPCA.obj, X) {
+  K <- funPCA.obj$K
+  X_hat <- predict(funPCA.obj, K = K)
+  
+  OD <- (X - X_hat)^2
+  OD <- apply(OD, 1, function(row){
+    sqrt(sum(row, na.rm = T))
+  })
+  
+  return(OD)
+}
+```
+
+
+## Region 1
+```{r}
+i <- 1
+load("RData/20210906_pm10_1.RData")
+x <- full_data[[i]]
+all_na_ind <- which( apply(x, 1, function(row){ sum(is.na(row)) == ncol(x) }) )
+x <- x[-all_na_ind, ]   # remove not observed day
+x.2 <- matrix2list(x)
+
+n <- nrow(x)
+p <- ncol(x)
+work.grid <- seq(0, 1, length.out = p)
+```
+
+### Eigenfunctions
+```{r, fig.height=3}
+### Eigen function
+min_K <- sapply(pca.obj, function(obj){ obj$K }) %>% 
+  min()
+p_list <- list()
+p_list2 <- list()
+# par(mfcol = c(2, min_K))
+for (i in 1:min_K) {
+  # ith eigenfunction
+  df <- sapply(pca.obj, function(obj){ obj$eig.fun[, i] })
+  # align eigen sign with Mest-sm
+  df <- apply(df, 2, function(col){ check_eigen_sign(col, df[, 4]) })
+  
+  df <- data.frame(df)
+  colnames(df) <- c("Yao","Boente","Mest","Mest-sm",
+                    "GK","GK-sm","PM","PM-sm")
+  df$time <- 1:24
+  # p_list[[i]] <- df %>% 
+  #   gather(key = "method",
+  #          value = "val",
+  #          -time) %>% 
+  #   mutate(method = factor(method,
+  #                          levels = c("Yao","Boente","Mest","Mest-sm",
+  #                                     "GK","GK-sm","PM","PM-sm"))) %>% 
+  #   ggplot(aes(x = time,
+  #              y = val,
+  #            color = method)) +
+  #   geom_line(size = 0.5) +
+  #   theme_bw() +
+  #   labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+  #   theme(legend.position = "bottom",
+  #         legend.title = element_blank(),
+  #         plot.title = element_text(hjust = 0.5),
+  # aspect.ratio = 1)
+  
+  p_list2[[i]] <- df[, c(1,2,4,6,8,9)] %>% 
+    gather(key = "method",
+           value = "val",
+           -time) %>% 
+    mutate(method = factor(method,
+                           levels = c("Yao","Boente","Mest","Mest-sm",
+                                      "GK","GK-sm","PM","PM-sm"))) %>% 
+    ggplot(aes(x = time,
+               y = val,
+               color = method)) +
+    geom_line(size = 0.5) +
+    theme_bw() +
+    labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+}
+
+library(ggpubr)
+# p1 <- ggarrange(plotlist = p_list, 
+#                 nrow = 1, ncol = 3,
+#                 common.legend = TRUE, legend = "bottom")
+p2 <- ggarrange(plotlist = p_list2, 
+                nrow = 1, ncol = 3,
+                common.legend = TRUE, legend = "bottom")
+# ggarrange(p1, p2,
+#           nrow = 2)
+p2
+```
+
+
+### Covariance surfaces
+```{r}
+gr <- 1:24
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+par(mfrow = c(2, 4),
+    mar = c(0, 2, 7, 2))
+for (i in 1:8) {
+  GA::persp3D(gr, gr, pca.obj[[i]]$cov,
+            theta = -70, phi = 30, expand = 1,
+            xlab = "", ylab = "", zlab = "",
+            main = mname[i])
+}
+```
+
+
+\newpage
+
+### Outlier map
+- Score distance vs Orthogonal distance plot
+
+```{r}
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+p_list <- list()
+for (i in 1:8) {
+  k <- pca.obj[[i]]$K   # number of PCs
+  SD <- score_dist(pca.obj[[i]])   # score distance
+  OD <- orthogonal_dist(pca.obj[[i]], x)   # orthogonal distance
+  # mcd_fit <- covMcd(OD^(2/3))
+  mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
+  cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
+  cut_x <- sqrt(qchisq(0.975, k))
+  
+  pt_col <- ifelse(SD >= cut_x | OD >= cut_y, 4, 1)
+  
+  p <- qplot(SD, OD, 
+             color = factor(pt_col)) +
+    geom_point(size = 0.5) +
+    scale_color_manual(values = c("grey","blue")) +
+    geom_hline(yintercept = cut_y, color = "red") +
+    geom_vline(xintercept = cut_x, color = "red") +
+    theme_bw() +
+    labs(x = "Score distance", y = "Orthogonal distance", title = mname[i]) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+  p_list[[i]] <- ggplotGrob(p)
+}
+library(ggpubr)
+ggarrange(plotlist = p_list, 
+          nrow = 2, ncol = 4)
+```
+
+
+### Outlier detection
+- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
+  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
+  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
+  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
+  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
+
+```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
+### c("robMah","LRT","HU","PCA_dist") for each row
+p_list2 <- list()
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+# mname <- c("robMah","LRT","Depth_trim","Depth_pond","HU","PCA_dist")
+# mname <- c("robMah","LRT","HU","PCA_dist")
+for (m in 1:8) {
+  fout <- outlier[[m]]
+  
+  p_list <- list()
+  for (i in 1:4) {
+    outlier_col <- rep(8, n)   # grey
+    outlier_col[ fout[[i]] ] <- 4
+    
+    p <- as.data.frame(cbind(t(x),
+                       time = 1:24)) %>% 
+      gather(key = "ind",
+             value = "val",
+             -time) %>% 
+      ggplot(aes(x = time,
+                 y = val,
+                 group = ind,
+                 color = rep(factor(outlier_col, levels = c(8, 4)), each = 24))) +
+      geom_line(size = 0.1) +
+      geom_hline(yintercept = 100, color = "black", linetype = "dashed") +
+      scale_color_manual(values = c("grey","blue")) +
+      theme_bw() +
+      labs(x = "Hour", 
+           y = "PM10", 
+           title = paste0(mname[m],
+                          " (", sum(outlier_col != 8), ")")) +
+      theme(legend.position = "none",
+            plot.title = element_text(hjust = 0.5),
+            aspect.ratio = 1)
+    
+    p_list[[i]] <- ggplotGrob(p)
+  }
+  
+  p_list2[[m]] <- ggarrange(plotlist = p_list, 
+                            nrow = 1, ncol = 4) %>% 
+    ggplotGrob()
+}
+
+ggarrange(plotlist = p_list2, 
+          nrow = 8, ncol = 1)
+```
+
+
+\newpage
+## Region 2
+```{r}
+i <- 2
+load("RData/20210906_pm10_2.RData")
+x <- full_data[[i]]
+all_na_ind <- which( apply(x, 1, function(row){ sum(is.na(row)) == ncol(x) }) )
+x <- x[-all_na_ind, ]   # remove not observed day
+x.2 <- matrix2list(x)
+
+n <- nrow(x)
+p <- ncol(x)
+work.grid <- seq(0, 1, length.out = p)
+```
+
+### Eigenfunctions
+```{r, fig.height=3}
+### Eigen function
+min_K <- sapply(pca.obj, function(obj){ obj$K }) %>% 
+  min()
+p_list <- list()
+p_list2 <- list()
+# par(mfcol = c(2, min_K))
+for (i in 1:min_K) {
+  # ith eigenfunction
+  df <- sapply(pca.obj, function(obj){ obj$eig.fun[, i] })
+  # align eigen sign with Mest-sm
+  df <- apply(df, 2, function(col){ check_eigen_sign(col, df[, 4]) })
+  
+  df <- data.frame(df)
+  colnames(df) <- c("Yao","Boente","Mest","Mest-sm",
+                    "GK","GK-sm","PM","PM-sm")
+  df$time <- 1:24
+  # p_list[[i]] <- df %>% 
+  #   gather(key = "method",
+  #          value = "val",
+  #          -time) %>% 
+  #   mutate(method = factor(method,
+  #                          levels = c("Yao","Boente","Mest","Mest-sm",
+  #                                     "GK","GK-sm","PM","PM-sm"))) %>% 
+  #   ggplot(aes(x = time,
+  #              y = val,
+  #            color = method)) +
+  #   geom_line(size = 0.5) +
+  #   theme_bw() +
+  #   labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+  #   theme(legend.position = "bottom",
+  #         legend.title = element_blank(),
+  #         plot.title = element_text(hjust = 0.5),
+  # aspect.ratio = 1)
+  
+  p_list2[[i]] <- df[, c(1,2,4,6,8,9)] %>% 
+    gather(key = "method",
+           value = "val",
+           -time) %>% 
+    mutate(method = factor(method,
+                           levels = c("Yao","Boente","Mest","Mest-sm",
+                                      "GK","GK-sm","PM","PM-sm"))) %>% 
+    ggplot(aes(x = time,
+               y = val,
+               color = method)) +
+    geom_line(size = 0.5) +
+    theme_bw() +
+    labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+}
+
+library(ggpubr)
+# p1 <- ggarrange(plotlist = p_list, 
+#                 nrow = 1, ncol = 3,
+#                 common.legend = TRUE, legend = "bottom")
+p2 <- ggarrange(plotlist = p_list2, 
+                nrow = 1, ncol = 3,
+                common.legend = TRUE, legend = "bottom")
+# ggarrange(p1, p2,
+#           nrow = 2)
+p2
+```
+
+
+### Covariance surfaces
+```{r}
+gr <- 1:24
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+par(mfrow = c(2, 4),
+    mar = c(0, 2, 7, 2))
+for (i in 1:8) {
+  GA::persp3D(gr, gr, pca.obj[[i]]$cov,
+            theta = -70, phi = 30, expand = 1,
+            xlab = "", ylab = "", zlab = "",
+            main = mname[i])
+}
+```
+
+
+\newpage
+
+### Outlier map
+- Score distance vs Orthogonal distance plot
+
+```{r}
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+p_list <- list()
+for (i in 1:8) {
+  k <- pca.obj[[i]]$K   # number of PCs
+  SD <- score_dist(pca.obj[[i]])   # score distance
+  OD <- orthogonal_dist(pca.obj[[i]], x)   # orthogonal distance
+  # mcd_fit <- covMcd(OD^(2/3))
+  mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
+  cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
+  cut_x <- sqrt(qchisq(0.975, k))
+  
+  pt_col <- ifelse(SD >= cut_x | OD >= cut_y, 4, 1)
+  
+  p <- qplot(SD, OD, 
+             color = factor(pt_col)) +
+    geom_point(size = 0.5) +
+    scale_color_manual(values = c("grey","blue")) +
+    geom_hline(yintercept = cut_y, color = "red") +
+    geom_vline(xintercept = cut_x, color = "red") +
+    theme_bw() +
+    labs(x = "Score distance", y = "Orthogonal distance", title = mname[i]) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+  p_list[[i]] <- ggplotGrob(p)
+}
+library(ggpubr)
+ggarrange(plotlist = p_list, 
+          nrow = 2, ncol = 4)
+```
+
+
+### Outlier detection
+- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
+  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
+  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
+  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
+  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
+
+```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
+### c("robMah","LRT","HU","PCA_dist") for each row
+p_list2 <- list()
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+# mname <- c("robMah","LRT","Depth_trim","Depth_pond","HU","PCA_dist")
+# mname <- c("robMah","LRT","HU","PCA_dist")
+for (m in 1:8) {
+  fout <- outlier[[m]]
+  
+  p_list <- list()
+  for (i in 1:4) {
+    outlier_col <- rep(8, n)   # grey
+    outlier_col[ fout[[i]] ] <- 4
+    
+    p <- as.data.frame(cbind(t(x),
+                       time = 1:24)) %>% 
+      gather(key = "ind",
+             value = "val",
+             -time) %>% 
+      ggplot(aes(x = time,
+                 y = val,
+                 group = ind,
+                 color = rep(factor(outlier_col, levels = c(8, 4)), each = 24))) +
+      geom_line(size = 0.1) +
+      geom_hline(yintercept = 100, color = "black", linetype = "dashed") +
+      scale_color_manual(values = c("grey","blue")) +
+      theme_bw() +
+      labs(x = "Hour", 
+           y = "PM10", 
+           title = paste0(mname[m],
+                          " (", sum(outlier_col != 8), ")")) +
+      theme(legend.position = "none",
+            plot.title = element_text(hjust = 0.5),
+            aspect.ratio = 1)
+    
+    p_list[[i]] <- ggplotGrob(p)
+  }
+  
+  p_list2[[m]] <- ggarrange(plotlist = p_list, 
+                            nrow = 1, ncol = 4) %>% 
+    ggplotGrob()
+}
+
+ggarrange(plotlist = p_list2, 
+          nrow = 8, ncol = 1)
+```
+
+
+\newpage
+## Region 3
+```{r}
+i <- 3
+load("RData/20210906_pm10_3.RData")
+x <- full_data[[i]]
+all_na_ind <- which( apply(x, 1, function(row){ sum(is.na(row)) == ncol(x) }) )
+x <- x[-all_na_ind, ]   # remove not observed day
+x.2 <- matrix2list(x)
+
+n <- nrow(x)
+p <- ncol(x)
+work.grid <- seq(0, 1, length.out = p)
+```
+
+### Eigenfunctions
+```{r, fig.height=3}
+### Eigen function
+min_K <- sapply(pca.obj, function(obj){ obj$K }) %>% 
+  min()
+p_list <- list()
+p_list2 <- list()
+# par(mfcol = c(2, min_K))
+for (i in 1:min_K) {
+  # ith eigenfunction
+  df <- sapply(pca.obj, function(obj){ obj$eig.fun[, i] })
+  # align eigen sign with Mest-sm
+  df <- apply(df, 2, function(col){ check_eigen_sign(col, df[, 4]) })
+  
+  df <- data.frame(df)
+  colnames(df) <- c("Yao","Boente","Mest","Mest-sm",
+                    "GK","GK-sm","PM","PM-sm")
+  df$time <- 1:24
+  # p_list[[i]] <- df %>% 
+  #   gather(key = "method",
+  #          value = "val",
+  #          -time) %>% 
+  #   mutate(method = factor(method,
+  #                          levels = c("Yao","Boente","Mest","Mest-sm",
+  #                                     "GK","GK-sm","PM","PM-sm"))) %>% 
+  #   ggplot(aes(x = time,
+  #              y = val,
+  #            color = method)) +
+  #   geom_line(size = 0.5) +
+  #   theme_bw() +
+  #   labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+  #   theme(legend.position = "bottom",
+  #         legend.title = element_blank(),
+  #         plot.title = element_text(hjust = 0.5),
+  # aspect.ratio = 1)
+  
+  p_list2[[i]] <- df[, c(1,2,4,6,8,9)] %>% 
+    gather(key = "method",
+           value = "val",
+           -time) %>% 
+    mutate(method = factor(method,
+                           levels = c("Yao","Boente","Mest","Mest-sm",
+                                      "GK","GK-sm","PM","PM-sm"))) %>% 
+    ggplot(aes(x = time,
+               y = val,
+               color = method)) +
+    geom_line(size = 0.5) +
+    theme_bw() +
+    labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+}
+
+library(ggpubr)
+# p1 <- ggarrange(plotlist = p_list, 
+#                 nrow = 1, ncol = 3,
+#                 common.legend = TRUE, legend = "bottom")
+p2 <- ggarrange(plotlist = p_list2, 
+                nrow = 1, ncol = 3,
+                common.legend = TRUE, legend = "bottom")
+# ggarrange(p1, p2,
+#           nrow = 2)
+p2
+```
+
+
+### Covariance surfaces
+```{r}
+gr <- 1:24
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+par(mfrow = c(2, 4),
+    mar = c(0, 2, 7, 2))
+for (i in 1:8) {
+  GA::persp3D(gr, gr, pca.obj[[i]]$cov,
+            theta = -70, phi = 30, expand = 1,
+            xlab = "", ylab = "", zlab = "",
+            main = mname[i])
+}
+```
+
+
+\newpage
+
+### Outlier map
+- Score distance vs Orthogonal distance plot
+
+```{r}
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+p_list <- list()
+for (i in 1:8) {
+  k <- pca.obj[[i]]$K   # number of PCs
+  SD <- score_dist(pca.obj[[i]])   # score distance
+  OD <- orthogonal_dist(pca.obj[[i]], x)   # orthogonal distance
+  # mcd_fit <- covMcd(OD^(2/3))
+  mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
+  cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
+  cut_x <- sqrt(qchisq(0.975, k))
+  
+  pt_col <- ifelse(SD >= cut_x | OD >= cut_y, 4, 1)
+  
+  p <- qplot(SD, OD, 
+             color = factor(pt_col)) +
+    geom_point(size = 0.5) +
+    scale_color_manual(values = c("grey","blue")) +
+    geom_hline(yintercept = cut_y, color = "red") +
+    geom_vline(xintercept = cut_x, color = "red") +
+    theme_bw() +
+    labs(x = "Score distance", y = "Orthogonal distance", title = mname[i]) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+  p_list[[i]] <- ggplotGrob(p)
+}
+library(ggpubr)
+ggarrange(plotlist = p_list, 
+          nrow = 2, ncol = 4)
+```
+
+
+### Outlier detection
+- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
+  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
+  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
+  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
+  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
+
+```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
+### c("robMah","LRT","HU","PCA_dist") for each row
+p_list2 <- list()
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+# mname <- c("robMah","LRT","Depth_trim","Depth_pond","HU","PCA_dist")
+# mname <- c("robMah","LRT","HU","PCA_dist")
+for (m in 1:8) {
+  fout <- outlier[[m]]
+  
+  p_list <- list()
+  for (i in 1:4) {
+    outlier_col <- rep(8, n)   # grey
+    outlier_col[ fout[[i]] ] <- 4
+    
+    p <- as.data.frame(cbind(t(x),
+                       time = 1:24)) %>% 
+      gather(key = "ind",
+             value = "val",
+             -time) %>% 
+      ggplot(aes(x = time,
+                 y = val,
+                 group = ind,
+                 color = rep(factor(outlier_col, levels = c(8, 4)), each = 24))) +
+      geom_line(size = 0.1) +
+      geom_hline(yintercept = 100, color = "black", linetype = "dashed") +
+      scale_color_manual(values = c("grey","blue")) +
+      theme_bw() +
+      labs(x = "Hour", 
+           y = "PM10", 
+           title = paste0(mname[m],
+                          " (", sum(outlier_col != 8), ")")) +
+      theme(legend.position = "none",
+            plot.title = element_text(hjust = 0.5),
+            aspect.ratio = 1)
+    
+    p_list[[i]] <- ggplotGrob(p)
+  }
+  
+  p_list2[[m]] <- ggarrange(plotlist = p_list, 
+                            nrow = 1, ncol = 4) %>% 
+    ggplotGrob()
+}
+
+ggarrange(plotlist = p_list2, 
+          nrow = 8, ncol = 1)
+```
+
+
+\newpage
+## Region 4
+```{r}
+i <- 4
+load("RData/20210906_pm10_4.RData")
+x <- full_data[[i]]
+all_na_ind <- which( apply(x, 1, function(row){ sum(is.na(row)) == ncol(x) }) )
+x <- x[-all_na_ind, ]   # remove not observed day
+x.2 <- matrix2list(x)
+
+n <- nrow(x)
+p <- ncol(x)
+work.grid <- seq(0, 1, length.out = p)
+```
+
+### Eigenfunctions
+```{r, fig.height=3}
+### Eigen function
+min_K <- sapply(pca.obj, function(obj){ obj$K }) %>% 
+  min()
+p_list <- list()
+p_list2 <- list()
+# par(mfcol = c(2, min_K))
+for (i in 1:min_K) {
+  # ith eigenfunction
+  df <- sapply(pca.obj, function(obj){ obj$eig.fun[, i] })
+  # align eigen sign with Mest-sm
+  df <- apply(df, 2, function(col){ check_eigen_sign(col, df[, 4]) })
+  
+  df <- data.frame(df)
+  colnames(df) <- c("Yao","Boente","Mest","Mest-sm",
+                    "GK","GK-sm","PM","PM-sm")
+  df$time <- 1:24
+  # p_list[[i]] <- df %>% 
+  #   gather(key = "method",
+  #          value = "val",
+  #          -time) %>% 
+  #   mutate(method = factor(method,
+  #                          levels = c("Yao","Boente","Mest","Mest-sm",
+  #                                     "GK","GK-sm","PM","PM-sm"))) %>% 
+  #   ggplot(aes(x = time,
+  #              y = val,
+  #            color = method)) +
+  #   geom_line(size = 0.5) +
+  #   theme_bw() +
+  #   labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+  #   theme(legend.position = "bottom",
+  #         legend.title = element_blank(),
+  #         plot.title = element_text(hjust = 0.5),
+  # aspect.ratio = 1)
+  
+  p_list2[[i]] <- df[, c(1,2,4,6,8,9)] %>% 
+    gather(key = "method",
+           value = "val",
+           -time) %>% 
+    mutate(method = factor(method,
+                           levels = c("Yao","Boente","Mest","Mest-sm",
+                                      "GK","GK-sm","PM","PM-sm"))) %>% 
+    ggplot(aes(x = time,
+               y = val,
+               color = method)) +
+    geom_line(size = 0.5) +
+    theme_bw() +
+    labs(x = "Hour", y = "", title = paste0("Eigenfunction ", i)) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+}
+
+library(ggpubr)
+# p1 <- ggarrange(plotlist = p_list, 
+#                 nrow = 1, ncol = 3,
+#                 common.legend = TRUE, legend = "bottom")
+p2 <- ggarrange(plotlist = p_list2, 
+                nrow = 1, ncol = 3,
+                common.legend = TRUE, legend = "bottom")
+# ggarrange(p1, p2,
+#           nrow = 2)
+p2
+```
+
+
+### Covariance surfaces
+```{r}
+gr <- 1:24
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+par(mfrow = c(2, 4),
+    mar = c(0, 2, 7, 2))
+for (i in 1:8) {
+  GA::persp3D(gr, gr, pca.obj[[i]]$cov,
+            theta = -70, phi = 30, expand = 1,
+            xlab = "", ylab = "", zlab = "",
+            main = mname[i])
+}
+```
+
+
+\newpage
+
+### Outlier map
+- Score distance vs Orthogonal distance plot
+
+```{r}
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+p_list <- list()
+for (i in 1:8) {
+  k <- pca.obj[[i]]$K   # number of PCs
+  SD <- score_dist(pca.obj[[i]])   # score distance
+  OD <- orthogonal_dist(pca.obj[[i]], x)   # orthogonal distance
+  # mcd_fit <- covMcd(OD^(2/3))
+  mcd_fit <- MASS::cov.mcd(matrix(OD^(2/3)))
+  cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
+  cut_x <- sqrt(qchisq(0.975, k))
+  
+  pt_col <- ifelse(SD >= cut_x | OD >= cut_y, 4, 1)
+  
+  p <- qplot(SD, OD, 
+             color = factor(pt_col)) +
+    geom_point(size = 0.5) +
+    scale_color_manual(values = c("grey","blue")) +
+    geom_hline(yintercept = cut_y, color = "red") +
+    geom_vline(xintercept = cut_x, color = "red") +
+    theme_bw() +
+    labs(x = "Score distance", y = "Orthogonal distance", title = mname[i]) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5),
+          aspect.ratio = 1)
+  p_list[[i]] <- ggplotGrob(p)
+}
+library(ggpubr)
+ggarrange(plotlist = p_list, 
+          nrow = 2, ncol = 4)
+```
+
+
+### Outlier detection
+- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
+  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
+  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
+  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
+  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
+
+```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
+### c("robMah","LRT","HU","PCA_dist") for each row
+p_list2 <- list()
+mname <- c("Yao","Boente","Mest","Mest-sm",
+           "GK","GK-sm","PM","PM-sm")
+# mname <- c("robMah","LRT","Depth_trim","Depth_pond","HU","PCA_dist")
+# mname <- c("robMah","LRT","HU","PCA_dist")
+for (m in 1:8) {
+  fout <- outlier[[m]]
+  
+  p_list <- list()
+  for (i in 1:4) {
+    outlier_col <- rep(8, n)   # grey
+    outlier_col[ fout[[i]] ] <- 4
+    
+    p <- as.data.frame(cbind(t(x),
+                       time = 1:24)) %>% 
+      gather(key = "ind",
+             value = "val",
+             -time) %>% 
+      ggplot(aes(x = time,
+                 y = val,
+                 group = ind,
+                 color = rep(factor(outlier_col, levels = c(8, 4)), each = 24))) +
+      geom_line(size = 0.1) +
+      geom_hline(yintercept = 100, color = "black", linetype = "dashed") +
+      scale_color_manual(values = c("grey","blue")) +
+      theme_bw() +
+      labs(x = "Hour", 
+           y = "PM10", 
+           title = paste0(mname[m],
+                          " (", sum(outlier_col != 8), ")")) +
+      theme(legend.position = "none",
+            plot.title = element_text(hjust = 0.5),
+            aspect.ratio = 1)
+    
+    p_list[[i]] <- ggplotGrob(p)
+  }
+  
+  p_list2[[m]] <- ggarrange(plotlist = p_list, 
+                            nrow = 1, ncol = 4) %>% 
+    ggplotGrob()
+}
+
+ggarrange(plotlist = p_list2, 
+          nrow = 8, ncol = 1)
+```
+
+
