@@ -438,7 +438,6 @@ for (i in 1:8) {
 \newpage
 
 ### Outlier map
-- Score distance vs Orthogonal distance plot
 
 ```{r}
 mname <- c("Yao","Boente","Mest","Mest-sm",
@@ -475,11 +474,6 @@ ggarrange(plotlist = p_list,
 
 
 ### Outlier detection
-- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
-  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
-  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
-  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
-  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
 
 ```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
 ### c("robMah","LRT","HU","PCA_dist") for each row
@@ -632,7 +626,6 @@ for (i in 1:8) {
 \newpage
 
 ### Outlier map
-- Score distance vs Orthogonal distance plot
 
 ```{r}
 mname <- c("Yao","Boente","Mest","Mest-sm",
@@ -669,11 +662,6 @@ ggarrange(plotlist = p_list,
 
 
 ### Outlier detection
-- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
-  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
-  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
-  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
-  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
 
 ```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
 ### c("robMah","LRT","HU","PCA_dist") for each row
@@ -826,7 +814,6 @@ for (i in 1:8) {
 \newpage
 
 ### Outlier map
-- Score distance vs Orthogonal distance plot
 
 ```{r}
 mname <- c("Yao","Boente","Mest","Mest-sm",
@@ -863,11 +850,6 @@ ggarrange(plotlist = p_list,
 
 
 ### Outlier detection
-- 4가지 outlier detection 고려 (1~3의 경우, completion 후에 적용)
-  1. robMah : the outlier detection method corresponds to the approach of Rousseeuw and Leroy (1987) using the robust Mahalanobis distance.
-  2. LRT : the outlier detection method corresponds to the approach of Febrero et al. (2007) using the likelihood ratio test.
-  3. HU : the outlier detection method corresponds to the approach of Hyndman and Ullah (2008) using the integrated square forecast errors.
-  4. PCA-dist : Outlie map에서 1사분면에 해당하는 curve를 outlier로 결정
 
 ```{r fig.height=12, fig.cap="From the left, robMah, LRT, HU and PCA-dist, respectively."}
 ### c("robMah","LRT","HU","PCA_dist") for each row
