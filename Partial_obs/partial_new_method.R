@@ -51,6 +51,7 @@ if (model == 3) {
 ### Simulation
 #####################################
 mse_eigen <- matrix(NA, num_sim, 6)
+mse_eigen2 <- matrix(NA, num_sim, 6)
 mse_reconstr <- matrix(NA, num_sim, 6)
 mse_completion <- matrix(NA, num_sim, 6)
 pve_res <- matrix(NA, num_sim, 6)
@@ -68,6 +69,7 @@ colnames(pve_res) <- c("Mest","Mest-sm",
                        "PM","PM-sm")
 colnames(K_res) <- colnames(pve_res) 
 colnames(mse_eigen) <- colnames(pve_res)
+colnames(mse_eigen2) <- colnames(pve_res)
 colnames(noise_var) <- c("Mest","GK","PM")
 
 # simulation result
@@ -84,19 +86,19 @@ while (num.sim < num_sim) {
   #############################
   n <- 100
   n.grid <- 51
-  # x.2 <- sim_delaigle(n = n,
-  #                     model = 2,
-  #                     type = data_type,
-  #                     out.prop = out_prop,
-  #                     out.type = 2,
-  #                     noise = 0.1)
-  # K <- 4
-  x.2 <- sim_boente(n = n,
-                    model = model,
-                    type = data_type,
-                    eps1 = out_prop,
-                    outlier = TRUE)
-  K <- 2
+  x.2 <- sim_delaigle(n = n,
+                      model = 2,
+                      type = data_type,
+                      out.prop = out_prop,
+                      out.type = 3,
+                      noise = 0.1)
+  K <- 4
+  # x.2 <- sim_boente(n = n,
+  #                   model = model,
+  #                   type = data_type,
+  #                   eps1 = out_prop,
+  #                   outlier = TRUE)
+  # K <- 2
   
   x <- list2matrix(x.2)
   # matplot(t(x), type = "l")
@@ -242,8 +244,8 @@ while (num.sim < num_sim) {
   if (is.null(K)) {
     mse_eigen[num.sim + 1, ] <- rep(NA, 4)
   } else {
-    eig.true <- x.2$phi[, 1:K]
-    # eig.true <- get_delaigle_eigen(work.grid, model = 2)
+    # eig.true <- x.2$phi[, 1:K]
+    eig.true <- get_delaigle_eigen(work.grid, model = 2)
     # calculate MSE
     mse_eigen[num.sim + 1, ] <- c(
       mean((check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true) - eig.true)^2),
@@ -253,16 +255,47 @@ while (num.sim < num_sim) {
       mean((check_eigen_sign(pca.pm.noise.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.pm.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
     )
+    
+    
+    cos_similarity <- function(x, y) {
+      if (is.matrix(x) & is.matrix(y)) {
+        x <- apply(x, 2, function(col){ col / sqrt(sum(col^2)) })
+        y <- apply(y, 2, function(col){ col / sqrt(sum(col^2)) })
+        return( cos(abs(colSums(x * y))) )
+      } else if (is.numeric(x) & is.numeric(y)) {
+        x <- x / sqrt(sum(x^2))
+        y <- y / sqrt(sum(y^2))
+        return( cos(abs(sum(x * y))) )
+      } else {
+        stop("2 input data types are differerent.")
+      }
+    }
+    
+    # calculate Cosine similarity
+    mse_eigen2[num.sim + 1, ] <- c(
+      mean(cos_similarity(check_eigen_sign(pca.Mest.noise.obj$eig.fun, eig.true), 
+                          eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true),
+                          eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.gk.noise.obj$eig.fun, eig.true),
+                          eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.gk.sm.noise.obj$eig.fun, eig.true),
+                          eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.pm.noise.obj$eig.fun, eig.true),
+                          eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.pm.sm.noise.obj$eig.fun, eig.true),
+                          eig.true))
+    )
   }
   
   
   ### Curve reconstruction via PCA
   # index of non-outlier curves having missing values
-  # cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-  # if (out_prop != 0) {
-  #   cand <- cand[cand <= 80]   # exclude outlier curves
-  # }
-  cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0 & x.2$y == 0)   # remove outlier
+  cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
+  if (out_prop != 0) {
+    cand <- cand[cand <= 80]   # exclude outlier curves
+  }
+  # cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0 & x.2$y == 0)   # remove outlier
   
   # reconstructed curves
   pred_Mest_noise_mat <- predict(pca.Mest.noise.obj, K = NULL)
@@ -402,6 +435,15 @@ data.frame(Method = c("Mest","Mest-sm",
       format(round(colMeans(mse_eigen), 2), 2),
       " (",
       format(round(apply(mse_eigen, 2, sd), 2), 2),
+      ")"
+    )
+  ), by = "Method") %>% 
+  left_join(data.frame(
+    Method = colnames(mse_eigen2),
+    Eigenfunction_cos = paste0(
+      format(round(colMeans(mse_eigen2), 2), 2),
+      " (",
+      format(round(apply(mse_eigen2, 2, sd), 2), 2),
       ")"
     )
   ), by = "Method") %>% 

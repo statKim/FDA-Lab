@@ -1,13 +1,45 @@
 library(sparseFPCA)
 
 ### mean and covariance in Boente (2020)
-cov_boente <- function(x, bw.mu, bw.cov) {
+cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE) {
   X <- list(x = x$Ly,
             pp = x$Lt)
   gr <- sort(unique(unlist(x$Lt)))
   
-  mh <- mu.hat3.lin(X=X, h=bw.mu)
-  ma <- matrixx(X, mh)
+  
+  # Start cluster
+  if (isTRUE(cv)) {
+    alpha <- 0.2
+    hs.mu <- seq(0.02, 0.3, length.out = 5)   # candidate of bw of mu
+    hs.cov <- seq(0.02, 0.3, length.out = 5)   # candidate of bw of cov
+    seed <- 123
+    k.cv <- 5
+    rho.param <- 1e-3
+    k <- 3
+    s <- k
+    
+    n_cores <- detectCores() / 2
+    cl <- makeCluster(n_cores)
+    registerDoParallel(cl)
+    
+    # run CV to find smoothing parameters for mean and covariance function
+    aa <- cv.mu.par(X, alpha=alpha, hs=hs.mu, seed=seed, k.cv=k.cv)
+    bw.mu <- aa$h[ which.min(aa$tmse) ]
+    mh <- mu.hat3.lin(X=X, h=bw.mu)
+    
+    # covariance
+    bb <- cov.fun.cv.par(X=X, muh=mh, ncov=ncov, k.cv=k.cv, hs=hs.cov,
+                         alpha=alpha, seed=seed, k=k, s=s, reg.rho=rho.param)[1:2]
+    bw.cov <- bb$h[ which.min(bb$tmspe) ]
+    ma <- matrixx(X, mh)
+    
+    stopCluster(cl)
+  } else {
+    mh <- mu.hat3.lin(X=X, h=bw.mu)
+    ma <- matrixx(X, mh)
+  }
+  
+ 
   
   # Compute the estimated cov function
   cov.fun2 <- cov.fun.hat2(X=X, h=bw.cov, mh=mh, ma=ma, ncov=length(gr), trace=FALSE)
@@ -28,3 +60,6 @@ cov_boente <- function(x, bw.mu, bw.cov) {
   return(list(mu = mu,
               cov = cov.fun2$G))
 }
+
+
+

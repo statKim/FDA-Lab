@@ -7,13 +7,22 @@
 sim_kraus <- function(n = 100,
                       type = c("partial","snippet","sparse","dense"),
                       num.comp = 100,
-                      out.prop = 0.2, out.type = 1) {
+                      out.prop = 0.2, out.type = 1,
+                      noise = 0) {
   gr <- seq(0, 1, length.out = 51)
   
   # generate dense curves
-  x.full <- simul.fd(n = n, grid = gr,
+  m <- length(gr)   # legnth of observed grids
+  x.full <- simul.fd(n = n, 
+                     grid = gr,
                      lambda.cos = 3^(-(2*(1:num.comp)-1)), 
                      lambda.sin = 3^(-(2*(1:num.comp))))
+  
+  # random noise
+  if (noise > 0) {
+    x.full <- x.full + matrix(rnorm(n*m, 0, sqrt(noise)), n, m)
+  }
+  
   x <- list()
   x$Ly <- lapply(1:n, function(i) { x.full[i, ] })
   x$Lt <- lapply(1:n, function(i) { gr })
