@@ -1,6 +1,6 @@
 ### Outlier detection by robust Mahalanobis distance based on first 2 FPC scores
 # input: "funPCA" object which is the output of function robfpca::funPCA()
-# return: index of outlying curves
+# return: length n vector (if outlier, return 1, else 0)
 fun_outlier <- function(funPCA.obj, method = c("robMah","outmap")) {
   if (method == "robMah") {
     # # first 2 FPC scores
@@ -19,7 +19,7 @@ fun_outlier <- function(funPCA.obj, method = c("robMah","outmap")) {
     robout <- function (data, nclass, meth = c("mve", "mcd"), rep = 10) {
       ncol = dim(data)[2]
       tempo = data[data[, ncol] == nclass, 1:(ncol - 1)]
-      rownames(tempo) <- 1:100
+      # rownames(tempo) <- 1:100
       namestempo = rownames(tempo)
       nrow = dim(tempo)[1]
       roboutl = NULL
@@ -60,7 +60,10 @@ fun_outlier <- function(funPCA.obj, method = c("robMah","outmap")) {
     out <- which(SD > cut_x & OD > cut_y)
   }
   
-  return(out)
+  out_y <- rep(0, n)
+  out_y[out] <- 1
+  
+  return(out_y)
 }
 
 

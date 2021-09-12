@@ -1,3 +1,96 @@
+cov_gk_2 <- function(X,
+                   smooth = FALSE,
+                   make.pos.semidef = TRUE,
+                   noise.var = 0) {
+  p <- ncol(X)
+  
+  # Scaling the data
+  disp <- apply(X, 2, function(col){ 
+    sd_trim(col[which(!is.na(col))], trim = 0.2)
+  })
+  X.scaled <- sweep(X, 2, disp, "/")
+  
+  # Compute GK correlation
+  cov.gk <- matrix(NA, p, p)
+  cor.gk <- matrix(NA, p, p)
+  for (i in 1:p) {
+    for (j in 1:p) {
+      if (i > j) {
+        cor.gk[i, j] <- cor.gk[j, i]
+        cov.gk[i, j] <- cov.gk[j, i]
+      }
+      
+      z1 <- X.scaled[, i] + X.scaled[, j]
+      z1 <- z1[which(!is.na(z1))]
+
+      z2 <- X.scaled[, i] - X.scaled[, j]
+      z2 <- z2[which(!is.na(z2))]
+
+      cor.gk[i, j] <- 0.25*(sd_trim(z1, trim = 0.2)^2 - sd_trim(z2, trim = 0.2)^2)
+      
+      z1 <- X[, i] + X[, j]
+      z1 <- z1[which(!is.na(z1))]
+      
+      z2 <- X[, i] - X[, j]
+      z2 <- z2[which(!is.na(z2))]
+      
+      cov.gk[i, j] <- 0.25*(sd_trim(z1, trim = 0.2)^2 - sd_trim(z2, trim = 0.2)^2)
+    }
+  }
+  
+
+  rob.var <- cov.gk
+  
+  # subtract noise variance
+  diag(rob.var) <- diag(rob.var) - noise.var
+  
+  # 2-dimensional smoothing - does not need to adjust noise variance
+  if (smooth == T) {
+    p <- nrow(rob.var)
+    gr <- seq(0, 1, length.out = p)
+    cov.sm.obj <- refund::fbps(rob.var, 
+                               knots = p/2,   # recommendation of Xiao(2013)
+                               list(x = gr,
+                                    z = gr))
+    rob.var <- cov.sm.obj$Yhat
+  }
+  # else {
+  #     # subtract noise variance - Need for not smoothing
+  #     diag(rob.var) <- diag(rob.var) - noise.var
+  # }
+  
+  # make positive-semi-definite
+  if (isTRUE(make.pos.semidef)) {
+    eig <- eigen(rob.var)
+    
+    # if complex eigenvalues exists, get the real parts only.
+    if (is.complex(eig$values)) {
+      idx <- which(abs(Im(eig$values)) < 1e-6)
+      eig$values <- Re(eig$values[idx])
+      eig$vectors <- Re(eig$vectors[, idx])
+    }
+    
+    k <- which(eig$values > 0)
+    lambda <- eig$values[k]
+    phi <- matrix(eig$vectors[, k],
+                  ncol = length(k))
+    
+    rob.var <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
+    
+    rob.var <- (rob.var + t(rob.var)) / 2
+    # if (length(k) > 1) {
+    #     rob.var <- eig$vectors[, k] %*% diag(eig$values[k]) %*% t(eig$vectors[, k])
+    # } else {
+    #     rob.var <- eig$values[k] * (eig$vectors[, k] %*% t(eig$vectors[, k]))
+    # }
+  }
+  
+  return(list(mean = M.loc,
+              cov = rob.var))
+}
+
+
+
 library(RobStatTM)
 library(chemometrics)
 cov_gk <- function(dat.mat,
@@ -112,6 +205,8 @@ cov_gk <- function(dat.mat,
                   ncol = length(k))
     
     rob.var <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
+    
+    rob.var <- (rob.var + t(rob.var)) / 2
     
     # if (length(k) > 1) {
     #     rob.var <- eig$vectors[, k] %*% diag(eig$values[k]) %*% t(eig$vectors[, k])

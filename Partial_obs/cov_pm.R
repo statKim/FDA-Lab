@@ -1,30 +1,4 @@
 
-# 
-# X <- x
-# cutoff <- sqrt(qchisq(0.99, ncol(X))); cutoff
-# X.mean <- colMeans(X, na.rm = T)
-# X.cov  <- cov(X, use = "pairwise.complete.obs")
-# # round(cor(X), 2) # -0.21
-# 
-# estX    <- estLocScale(X)
-# Xw      <- wrap(X, estX$loc, estX$scale)$Xw
-# Xw.mean <- colMeans(Xw)
-# Xw.cov  <- cov(Xw)
-# # round(cor(Xw), 2) # 0.57
-# 
-# gr <- seq(0, 1, length.out = 51)
-# par(mfrow = c(1, 2))
-# GA::persp3D(gr, gr, cov_pm(x),
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov_pm(x, smooth = T),
-#             theta = -70, phi = 30, expand = 1)
-# 
-# 
-# eig <- eigen(Xw.cov)
-# eig$values
-# 
-# noise_var_pm(x)
-
 psi_hampel <- function(z) {
   b <- 1.5
   c <- 4
@@ -51,38 +25,6 @@ psi_hampel <- function(z) {
   return(out)
 }
 
-# X <- rnorm(100) %>% 
-#   matrix(ncol = 1)
-# rob_stat <- estLocScale(X, type = "wrap")
-# X_w <- wrap(X, rob_stat$loc, rob_stat$scale)$Xw
-# rob.mean <- colMeans(X_w)
-# rob.cov  <- cov(X_w)
-# 
-# 
-# z_star <- psi_hampel((X[, 1] - rob_stat$loc) / rob_stat$scale)*rob_stat$scale + rob_stat$loc
-# 
-# X <- x
-# rob_stat <- estLocScale(X, type = "wrap")
-# sweep()
-# 
-# n <- nrow(X)
-# p <- ncol(X)
-# X_w <- matrix(NA, n, p)
-# for (j in 1:p) {
-#   X_w[, j] <- psi_hampel((X[, j] - rob_stat$loc[j]) / rob_stat$scale[j])*rob_stat$scale[j] + rob_stat$loc[j]
-# }
-# sum(is.na(X_w))
-# 
-# cov.test <- cov(X_w, use = "pairwise.complete.obs")
-# cov.gk <- cov_gk(X)
-# 
-# par(mfrow = c(2, 2))
-# GA::persp3D(gr, gr, cov.test,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov.gk$cov,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(gr, gr, cov_pm(X)$cov,
-#             theta = -70, phi = 30, expand = 1)
 
 ### imputation for missing parts using nearest curves
 impute_dist <- function(X) {
@@ -122,11 +64,12 @@ impute_dist <- function(X) {
 
 
 
+### Raymaekers & Rousseeuw (2021), Technometrics
 library(cellWise)
 cov_pm <- function(X,
                    smooth = FALSE,
                    noise.var = 0) {
-  # # Raymaekers & Rousseeuw (2021), Technometrics
+  # # "cellWise" package function
   # rob_stat <- estLocScale(X, type = "wrap")
   # X_w <- wrap(X, rob_stat$loc, rob_stat$scale)$Xw
   # rob.mean <- colMeans(X_w)
@@ -134,8 +77,29 @@ cov_pm <- function(X,
   
   ### 내가 짠 부분(기존 함수와 거의 비슷)
   rob_stat <- estLocScale(X, type = "wrap")
+
+  # matplot(cbind(apply(x, 2, function(y){huber(y)$mu}),
+  #               estLocScale(x)$loc), type = "l")
+  # matplot(cbind(apply(x, 2, function(y){huber(y)$s}),
+  #               estLocScale(x)$scale), type = "l")
+  # 
+  # matplot(cbind(apply(x, 2, function(y){RobStatTM::locScaleM(y[!is.na(y)], psi = "bisquare")$mu}),
+  #               estLocScale(x)$loc), type = "l")
+  # matplot(cbind(apply(x, 2, function(y){RobStatTM::locScaleM(y[!is.na(y)], psi = "bisquare")$disper}),
+  #               estLocScale(x)$scale), type = "l")
+  # 
+  # matplot(cbind(apply(x, 2, function(y){robustbase::scaleTau2(y[!is.na(y)], mu.too = T)[1]}),
+  #               estLocScale(x)$loc), type = "l")
+  # matplot(cbind(apply(x, 2, function(y){robustbase::scaleTau2(y[!is.na(y)], mu.too = T)[2]}),
+  #               estLocScale(x)$scale), type = "l")
+  # 
+  # matplot(cbind(apply(x, 2, function(y){as.numeric(sqrt(robustbase::covMcd(y)$cov))}),
+  #               estLocScale(x)$scale), type = "l")
+  # matplot(cbind(apply(x, 2, function(y){as.numeric(sqrt(MASS::cov.mcd(matrix(y[!is.na(y)]))$cov))}),
+  #               estLocScale(x)$scale), type = "l")
   
-  # wrap
+  
+  # wrap (data transform - remove the effect of outliers)
   n <- nrow(X)
   p <- ncol(X)
   X_w <- matrix(NA, n, p)
@@ -143,8 +107,8 @@ cov_pm <- function(X,
     X_w[, j] <- psi_hampel((X[, j] - rob_stat$loc[j]) / rob_stat$scale[j])*rob_stat$scale[j] + rob_stat$loc[j]
   }
   
-  # impute missing parts
-  X_w <- impute_dist(X_w)
+  # # impute missing parts
+  # X_w <- impute_dist(X_w)
 
   # compute mean and covariance
   rob.mean <- colMeans(X_w, na.rm = TRUE)  

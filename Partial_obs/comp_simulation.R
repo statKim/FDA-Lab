@@ -32,8 +32,8 @@ source("cov_pm.R")
 ### Simulation Parameters
 #####################################
 ### simulation type
-# sim_type <- "delaigle"
-sim_type <- "kraus"
+sim_type <- "delaigle"
+# sim_type <- "kraus"
 # sim_type <- "boente"
 
 ### Overall setting
@@ -704,17 +704,18 @@ data.frame(Method = c("Yao","Kraus",
 
 
 # ### Eigen function trajectories
-# par(mfrow = c(2, 2))
-# for (k in 1:4) {
+# par(mfrow = c(2, 3))
+# for (k in 1:K) {
 #   matplot(work.grid,
 #           cbind(
 #             eig.true[, k],
 #             check_eigen_sign(pca.yao.obj$eig.fun, eig.true)[, k],
-#             check_eigen_sign(eig$vectors[, k], eig.true[, k]),
-#             check_eigen_sign(pca.huber.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(eig.kraus$phi[, 1:K], eig.true)[, k],
+#             # check_eigen_sign(pca.huber.obj$eig.fun, eig.true)[, k],
 #             check_eigen_sign(pca.boente.obj$eig.fun, eig.true)[, k],
-#             check_eigen_sign(pca.Mest.obj$eig.fun, eig.true)[, k],
-#             check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true)[, k]
+#             check_eigen_sign(pca.Mest.sm.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(pca.gk.sm.obj$eig.fun, eig.true)[, k],
+#             check_eigen_sign(pca.pm.sm.obj$eig.fun, eig.true)[, k]
 #           ),
 #           type = "l",
 #           col = 1:7,
@@ -724,7 +725,7 @@ data.frame(Method = c("Yao","Kraus",
 #           lwd = rep(2, 7))
 #   if (k == 1) {
 #     legend("topleft",
-#            c("True","Yao","Kraus","Huber","Boente","M-est","M-est(smooth)"),
+#            c("True","Yao","Kraus","Boente","Mest-sm","GK-sm","PM-sm"),
 #            col = 1:7,
 #            lty = 1:7,
 #            lwd = rep(2, 7))

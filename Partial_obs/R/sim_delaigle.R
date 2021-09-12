@@ -16,8 +16,6 @@ sim_delaigle <- function(n = 100, model = 2,
                          noise = 0) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
-  x <- list(Lt = list(),
-            Ly = list())
   
   # generate dense curves
   m <- length(gr)   # legnth of observed grids
@@ -29,8 +27,10 @@ sim_delaigle <- function(n = 100, model = 2,
     y <- y + matrix(rnorm(n*m, 0, sqrt(noise)), n, m)
   }
   
+  x <- list()
   x$Ly <- lapply(1:n, function(i) { y[i, ] })
   x$Lt <- lapply(1:n, function(i) { gr })
+  x$y <- rep(0, n)   # indicator of outlier
   x.full <- t(sapply(x$Ly, cbind))   # matrix containing the fully observed data
   
   # Check type option
@@ -42,11 +42,12 @@ sim_delaigle <- function(n = 100, model = 2,
     x.obs <- rbind((gr <= .4) | (gr >= .7), 
                    simul.obs(n = n-1, grid = gr)) # TRUE if observed
     # remove missing periods 
-    x <- x.full
-    x[!x.obs] <- NA
+    x.partial <- x.full
+    x.partial[!x.obs] <- NA
     
-    x <- list(Ly = apply(x, 1, function(y){ y[!is.na(y)] }),
+    x <- list(Ly = apply(x.partial, 1, function(y){ y[!is.na(y)] }),
               Lt = apply(x.obs, 1, function(y){ gr[y] }),
+              y = x$y,
               x.full = x.full)
   } else if (type == "snippet") {   # generate functional snippets
     # Lin & Wang(2020) setting
@@ -88,6 +89,7 @@ sim_delaigle <- function(n = 100, model = 2,
     }
     x <- list(Ly = Ly,
               Lt = Lt,
+              y = x$y,
               x.full = x.full)
   } else if (type == "sparse") {
     
@@ -107,6 +109,7 @@ sim_delaigle <- function(n = 100, model = 2,
                       Lt = x$Lt[(n-n.outlier+1):n])
     x.outlier <- make_outlier(x.outlier, out.type = out.type)
     x$Ly[(n-n.outlier+1):n] <- x.outlier$Ly
+    x$y[(n-n.outlier+1):n] <- 1   # outlier indicator
     # x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
   } else if (out.type == 4) {
     # x.outlier <- mvtnorm::rmvt(n = n.outlier, 
@@ -129,6 +132,7 @@ sim_delaigle <- function(n = 100, model = 2,
       x.outlier[i, idx[[i]]] 
     })
     x$x.full <- x.outlier
+    x$y[(n-n.outlier+1):n] <- 1   # outlier indicator
   } else if (out.type == 5) {
     eps2 <- 0.3
     x.outlier <- lapply(x$Ly[(n-n.outlier+1):n], function(y) {
@@ -141,6 +145,7 @@ sim_delaigle <- function(n = 100, model = 2,
       return(X_i)
     })
     x$Ly[(n-n.outlier+1):n] <- x.outlier
+    x$y[(n-n.outlier+1):n] <- 1   # outlier indicator
   } else if (out.type == 6) {
     # l <- 1/15
     l <- 1/10
@@ -159,6 +164,7 @@ sim_delaigle <- function(n = 100, model = 2,
       
       Ly[out_ind] <- Ly[out_ind] + D_i*M
       x$Ly[[i]] <- Ly
+      x$y[i] <- 1   # outlier indicator
     }
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))

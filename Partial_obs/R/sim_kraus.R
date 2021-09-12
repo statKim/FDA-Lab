@@ -26,6 +26,7 @@ sim_kraus <- function(n = 100,
   x <- list()
   x$Ly <- lapply(1:n, function(i) { x.full[i, ] })
   x$Lt <- lapply(1:n, function(i) { gr })
+  x$y <- rep(0, n)   # indicator of outlier
   
   # Check type option
   if (type == "dense") {   # Nothing do
@@ -36,11 +37,12 @@ sim_kraus <- function(n = 100,
     x.obs <- rbind((gr <= .4) | (gr >= .7), 
                    simul.obs(n = n-1, grid = gr)) # TRUE if observed
     # remove missing periods 
-    x <- x.full
-    x[!x.obs] <- NA
+    x.partial <- x.full
+    x.partial[!x.obs] <- NA
     
-    x <- list(Ly = apply(x, 1, function(y){ y[!is.na(y)] }),
+    x <- list(Ly = apply(x.partial, 1, function(y){ y[!is.na(y)] }),
               Lt = apply(x.obs, 1, function(y){ gr[y] }),
+              y = x$y,
               x.full = x.full)
   } else if (type == "snippet") {   # generate functional snippets
     # Lin & Wang(2020) setting
@@ -82,6 +84,7 @@ sim_kraus <- function(n = 100,
     }
     x <- list(Ly = Ly,
               Lt = Lt,
+              y = x$y,
               x.full = x.full)
   } else if (type == "sparse") {
     
@@ -101,6 +104,7 @@ sim_kraus <- function(n = 100,
                       Lt = x$Lt[(n-n.outlier+1):n])
     x.outlier <- make_outlier(x.outlier, out.type = out.type)
     x$Ly[(n-n.outlier+1):n] <- x.outlier$Ly
+    x$y[(n-n.outlier+1):n] <- 1   # outlier indicator
     # x$Lt[(n-n.outlier+1):n] <- x.outlier$Lt
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))
