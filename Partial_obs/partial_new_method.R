@@ -182,18 +182,17 @@ while (num.sim < num_sim) {
   start_time <- Sys.time()
   set.seed(seed)
   tryCatch({
-    noise.var.pm <- noise_var_pm(x)
-    print(noise.var.pm)
-  
     # Not smoothed  
-    cov.obj <- cov_pm(x, noise.var = noise.var.pm)
+    cov.obj <- cov_pm(x, smooth = FALSE)
     mu.pm <- cov.obj$mean
     cov.pm.noise <- cov.obj$cov
+    noise.var.pm <- cov.obj$noise.var
     
     # Smoothed
-    cov.obj <- cov_pm(x, smooth = TRUE, noise.var = noise.var.pm)
+    cov.obj <- cov_pm(x, smooth = TRUE)
     mu.pm.sm <- cov.obj$mean
     cov.pm.sm.noise <- cov.obj$cov
+    noise.var.pm.sm <- cov.obj$noise.var
   }, error = function(e) { 
     print("PM cov error")
     print(e)
@@ -237,7 +236,7 @@ while (num.sim < num_sim) {
                                mu.pm, cov.pm.noise, sig2 = noise.var.pm,
                                work.grid, PVE = pve, K = K)
   pca.pm.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
-                                  mu.pm.sm, cov.pm.sm.noise, sig2 = noise.var.pm,
+                                  mu.pm.sm, cov.pm.sm.noise, sig2 = noise.var.pm.sm,
                                   work.grid, PVE = pve, K = K)
   
   ### Eigen function - Compute for fixed K

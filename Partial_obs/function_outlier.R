@@ -19,7 +19,6 @@ fun_outlier <- function(funPCA.obj, method = c("robMah","outmap")) {
     robout <- function (data, nclass, meth = c("mve", "mcd"), rep = 10) {
       ncol = dim(data)[2]
       tempo = data[data[, ncol] == nclass, 1:(ncol - 1)]
-      # rownames(tempo) <- 1:100
       namestempo = rownames(tempo)
       nrow = dim(tempo)[1]
       roboutl = NULL
@@ -49,6 +48,8 @@ fun_outlier <- function(funPCA.obj, method = c("robMah","outmap")) {
     
     out <- robout(s, 1, "mcd")$outliers
   } else if (method == "outmap") {
+    k <- funPCA.obj$K   # selected number of PCs
+    
     # Outlier map (Score dist VS Orthogonal dist), See Hubert(2005)
     SD <- score_dist(funPCA.obj)   # score distance
     OD <- orthogonal_dist(funPCA.obj)   # orthogonal distance

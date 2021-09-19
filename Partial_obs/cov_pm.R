@@ -4,20 +4,20 @@ psi_hampel <- function(z) {
   c <- 4
   
   # if (is.vector(z)) {   # input is vector
-    idx_not_na <- which(!is.na(z))
-    out <- rep(NA, length(z))
-    
-    out[idx_not_na] <- sapply(z[idx_not_na], function(a) {
-      if (abs(a) < b) {
-        return(a)
-      } else if (abs(a) >= b & abs(a) < c) {
-        q1 <- 1.540793
-        q2 <- 0.8622731
-        return(q1*tanh(q2*(c-abs(a)))*sign(a))
-      } else {
-        return(0)
-      }
-    })
+  idx_not_na <- which(!is.na(z))
+  out <- rep(NA, length(z))
+  
+  out[idx_not_na] <- sapply(z[idx_not_na], function(a) {
+    if (abs(a) < b) {
+      return(a)
+    } else if (abs(a) >= b & abs(a) < c) {
+      q1 <- 1.540793
+      q2 <- 0.8622731
+      return(q1*tanh(q2*(c-abs(a)))*sign(a))
+    } else {
+      return(0)
+    }
+  })
   # } else if (is.matrix(z)) {   # input is matrix
   #   
   # }
@@ -67,8 +67,9 @@ impute_dist <- function(X) {
 ### Raymaekers & Rousseeuw (2021), Technometrics
 library(cellWise)
 cov_pm <- function(X,
-                   smooth = FALSE,
-                   noise.var = 0) {
+                   smooth = TRUE,
+                   impute = FALSE,
+                   noise.var = TRUE) {
   # # "cellWise" package function
   # rob_stat <- estLocScale(X, type = "wrap")
   # X_w <- wrap(X, rob_stat$loc, rob_stat$scale)$Xw
@@ -77,7 +78,7 @@ cov_pm <- function(X,
   
   ### 내가 짠 부분(기존 함수와 거의 비슷)
   rob_stat <- estLocScale(X, type = "wrap")
-
+  
   # matplot(cbind(apply(x, 2, function(y){huber(y)$mu}),
   #               estLocScale(x)$loc), type = "l")
   # matplot(cbind(apply(x, 2, function(y){huber(y)$s}),
@@ -107,15 +108,23 @@ cov_pm <- function(X,
     X_w[, j] <- psi_hampel((X[, j] - rob_stat$loc[j]) / rob_stat$scale[j])*rob_stat$scale[j] + rob_stat$loc[j]
   }
   
-  # # impute missing parts
-  # X_w <- impute_dist(X_w)
-
+  # impute missing parts
+  if (impute == TRUE) {
+    X_w <- impute_dist(X_w)
+  }
+  
   # compute mean and covariance
   rob.mean <- colMeans(X_w, na.rm = TRUE)  
   rob.cov <- cov(X_w, use = "pairwise.complete.obs")
   
   
   # subtract noise variance
+  if (noise.var == TRUE) {
+    noise.var <- noise_var_pm(X, 
+                              cov = rob.cov)
+  } else {
+    noise.var <- 0
+  }
   diag(rob.cov) <- diag(rob.cov) - noise.var
   
   # 2-dimensional smoothing - does not need to adjust noise variance
@@ -129,9 +138,10 @@ cov_pm <- function(X,
                                     z = gr))
     rob.cov <- cov.sm.obj$Yhat
   }
-
+  
   return(list(mean = rob.mean,
-              cov = rob.cov))
+              cov = rob.cov,
+              noise.var = noise.var))
 }
 
 
@@ -140,8 +150,11 @@ cov_pm <- function(X,
 noise_var_pm <- function(x, gr = NULL, cov = NULL) {
   m <- ncol(x)
   
-  cov_hat <- cov_pm(x,
-                    smooth = FALSE)$cov
+  if (is.null(cov)) {
+    cov <- cov_pm(x,
+                  smooth = FALSE,
+                  noise = FALSE)$cov
+  }
   
   if (is.null(gr)) {
     gr <- seq(0, 1, length.out = m)
@@ -149,10 +162,10 @@ noise_var_pm <- function(x, gr = NULL, cov = NULL) {
   h <- max(diff(gr))
   
   # 1D smoothing
-  var_y <- diag(cov_hat)
+  var_y <- diag(cov)
   var_y <- smooth.spline(gr, var_y)$y
   
-  df <- data.frame(v = as.numeric(cov_hat),
+  df <- data.frame(v = as.numeric(cov),
                    s = rep(gr, m),
                    t = rep(gr, each = m))
   
@@ -164,9 +177,9 @@ noise_var_pm <- function(x, gr = NULL, cov = NULL) {
                    (df$s != df$t))
     var_x[i] <- mean(df$v[idx])
   }
-  diag(cov_hat) <- var_x
-  cov.sm.obj <- refund::fbps(cov_hat, list(x = gr,
-                                           z = gr))
+  diag(cov) <- var_x
+  cov.sm.obj <- refund::fbps(cov, list(x = gr,
+                                       z = gr))
   rob.var <- cov.sm.obj$Yhat
   
   int_inf <- min(gr) + (max(gr) - min(gr)) / 4

@@ -140,14 +140,7 @@ while (num.sim < num_sim) {
   
   x <- list2matrix(x.2)
   # matplot(t(x), type = "l")
-  
-  
-  # random noise
-  Lt <- x.2$Lt
-  Ly <- x.2$Ly
-  Ly <- lapply(Ly, function(x){ x + rnorm(length(x), 0, sqrt(sig)) })
-  x <- list2matrix(list(Lt = Lt,
-                        Ly = Ly))
+
   
   
   #############################

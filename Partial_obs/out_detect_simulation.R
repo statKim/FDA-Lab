@@ -79,7 +79,8 @@ while (num.sim < num_sim) {
   n <- 100
   n.grid <- 51
   if (sim_type == "delaigle") {
-    out_type <- 2   # type of outliers
+    # out_type <- 2   # type of outliers
+    out_type <- 1
     sig <- 0.1   # true noise variance
     x.2 <- sim_delaigle(n = n, 
                         model = 2,
@@ -278,6 +279,12 @@ while (num.sim < num_sim) {
 #      file = "RData/20210911_detect_boente-4.RData")
 # save(list = c("pca.est"),
 #      file = "RData/20210911_detect_delaigle-2.RData")
+# save(list = c("pca.est"),
+#      file = "RData/20210911_detect_delaigle-6.RData")
+# save(list = c("pca.est"),
+#      file = "RData/20210911_detect_delaigle-7.RData")
+# save(list = c("pca.est"),
+#      file = "RData/20210911_detect_delaigle-1.RData")
 
 
 ### Outlier detection - PC score based method
@@ -303,6 +310,7 @@ for (sim in 1:num_sim) {
   ### Outlier detection
   for (i in 1:4) {
     out <- list()
+    gr <- pca.est[[sim]]$pca.obj[[i]]$work.grid
     
     pc1 <- pca.est[[sim]]$pca.obj[[i]]$pc.score[, 1]
     y_hat <- rep(0, n)
@@ -376,6 +384,18 @@ mapply(
 
 
 
+fds.obj <- fds(x = gr,
+               y = t(X_comp), 
+               xname = "Time", yname = "Value")
+fboxplot(data = fds.obj, plot.type = "functional",
+         type = "bag", projmethod="PCAproj")
+fboxplot(data = fds.obj, plot.type = "bivariate",
+         type = "bag", projmethod="PCAproj")
+
+fboxplot(data = fds.obj, plot.type = "functional",
+         type = "hdr", projmethod="PCAproj")
+fboxplot(data = fds.obj, plot.type = "bivariate",
+         type = "hdr", projmethod="PCAproj")
 
 
 
@@ -485,6 +505,7 @@ for (sim in 1:num_sim) {
 
 sapply(sens_list, colMeans)
 sapply(spec_list, colMeans)
+### Delaigle 세팅 + out_type = 2
 # > sapply(sens_list, colMeans)
 # [,1]       [,2]       [,3]       [,4]
 # Mah 0.06166667 0.06333333 0.07166667 0.07666667

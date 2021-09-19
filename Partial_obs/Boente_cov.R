@@ -1,7 +1,7 @@
 library(sparseFPCA)
 
 ### mean and covariance in Boente (2020)
-cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE) {
+cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, seed = 123) {
   X <- list(x = x$Ly,
             pp = x$Lt)
   gr <- sort(unique(unlist(x$Lt)))
@@ -12,11 +12,11 @@ cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE) {
     alpha <- 0.2
     hs.mu <- seq(0.02, 0.3, length.out = 5)   # candidate of bw of mu
     hs.cov <- seq(0.02, 0.3, length.out = 5)   # candidate of bw of cov
-    seed <- 123
     k.cv <- 5
     rho.param <- 1e-3
     k <- 3
     s <- k
+    ncov <- length(gr)
     
     n_cores <- detectCores() / 2
     cl <- makeCluster(n_cores)

@@ -166,6 +166,27 @@ sim_delaigle <- function(n = 100, model = 2,
       x$Ly[[i]] <- Ly
       x$y[i] <- 1   # outlier indicator
     }
+  } else if (out.type == 7) {
+    # l <- 1/15
+    l <- 1/10
+    M <- 30
+    for (i in (n-n.outlier+1):n) {
+      Ly <- x$Ly[[i]]
+      m <- length(Ly)
+      
+      eps2 <- 0.3
+      # V <- rbinom(1, 1, eps1)
+      V <- 1
+      
+      W_s <- rbinom(m, 1, eps2)
+      z_s <- rnorm(m, 30, 0.1)
+      pm <- sample(c(-1, 1), 1)
+      Y <- W_s*z_s*pm
+      
+      Ly <- Ly + V*Y
+      x$Ly[[i]] <- Ly
+      x$y[i] <- 1   # outlier indicator
+    }
   } else {
     stop(paste(out.type, "is not correct value of argument out.type! Just integer value between 1~3."))
   }
