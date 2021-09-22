@@ -178,8 +178,12 @@ noise_var_pm <- function(x, gr = NULL, cov = NULL) {
     var_x[i] <- mean(df$v[idx])
   }
   diag(cov) <- var_x
-  cov.sm.obj <- refund::fbps(cov, list(x = gr,
-                                       z = gr))
+  cov.sm.obj <- refund::fbps(cov, 
+                             knots = m/2,   # recommendation of Xiao(2013)
+                             list(x = gr,
+                                  z = gr))
+  # cov.sm.obj <- refund::fbps(cov, list(x = gr,
+  #                                      z = gr))
   rob.var <- cov.sm.obj$Yhat
   
   int_inf <- min(gr) + (max(gr) - min(gr)) / 4

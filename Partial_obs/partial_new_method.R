@@ -30,7 +30,7 @@ source("cov_pm.R")
 #####################################
 ### Simulation Parameters
 #####################################
-num_sim <- 50   # number of simulations
+num_sim <- 30   # number of simulations
 out_prop <- 0.2   # proportion of outliers
 model <- 4   # type of outliers
 data_type <- "partial"   # type of functional data
@@ -50,27 +50,30 @@ if (model == 3) {
 #####################################
 ### Simulation
 #####################################
-mse_eigen <- matrix(NA, num_sim, 6)
-mse_eigen2 <- matrix(NA, num_sim, 6)
-mse_reconstr <- matrix(NA, num_sim, 6)
-mse_completion <- matrix(NA, num_sim, 6)
-pve_res <- matrix(NA, num_sim, 6)
-K_res <- matrix(NA, num_sim, 6)
-noise_var <- matrix(NA, num_sim, 3)
+mse_eigen <- matrix(NA, num_sim, 8)
+mse_eigen2 <- matrix(NA, num_sim, 8)
+mse_reconstr <- matrix(NA, num_sim, 8)
+mse_completion <- matrix(NA, num_sim, 8)
+pve_res <- matrix(NA, num_sim, 8)
+K_res <- matrix(NA, num_sim, 8)
+noise_var <- matrix(NA, num_sim, 4)
 
 colnames(mse_reconstr) <- c("Mest","Mest-sm",
                             "GK","GK-sm",
+                            "OGK","OGK-sm",
                             "PM","PM-sm")
 colnames(mse_completion) <- c("Mest","Mest-sm",
                               "GK","GK-sm",
+                              "OGK","OGK-sm",
                               "PM","PM-sm")
 colnames(pve_res) <- c("Mest","Mest-sm",
                        "GK","GK-sm",
+                       "OGK","OGK-sm",
                        "PM","PM-sm")
 colnames(K_res) <- colnames(pve_res) 
 colnames(mse_eigen) <- colnames(pve_res)
 colnames(mse_eigen2) <- colnames(pve_res)
-colnames(noise_var) <- c("Mest","GK","PM")
+colnames(noise_var) <- c("Mest","GK","OGK","PM")
 
 # simulation result
 num.sim <- 0   # number of simulations
@@ -90,7 +93,7 @@ while (num.sim < num_sim) {
                       model = 2,
                       type = data_type,
                       out.prop = out_prop,
-                      out.type = 3,
+                      out.type = 1,
                       noise = 0.1)
   K <- 4
   # x.2 <- sim_boente(n = n,
@@ -149,21 +152,21 @@ while (num.sim < num_sim) {
   start_time <- Sys.time()
   set.seed(seed)
   tryCatch({
-    noise.var.gk <- sigma2.rob.yao.gk(x)   # Yao(2005) like noise variance estimator
-    print(noise.var.gk)
-    # noise.var.gk <- 1
-    
     # Not smoothed GK
-    cov.obj <- cov_gk(x, noise.var = noise.var.gk)
+    cov.obj <- cov_gk(x, 
+                      type = "M",
+                      smooth = FALSE)
     mu.gk <- cov.obj$mean
     cov.gk.noise <- cov.obj$cov
+    noise.var.gk <- cov.obj$noise.var
     
     # Smoothed GK
     cov.obj <- cov_gk(x, 
-                      smooth = T,
-                      noise.var = noise.var.gk)
+                      type = "M",
+                      smooth = T)
     mu.gk.sm <- cov.obj$mean
     cov.gk.sm.noise <- cov.obj$cov
+    noise.var.gk.sm <- cov.obj$noise.var
   }, error = function(e) { 
     print("GK cov error")
     print(e)
@@ -174,6 +177,39 @@ while (num.sim < num_sim) {
   }
   end_time <- Sys.time()
   print(paste0("GK : ", 
+               round(difftime(end_time, start_time, units = "secs"), 3),
+               " secs"))
+  
+  
+  ### OGK estimate
+  start_time <- Sys.time()
+  set.seed(seed)
+  tryCatch({
+    # Not smoothed OGK
+    cov.obj <- cov_ogk(x, 
+                       type = "M",
+                       smooth = FALSE)
+    mu.ogk <- cov.obj$mean
+    cov.ogk.noise <- cov.obj$cov
+    noise.var.ogk <- cov.obj$noise.var
+    
+    # Smoothed OGK
+    cov.obj <- cov_ogk(x, 
+                       type = "M",
+                       smooth = T)
+    mu.ogk.sm <- cov.obj$mean
+    cov.ogk.sm.noise <- cov.obj$cov
+    noise.var.ogk.sm <- cov.obj$noise.var
+  }, error = function(e) { 
+    print("OK cov error")
+    print(e)
+    skip_sim <<- TRUE
+  })
+  if (skip_sim == TRUE) {
+    next
+  }
+  end_time <- Sys.time()
+  print(paste0("OGK : ", 
                round(difftime(end_time, start_time, units = "secs"), 3),
                " secs"))
   
@@ -222,15 +258,20 @@ while (num.sim < num_sim) {
   pca.Mest.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
                                 mu.Mest.sm, cov.Mest.sm.noise, sig2 = noise.var.Mest,
                                 work.grid, PVE = pve, K = K)
-  
   # GK
   pca.gk.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
                              mu.gk, cov.gk.noise, sig2 = noise.var.gk,
                              work.grid, PVE = pve, K = K)
   pca.gk.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
-                                mu.gk.sm, cov.gk.sm.noise, sig2 = noise.var.gk,
+                                mu.gk.sm, cov.gk.sm.noise, sig2 = noise.var.gk.sm,
                                 work.grid, PVE = pve, K = K)
-  
+  # OGK
+  pca.ogk.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
+                              mu.ogk, cov.ogk.noise, sig2 = noise.var.ogk,
+                              work.grid, PVE = pve, K = K)
+  pca.ogk.sm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
+                                 mu.ogk.sm, cov.ogk.sm.noise, sig2 = noise.var.ogk.sm,
+                                 work.grid, PVE = pve, K = K)
   # PM
   pca.pm.noise.obj <- funPCA(x.2$Lt, x.2$Ly,
                                mu.pm, cov.pm.noise, sig2 = noise.var.pm,
@@ -241,7 +282,7 @@ while (num.sim < num_sim) {
   
   ### Eigen function - Compute for fixed K
   if (is.null(K)) {
-    mse_eigen[num.sim + 1, ] <- rep(NA, 4)
+    mse_eigen[num.sim + 1, ] <- rep(NA, 8)
   } else {
     # eig.true <- x.2$phi[, 1:K]
     eig.true <- get_delaigle_eigen(work.grid, model = 2)
@@ -251,6 +292,8 @@ while (num.sim < num_sim) {
       mean((check_eigen_sign(pca.Mest.sm.noise.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.gk.noise.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.gk.sm.noise.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.ogk.noise.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.ogk.sm.noise.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.pm.noise.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.pm.sm.noise.obj$eig.fun, eig.true) - eig.true)^2)
     )
@@ -280,6 +323,10 @@ while (num.sim < num_sim) {
                           eig.true)),
       mean(cos_similarity(check_eigen_sign(pca.gk.sm.noise.obj$eig.fun, eig.true),
                           eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.ogk.noise.obj$eig.fun, eig.true),
+                          eig.true)),
+      mean(cos_similarity(check_eigen_sign(pca.ogk.sm.noise.obj$eig.fun, eig.true),
+                          eig.true)),
       mean(cos_similarity(check_eigen_sign(pca.pm.noise.obj$eig.fun, eig.true),
                           eig.true)),
       mean(cos_similarity(check_eigen_sign(pca.pm.sm.noise.obj$eig.fun, eig.true),
@@ -301,11 +348,13 @@ while (num.sim < num_sim) {
   pred_Mest_sm_noise_mat <- predict(pca.Mest.sm.noise.obj, K = NULL)
   pred_gk_noise_mat <- predict(pca.gk.noise.obj, K = NULL)
   pred_gk_sm_noise_mat <- predict(pca.gk.sm.noise.obj, K = NULL)
+  pred_ogk_noise_mat <- predict(pca.ogk.noise.obj, K = NULL)
+  pred_ogk_sm_noise_mat <- predict(pca.ogk.sm.noise.obj, K = NULL)
   pred_pm_noise_mat <- predict(pca.pm.noise.obj, K = NULL)
   pred_pm_sm_noise_mat <- predict(pca.pm.sm.noise.obj, K = NULL)
   
-  sse_reconstr <- matrix(NA, length(cand), 6)
-  sse_completion <- matrix(NA, length(cand), 6)
+  sse_reconstr <- matrix(NA, length(cand), 8)
+  sse_completion <- matrix(NA, length(cand), 8)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
@@ -314,6 +363,8 @@ while (num.sim < num_sim) {
     pred_Mest_sm_noise <- pred_Mest_sm_noise_mat[ind, ]
     pred_gk_noise <- pred_gk_noise_mat[ind, ]
     pred_gk_sm_noise <- pred_gk_sm_noise_mat[ind, ]
+    pred_ogk_noise <- pred_ogk_noise_mat[ind, ]
+    pred_ogk_sm_noise <- pred_ogk_sm_noise_mat[ind, ]
     pred_pm_noise <- pred_pm_noise_mat[ind, ]
     pred_pm_sm_noise <- pred_pm_sm_noise_mat[ind, ]
     
@@ -323,6 +374,8 @@ while (num.sim < num_sim) {
       pred_Mest_sm_noise,
       pred_gk_noise,
       pred_gk_sm_noise,
+      pred_ogk_noise,
+      pred_ogk_sm_noise,
       pred_pm_noise,
       pred_pm_sm_noise
     )
@@ -337,6 +390,8 @@ while (num.sim < num_sim) {
       pred_missing_curve(x[ind, ], pred_Mest_sm_noise, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_gk_noise, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_gk_sm_noise, conti = FALSE),
+      pred_missing_curve(x[ind, ], pred_ogk_noise, conti = FALSE),
+      pred_missing_curve(x[ind, ], pred_ogk_sm_noise, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_pm_noise, conti = FALSE),
       pred_missing_curve(x[ind, ], pred_pm_sm_noise, conti = FALSE)
     )
@@ -362,6 +417,8 @@ while (num.sim < num_sim) {
     pca.Mest.sm.noise.obj$PVE,
     pca.gk.noise.obj$PVE,
     pca.gk.sm.noise.obj$PVE,
+    pca.ogk.noise.obj$PVE,
+    pca.ogk.sm.noise.obj$PVE,
     pca.pm.noise.obj$PVE,
     pca.pm.sm.noise.obj$PVE
   )
@@ -371,6 +428,8 @@ while (num.sim < num_sim) {
     pca.Mest.sm.noise.obj$K,
     pca.gk.noise.obj$K,
     pca.gk.sm.noise.obj$K,
+    pca.ogk.noise.obj$K,
+    pca.ogk.sm.noise.obj$K,
     pca.pm.noise.obj$K,
     pca.pm.sm.noise.obj$K
   )
@@ -378,23 +437,13 @@ while (num.sim < num_sim) {
   noise_var[num.sim, ] <- c(
     noise.var.Mest,
     noise.var.gk,
+    noise.var.ogk,
     noise.var.pm
   )
   
   print(colMeans(mse_completion, na.rm = T))
 }
 
-
-colMeans(mse_eigen)
-colMeans(mse_reconstr)
-colMeans(mse_completion)
-
-# apply(mse_eigen, 2, sd)
-# apply(mse_reconstr, 2, sd)
-# apply(mse_completion, 2, sd)
-# 
-# colMeans(K_res)
-# colMeans(pve_res)
 
 if (is.null(K)) {
   PVE_K <- K_res
@@ -405,6 +454,7 @@ if (is.null(K)) {
 
 data.frame(Method = c("Mest","Mest-sm",
                       "GK","GK-sm",
+                      "OGK","OGK-sm",
                       "PM","PM-sm")) %>% 
   left_join(data.frame(
     Method = colnames(PVE_K),
