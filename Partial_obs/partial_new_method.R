@@ -497,5 +497,5 @@ data.frame(Method = c("Mest","Mest-sm",
     )
   ), by = "Method") %>% 
   print()
-
+colMeans(noise_var)
 

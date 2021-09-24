@@ -33,7 +33,7 @@ sim_type <- "delaigle"
 
 ### Overall setting
 num_sim <- 100   # number of simulations
-out_prop <- 0   # proportion of outliers
+out_prop <- 0.1   # proportion of outliers
 data_type <- "partial"   # type of functional data
 n_cores <- 12   # number of threads for parallel computing
 kernel <- "epanechnikov"   # kernel function for local smoothing

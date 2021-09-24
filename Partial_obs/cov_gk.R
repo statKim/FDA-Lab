@@ -16,7 +16,7 @@
 cov_ogk <- function(X,
                     type = "M",
                     smooth = TRUE,
-                    # make.pos.semidef = TRUE,
+                    # psd = TRUE,
                     noise.var = TRUE) {
   p <- ncol(X)
   
@@ -25,6 +25,7 @@ cov_ogk <- function(X,
                    type = type,
                    cor = TRUE,
                    smooth = FALSE,
+                   psd = FALSE,
                    noise.var = FALSE)
   U <- obj.gk$cov
   rob.disp <- obj.gk$disp
@@ -85,28 +86,28 @@ cov_ogk <- function(X,
   }
   
   # # make positive-semi-definite
-  # if (isTRUE(make.pos.semidef)) {
-  #   eig <- eigen(rob.var)
-  #   
+  # if (isTRUE(psd)) {
+  #   eig <- eigen(rob.cov)
+  # 
   #   # if complex eigenvalues exists, get the real parts only.
   #   if (is.complex(eig$values)) {
   #     idx <- which(abs(Im(eig$values)) < 1e-6)
   #     eig$values <- Re(eig$values[idx])
   #     eig$vectors <- Re(eig$vectors[, idx])
   #   }
-  #   
+  # 
   #   k <- which(eig$values > 0)
   #   lambda <- eig$values[k]
   #   phi <- matrix(eig$vectors[, k],
   #                 ncol = length(k))
-  #   
-  #   rob.var <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
-  #   
-  #   rob.var <- (rob.var + t(rob.var)) / 2
+  # 
+  #   rob.cov <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
+  # 
+  #   rob.cov <- (rob.cov + t(rob.cov)) / 2
   #   # if (length(k) > 1) {
-  #   #     rob.var <- eig$vectors[, k] %*% diag(eig$values[k]) %*% t(eig$vectors[, k])
+  #   #     rob.cov <- eig$vectors[, k] %*% diag(eig$values[k]) %*% t(eig$vectors[, k])
   #   # } else {
-  #   #     rob.var <- eig$values[k] * (eig$vectors[, k] %*% t(eig$vectors[, k]))
+  #   #     rob.cov <- eig$values[k] * (eig$vectors[, k] %*% t(eig$vectors[, k]))
   #   # }
   # }
   
@@ -123,7 +124,7 @@ cov_gk <- function(X,
                    type = "M",
                    cor = FALSE,
                    smooth = TRUE,
-                   # make.pos.semidef = TRUE,
+                   psd = TRUE,
                    noise.var = TRUE) {
   p <- ncol(X)
   
@@ -145,7 +146,6 @@ cov_gk <- function(X,
     }
   }
 
-  
   # Compute GK correlation
   cov.gk <- matrix(NA, p, p)
   for (i in 1:p) {
@@ -230,31 +230,31 @@ cov_gk <- function(X,
     rob.cov <- cov.sm.obj$Yhat
   }
   
-  # # make positive-semi-definite
-  # if (isTRUE(make.pos.semidef)) {
-  #   eig <- eigen(rob.var)
-  #   
-  #   # if complex eigenvalues exists, get the real parts only.
-  #   if (is.complex(eig$values)) {
-  #     idx <- which(abs(Im(eig$values)) < 1e-6)
-  #     eig$values <- Re(eig$values[idx])
-  #     eig$vectors <- Re(eig$vectors[, idx])
-  #   }
-  #   
-  #   k <- which(eig$values > 0)
-  #   lambda <- eig$values[k]
-  #   phi <- matrix(eig$vectors[, k],
-  #                 ncol = length(k))
-  #   
-  #   rob.var <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
-  #   
-  #   rob.var <- (rob.var + t(rob.var)) / 2
-  #   # if (length(k) > 1) {
-  #   #     rob.var <- eig$vectors[, k] %*% diag(eig$values[k]) %*% t(eig$vectors[, k])
-  #   # } else {
-  #   #     rob.var <- eig$values[k] * (eig$vectors[, k] %*% t(eig$vectors[, k]))
-  #   # }
-  # }
+  # make positive-semi-definite
+  if (isTRUE(psd)) {
+    eig <- eigen(rob.cov)
+    
+    # if complex eigenvalues exists, get the real parts only.
+    if (is.complex(eig$values)) {
+      idx <- which(abs(Im(eig$values)) < 1e-6)
+      eig$values <- Re(eig$values[idx])
+      eig$vectors <- Re(eig$vectors[, idx])
+    }
+    
+    k <- which(eig$values > 0)
+    lambda <- eig$values[k]
+    phi <- matrix(eig$vectors[, k],
+                  ncol = length(k))
+    
+    rob.cov <- phi %*% diag(lambda, ncol = length(k)) %*% t(phi)
+    
+    rob.cov <- (rob.cov + t(rob.cov)) / 2
+    # if (length(k) > 1) {
+    #     rob.cov <- eig$vectors[, k] %*% diag(eig$values[k]) %*% t(eig$vectors[, k])
+    # } else {
+    #     rob.cov <- eig$values[k] * (eig$vectors[, k] %*% t(eig$vectors[, k]))
+    # }
+  }
   
   return(list(mean = rob.mean,
               cov = rob.cov,
