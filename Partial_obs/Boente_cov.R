@@ -4,7 +4,8 @@ library(sparseFPCA)
 cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, seed = 123) {
   X <- list(x = x$Ly,
             pp = x$Lt)
-  gr <- sort(unique(unlist(x$Lt)))
+  # gr <- sort(unique(unlist(x$Lt)))
+  gr <- seq(min(unlist(x$Lt)), max(unlist(x$Lt)), length.out = 51)
   
   
   # Start cluster
@@ -55,7 +56,10 @@ cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, seed = 123) {
                    mu = unlist(mh))
   df <- unique(df)
   idx <- sort(df$t, index.return = T)$ix
-  mu <- df$mu[idx]
+  # mu <- df$mu[idx]
+  mu <- ConvertSupport(fromGrid = sort(unlist(x$Lt)), 
+                       toGrid = gr,
+                       mu = df$mu[idx])
   
   return(list(mu = mu,
               cov = cov.fun2$G))

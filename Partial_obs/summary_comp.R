@@ -29,11 +29,17 @@ source("cov_pm.R")
 #####################################
 ### Simulation Parameters
 #####################################
-load("RData/pca-delaigle-out1-prop2.RData")
+# load("RData/pca-delaigle-out1-prop0.RData")
+# load("RData/pca-delaigle-out1-prop1.RData")
+# load("RData/pca-delaigle-out1-prop2.RData")
+# load("RData/pca-boente-out4-prop0.RData")
+# load("RData/pca-boente-out4-prop1.RData")
+load("RData/pca-boente-out4-prop2.RData")
+
 ### simulation type
-sim_type <- "delaigle"
+# sim_type <- "delaigle"
 # sim_type <- "kraus"
-# sim_type <- "boente"
+sim_type <- "boente"
 
 ### Overall setting
 num_sim <- 100   # number of simulations
