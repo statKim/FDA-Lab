@@ -171,6 +171,7 @@ noise_var_pm <- function(x, gr = NULL, cov = NULL) {
   
   # 2D smoothing
   var_x <- rep(NA, m)
+  # substitute diagonal part to mean of the adjacent values
   for (i in 1:m) {
     idx <- which((abs(df$s - gr[i]) <= h + .Machine$double.eps) &
                    (abs(df$t - gr[i]) <= h + .Machine$double.eps) &

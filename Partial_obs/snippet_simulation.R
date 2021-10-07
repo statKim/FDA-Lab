@@ -68,22 +68,22 @@ while (num.sim < num_sim) {
   #############################
   n <- 100
   n.grid <- 51
-  x.2 <- sim_lin(n = n, 
-                 model = 1,
-                 out.prop = 0, 
-                 out.type = 1,
-                 noise = 0.1)
-  # x.2 <- sim_delaigle(n = n, 
-  #                     model = 2,
-  #                     type = data_type,
-  #                     out.prop = out_prop, 
-  #                     out.type = out_type,
-  #                     noise = sig)
+  # x.2 <- sim_lin(n = n, 
+  #                model = 1,
+  #                out.prop = 0, 
+  #                out.type = 1,
+  #                noise = 0.1)
+  x.2 <- sim_delaigle(n = n,
+                      model = 2,
+                      type = data_type,
+                      out.prop = 0,
+                      out.type = out_type,
+                      noise = sig)
   # df <- data.frame(
-  #   id = factor(unlist(sapply(1:length(x.2$Lt), 
-  #                             function(id) { 
-  #                               rep(id, length(x.2$Lt[[id]])) 
-  #                             }) 
+  #   id = factor(unlist(sapply(1:length(x.2$Lt),
+  #                             function(id) {
+  #                               rep(id, length(x.2$Lt[[id]]))
+  #                             })
   #   )),
   #   y = unlist(x.2$Ly),
   #   t = unlist(x.2$Lt)
@@ -146,16 +146,107 @@ while (num.sim < num_sim) {
     mu.huber.obj <- meanfunc.rob(x.2$Lt, x.2$Ly, 
                                  method = "huber", kernel = kernel, 
                                  cv = TRUE, ncores = n_cores)
-    # var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly, 
-    #                              method = "huber", kernel = kernel, 
-    #                              mu = mu.huber.obj, 
-    #                              cv = TRUE, ncores = n_cores)
+    matplot(cbind(meanfunc.rob(x.2$Lt, x.2$Ly, newt = work.grid,
+                               method = "huber", kernel = kernel, 
+                               cv = F, ncores = n_cores)$fitted,
+                  meanfunc.rob(x.2$Lt, x.2$Ly, newt = work.grid,
+                               method = "bisquare", kernel = kernel, 
+                               cv = F, ncores = n_cores)$fitted),
+            type = "l")
+    
+    
+    # calculate sum of squares
+    Lt <- x.2$Lt
+    Ly <- x.2$Ly
+    gr <- work.grid
+    mu_hat <- predict(mu.huber.obj, gr)
+    ss <- lapply(1:n, function(i) {
+      ind <- match(Lt[[i]], gr)
+      if (length(ind) == length(Lt[[i]])) {
+        return( (Ly[[i]] - mu_hat[ind])^2 )
+      } else {
+        mui <- predict(mu, Lt[[i]])
+        return( (Ly[[i]] - mui)^2 )
+      }
+    })
+    plot(unlist(x.2$Lt), unlist(ss), ylim = c(0, 8))
+    lines(work.grid,
+          robfpca::varfunc.rob(x.2$Lt, x.2$Ly,
+                               newt = work.grid,
+                               method = "huber", kernel = kernel,
+                               mu = mu.huber.obj, bw=0.1,
+                               cv = F, ncores = n_cores)$obj$fitted, 
+          col = 2, lwd = 2)
+    lines(work.grid,
+          varfunc.rob(x.2$Lt, x.2$Ly,
+                      newt = work.grid,
+                      method = "huber", kernel = kernel,
+                      mu = mu.huber.obj, bw=0.3,
+                      cv = F, ncores = n_cores)$obj$fitted,
+          col = 3, lwd = 2)
+    lines(work.grid,
+          smooth.spline(unlist(x.2$Lt), unlist(ss))$y,
+          col = 4, lwd = 2)
+    lines(work.grid,
+          varfunc.rob(x.2$Lt, x.2$Ly,
+                      newt = work.grid,
+                      method = "bisquare", kernel = kernel,
+                      mu = mu.huber.obj, bw=0.3,
+                      cv = F, ncores = n_cores)$obj$fitted,
+          col = 5, lwd = 2)
+    lines(work.grid,
+          mcfda::varfunc(x.2$Lt, x.2$Ly,
+                         newt = work.grid,
+                         method = "PACE", kernel = kernel,
+                         mu = mu.lin.obj)$fitted,
+          col = 5, lwd = 2)
+    
+    bw.locpolysmooth(Lt = Lt,
+                     Ly = ss,
+                     method = "huber",
+                     cv_loss = "huber",
+                     # K = 100,
+                     kernel = kernel,
+                     ncores = 1)
+    bw.locpolysmooth(Lt = Lt,
+                     Ly = ss,
+                     method = "bisquare",
+                     cv_loss = "bisquare",
+                     # K = 100,
+                     kernel = kernel,
+                     ncores = 1)
+    matplot(cbind(varfunc.rob(x.2$Lt, x.2$Ly,
+                              newt = work.grid,
+                              method = "huber", kernel = kernel,
+                              mu = mu.huber.obj, bw=0.05,
+                              cv = F, ncores = n_cores)$obj$fitted,
+                  varfunc.rob(x.2$Lt, x.2$Ly,
+                              newt = work.grid,
+                              method = "bisquare", kernel = kernel,
+                              mu = mu.huber.obj, bw=0.05,
+                              cv = F, ncores = n_cores)$obj$fitted),
+            type = "l")
+    
+    
+    # source("load_source.R")
+    var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly,
+                                 method = "huber", kernel = kernel,
+                                 mu = mu.huber.obj, 
+                                 cv = TRUE, ncores = n_cores)
+    var.huber.obj$obj$bw
     cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, 
                                  method = "huber", kernel = kernel, 
-                                 mu = mu.huber.obj, 
+                                 mu = mu.huber.obj,
+                                 sig2x = var.huber.obj,
                                  cv = TRUE, ncores = n_cores)
     mu.huber <- predict(mu.huber.obj, work.grid)
     cov.huber <- predict(cov.huber.obj, work.grid)
+    cov.huber.obj$theta
+    GA::persp3D(gr, gr, cov.huber,
+                theta = -70, phi = 30, expand = 1)
+    matplot(cbind(diag(cov.true),
+                  diag(cov.lin),
+                  diag(cov.huber)), type = "l")
   }, error = function(e) { 
     print("Huber cov error")
     print(e)
@@ -233,9 +324,10 @@ while (num.sim < num_sim) {
   
   gr <- work.grid
   par(mfrow = c(2, 3))
-  # cov.true <- get_cov_fragm(gr)
-  cov.true <- get_cov_lin(gr)
+  cov.true <- get_cov_fragm(gr)
+  # cov.true <- get_cov_lin(gr)
   GA::persp3D(gr, gr, cov.true,
+              main = "True",
               theta = -70, phi = 30, expand = 1)
   GA::persp3D(gr, gr, cov.yao,
               theta = -70, phi = 30, expand = 1)

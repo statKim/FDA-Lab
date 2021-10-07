@@ -33,7 +33,7 @@ sim_type <- "delaigle"
 
 ### Overall setting
 num_sim <- 100   # number of simulations
-out_prop <- 0.1   # proportion of outliers
+out_prop <- 0.2   # proportion of outliers
 data_type <- "partial"   # type of functional data
 n_cores <- 12   # number of threads for parallel computing
 kernel <- "epanechnikov"   # kernel function for local smoothing
@@ -65,7 +65,7 @@ while (num.sim < num_sim) {
                         type = data_type,
                         out.prop = out_prop, 
                         out.type = out_type,
-                        noise = sig)
+                        noise = 0)
     K <- 4   # True number of PCs
   } else if (sim_type == "kraus") {
     out_type <- 2   # type of outliers
@@ -268,11 +268,11 @@ while (num.sim < num_sim) {
                                             pca.pm.im.obj = pca.pm.im.obj))
   save(list = c("pca.est"),
        file = paste0("RData/pca-", sim_type, "-out", 
-                     out_type, "-prop", out_prop*10, ".RData"))
+                     out_type, "-prop", out_prop*10, "_noise0.RData"))
 }
 save(list = c("pca.est"),
      file = paste0("RData/pca-", sim_type, "-out", 
-                   out_type, "-prop", out_prop*10, ".RData"))
+                   out_type, "-prop", out_prop*10, "_noise0.RData"))
 
 
 

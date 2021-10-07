@@ -57,7 +57,7 @@ cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, seed = 123) {
   df <- unique(df)
   idx <- sort(df$t, index.return = T)$ix
   # mu <- df$mu[idx]
-  mu <- ConvertSupport(fromGrid = sort(unlist(x$Lt)), 
+  mu <- ConvertSupport(fromGrid = df$t[idx], 
                        toGrid = gr,
                        mu = df$mu[idx])
   

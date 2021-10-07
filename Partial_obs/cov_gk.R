@@ -192,7 +192,8 @@ cov_gk <- function(X,
           z2.disp <- sd_trim(z2[ind_not_NA], trim = 0.2)
         }
         
-        cov.gk[i, j] <- 0.25*(z1.disp^2 - z2.disp^2)
+        # cov.gk[i, j] <- 0.25*(z1.disp^2 - z2.disp^2)
+        cov.gk[i, j] <- (z1.disp^2 - z2.disp^2) / (z1.disp^2 + z2.disp^2)
       } else {
         cov.gk[i, j] <- cov.gk[j, i]
       }
@@ -427,6 +428,7 @@ noise_var_gk <- function(x, gr = NULL, cov = NULL) {
   
   # 2D smoothing
   var_x <- rep(NA, m)
+  # substitute diagonal part to mean of the adjacent values
   for (i in 1:m) {
     idx <- which((abs(df$s - gr[i]) <= h + .Machine$double.eps) &
                    (abs(df$t - gr[i]) <= h + .Machine$double.eps) &
