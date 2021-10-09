@@ -33,7 +33,7 @@ sim_type <- "delaigle"
 
 ### Overall setting
 num_sim <- 100   # number of simulations
-out_prop <- 0.2   # proportion of outliers
+out_prop <- 0   # proportion of outliers
 data_type <- "partial"   # type of functional data
 n_cores <- 12   # number of threads for parallel computing
 kernel <- "epanechnikov"   # kernel function for local smoothing
@@ -65,7 +65,7 @@ while (num.sim < num_sim) {
                         type = data_type,
                         out.prop = out_prop, 
                         out.type = out_type,
-                        noise = 0)
+                        noise = sig)
     K <- 4   # True number of PCs
   } else if (sim_type == "kraus") {
     out_type <- 2   # type of outliers

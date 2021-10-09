@@ -71,7 +71,7 @@ load(paste0("RData/pca-", sim_type, "-out",
 ### Simulation PCA
 #####################################
 num.sim <- 1   # number of simulations
-while (num.sim < num_sim) {
+while (num.sim < num_sim + 1) {
   print(paste0("Simulations: ", num.sim))
   seed <- pca.est[[num.sim]]$seed
   x.2 <- pca.est[[num.sim]]$x.2
@@ -86,35 +86,35 @@ while (num.sim < num_sim) {
   work.grid <- seq(0, 1, length.out = n.grid)
   
   
-  ### Gnanadesikan-Kettenring(GK) estimate
-  start_time <- Sys.time()
-  set.seed(seed)
-  tryCatch({
-    # GK using M-estimator
-    cov.obj <- cov_gk(x, 
-                      type = "M")
-    mu.gk.M <- cov.obj$mean
-    cov.gk.M <- cov.obj$cov
-    noise.var.gk.M <- cov.obj$noise.var
-    
-    # GK using Trimmed SD
-    cov.obj <- cov_gk(x, 
-                      type = "trim")
-    mu.gk.trim <- cov.obj$mean
-    cov.gk.trim <- cov.obj$cov
-    noise.var.gk.trim <- cov.obj$noise.var
-  }, error = function(e) { 
-    print("GK cov error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  print(paste0("GK : ", 
-               round(difftime(end_time, start_time, units = "secs"), 3),
-               " secs"))
+  # ### Gnanadesikan-Kettenring(GK) estimate
+  # start_time <- Sys.time()
+  # set.seed(seed)
+  # tryCatch({
+  #   # GK using M-estimator
+  #   cov.obj <- cov_gk(x, 
+  #                     type = "M")
+  #   mu.gk.M <- cov.obj$mean
+  #   cov.gk.M <- cov.obj$cov
+  #   noise.var.gk.M <- cov.obj$noise.var
+  #   
+  #   # GK using Trimmed SD
+  #   cov.obj <- cov_gk(x, 
+  #                     type = "trim")
+  #   mu.gk.trim <- cov.obj$mean
+  #   cov.gk.trim <- cov.obj$cov
+  #   noise.var.gk.trim <- cov.obj$noise.var
+  # }, error = function(e) { 
+  #   print("GK cov error")
+  #   print(e)
+  #   skip_sim <<- TRUE
+  # })
+  # if (skip_sim == TRUE) {
+  #   next
+  # }
+  # end_time <- Sys.time()
+  # print(paste0("GK : ", 
+  #              round(difftime(end_time, start_time, units = "secs"), 3),
+  #              " secs"))
   
   
   ### OGK estimate
@@ -135,7 +135,7 @@ while (num.sim < num_sim) {
     cov.ogk.trim <- cov.obj$cov
     noise.var.ogk.trim <- cov.obj$noise.var
   }, error = function(e) { 
-    print("OK cov error")
+    print("OGK cov error")
     print(e)
     skip_sim <<- TRUE
   })
@@ -169,13 +169,13 @@ while (num.sim < num_sim) {
   
   
   ### Principal component analysis
-  # GK
-  pca.gk.M.obj <- funPCA(x.2$Lt, x.2$Ly,
-                             mu.gk.M, cov.gk.M, sig2 = noise.var.gk.M,
-                             work.grid, PVE = pve, K = K)
-  pca.gk.trim.obj <- funPCA(x.2$Lt, x.2$Ly,
-                                mu.gk.trim, cov.gk.trim, sig2 = noise.var.gk.trim,
-                                work.grid, PVE = pve, K = K)
+  # # GK
+  # pca.gk.M.obj <- funPCA(x.2$Lt, x.2$Ly,
+  #                            mu.gk.M, cov.gk.M, sig2 = noise.var.gk.M,
+  #                            work.grid, PVE = pve, K = K)
+  # pca.gk.trim.obj <- funPCA(x.2$Lt, x.2$Ly,
+  #                               mu.gk.trim, cov.gk.trim, sig2 = noise.var.gk.trim,
+  #                               work.grid, PVE = pve, K = K)
   # OGK
   pca.ogk.M.obj <- funPCA(x.2$Lt, x.2$Ly,
                               mu.ogk.M, cov.ogk.M, sig2 = noise.var.ogk.M,
@@ -186,8 +186,8 @@ while (num.sim < num_sim) {
   
   
   ### Save PCA object
-  pca.est[[num.sim]]$pca.obj$pca.gk.M.obj <- pca.gk.M.obj
-  pca.est[[num.sim]]$pca.obj$pca.gk.trim.obj <- pca.gk.trim.obj
+  # pca.est[[num.sim]]$pca.obj$pca.gk.M.obj <- pca.gk.M.obj
+  # pca.est[[num.sim]]$pca.obj$pca.gk.trim.obj <- pca.gk.trim.obj
   pca.est[[num.sim]]$pca.obj$pca.ogk.M.obj <- pca.ogk.M.obj
   pca.est[[num.sim]]$pca.obj$pca.ogk.trim.obj <- pca.ogk.trim.obj
   
@@ -196,9 +196,11 @@ while (num.sim < num_sim) {
   #      file = paste0("RData/pca-", sim_type, "-out", 
   #                    out_type, "-prop", out_prop*10, ".RData"))
 }
-# save(list = c("pca.est"),
-#      file = paste0("RData/pca-", sim_type, "-out", 
-#                    out_type, "-prop", out_prop*10, ".RData"))
+save(list = c("pca.est"),
+     file = paste0("RData/pca-", sim_type, "-out",
+                   out_type, "-prop", out_prop*10, ".RData"))
 
+
+sapply(pca.est, function(x){ length(x$pca.obj) })
 
 

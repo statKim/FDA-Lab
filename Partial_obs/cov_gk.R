@@ -1,23 +1,49 @@
-# cc <- cov_gk(X, type = "M",
-#              smooth = T,
-#              noise.var = T)
-# cc2 <- cov_ogk(X, type = "M",
-#                smooth = T,
-#                noise.var = T)
-# 
-# par(mfrow = c(2, 2))
-# GA::persp3D(1:51, 1:51, cc$cov,
-#             theta = -70, phi = 30, expand = 1)
-# GA::persp3D(1:51, 1:51, cc2$cov,
-#             theta = -70, phi = 30, expand = 1)
-# matplot(cbind(cc$mean, cc2$mean), type = "l")
+cc <- cov_ogk(X, 
+              type = "M",
+              smooth = T,
+              noise.var = T,
+              reweight = F)
+cc2 <- cov_ogk(X, 
+               type = "M",
+               smooth = T,
+               noise.var = T,
+               reweight = T)
+cc$noise.var
+cc2$noise.var
+par(mfrow = c(2, 3))
+GA::persp3D(1:51, 1:51, cc$cov,
+            theta = -70, phi = 30, expand = 1)
+GA::persp3D(1:51, 1:51, cc2$cov,
+            theta = -70, phi = 30, expand = 1)
+matplot(cbind(cc$mean, cc2$mean), type = "l")
+
+cc <- cov_ogk(X, 
+              type = "M",
+              smooth = F,
+              noise.var = T,
+              reweight = F)
+cc2 <- cov_ogk(X, 
+               type = "M",
+               smooth = F,
+               noise.var = T,
+               reweight = T)
+cc$noise.var
+cc2$noise.var
+GA::persp3D(1:51, 1:51, cc$cov,
+            theta = -70, phi = 30, expand = 1)
+GA::persp3D(1:51, 1:51, cc2$cov,
+            theta = -70, phi = 30, expand = 1)
+matplot(cbind(cc$mean, cc2$mean), type = "l")
+
 
 
 cov_ogk <- function(X,
                     type = "M",
                     smooth = TRUE,
                     # psd = TRUE,
-                    noise.var = TRUE) {
+                    noise.var = TRUE,
+                    reweight = TRUE,
+                    beta = 0.9) {
   p <- ncol(X)
   
   # Step 2. correlation matrix
@@ -31,14 +57,14 @@ cov_ogk <- function(X,
   rob.disp <- obj.gk$disp
   
   # Step 1. scaling
-  Y <- sweep(X, 2, rob.disp, "/") %>% 
+  Y <- sweep(X, 2, rob.disp, "/") %>%
     replace_na(0)
-  
+
   # Step 3. spectral decomposition
-  eig <- eigen(U)
+  eig <- eigen(U, symmetric = T)
   E <- eig$vectors
-  
-  # Step 4. PC
+
+  # Step 4. PC score
   Z <- Y %*% E
   
   # Step 5. compute location and dispersion of Z
@@ -60,9 +86,69 @@ cov_ogk <- function(X,
   D <- diag(rob.disp)
   A <- D %*% E
   rob.cov <- A %*% Gamma %*% t(A)
-  rob.mean <- A %*% matrix(nu, ncol = 1) %>% 
-    as.numeric()
+  rob.mean <- as.numeric( A %*% matrix(nu, ncol = 1) )
 
+  
+  # Step 7. Re-weighting
+  # Hard rejection using Beta-quantile chi-squared dist
+  if (reweight == TRUE) {
+    z.scale <- sqrt(diag(Gamma))
+    d <- sweep(Z, 2, nu, "-") %>% 
+      sweep(2, z.scale, "/")
+    d <- rowSums(d^2)   # mahalanobis distance
+    d0 <- qchisq(beta, p)*median(d) / qchisq(0.5, p)   # cut-off of weight
+    W <- ifelse(d <= d0, 1, 0)   # weight
+    
+    # re-weighted mean
+    X0 <- X %>% 
+      replace_na(0)
+    rob.mean <- as.numeric( matrix(W, nrow = 1) %*% X0 / sum(W) )
+    
+    # re-weighted covariance
+    Xmu0 <- sweep(X, 2, rob.mean, "-") %>% 
+      sweep(1, W, "*") %>% 
+      replace_na(0)
+    rob.cov <- t(Xmu0) %*% Xmu0 / sum(W)
+  }
+
+  
+  # 
+  # Y <- sweep(X, 2, rob.disp, "/") %>% 
+  #   matrix2list()
+  # pca.obj <- funPCA(Lt = Y$Lt, 
+  #                   Ly = Y$Ly,
+  #                   mu = obj.gk$mean, 
+  #                   cov = U, 
+  #                   sig2 = 0,
+  #                   work.grid = seq(0, 1, length.out = p), 
+  #                   PVE = 1.)
+  # K <- pca.obj$K
+  # E <- pca.obj$eig.fun
+  # Z <- pca.obj$pc.score
+  # 
+  # # Step 5. compute location and dispersion of Z
+  # nu <- rep(NA, K)
+  # Gamma <- matrix(0, K, K)
+  # for (i in 1:K) {
+  #   tmp <- locScaleM(Z[, i],
+  #                    psi = "huber",
+  #                    eff = 0.95,
+  #                    maxit = 50,
+  #                    tol = 1e-04,
+  #                    na.rm = TRUE)
+  #   nu[i] <- tmp$mu
+  #   Gamma[i, i] <- tmp$disper^2
+  #   # Gamma[i, i] <- sd_trim(Z[, i], trim = 0.2)^2
+  # }
+  # 
+  # # Step 6. Transform back to X
+  # D <- diag(rob.disp)
+  # A <- D %*% E
+  # rob.cov <- A %*% Gamma %*% t(A)
+  # rob.mean <- A %*% matrix(nu, ncol = 1) %>% 
+  #   as.numeric()
+  
+  
   
   # subtract noise variance
   if (noise.var == TRUE) {

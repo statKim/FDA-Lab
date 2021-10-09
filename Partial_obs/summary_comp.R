@@ -34,12 +34,13 @@ source("cov_pm.R")
 # load("RData/pca-delaigle-out1-prop2.RData")
 # load("RData/pca-boente-out4-prop0.RData")
 # load("RData/pca-boente-out4-prop1.RData")
-load("RData/pca-boente-out4-prop2.RData")
+# load("RData/pca-boente-out4-prop2.RData")
+load("RData/pca-delaigle-out1-prop2_noise0.RData")
 
 ### simulation type
-# sim_type <- "delaigle"
+sim_type <- "delaigle"
 # sim_type <- "kraus"
-sim_type <- "boente"
+# sim_type <- "boente"
 
 ### Overall setting
 num_sim <- 100   # number of simulations
@@ -55,7 +56,7 @@ pve <- 0.95   # Not used if K is given
 #####################################
 ### Completion
 #####################################
-num_method <- length(pca.est[[1]]$pca.obj)
+num_method <- length(pca.est[[1]]$pca.obj)-2
 mse_eigen <- matrix(NA, num_sim, num_method)
 mse_reconstr <- matrix(NA, num_sim, num_method-1)   # exclude Kraus
 mse_completion <- matrix(NA, num_sim, num_method)
@@ -63,9 +64,11 @@ pve_res <- matrix(NA, num_sim, num_method)
 K_res <- matrix(NA, num_sim, num_method)
 
 colnames(mse_reconstr) <- c("Yao","Boente","PM","PM-Im",
-                            "GK-M","GK-trim","OGK-M","OGK-trim")
+                            # "GK-M","GK-trim",
+                            "OGK-M","OGK-trim")
 colnames(mse_completion) <- c("Yao","Kraus","Boente","PM","PM-Im",
-                              "GK-M","GK-trim","OGK-M","OGK-trim")
+                              # "GK-M","GK-trim",
+                              "OGK-M","OGK-trim")
 colnames(pve_res) <- colnames(mse_completion) 
 colnames(K_res) <- colnames(mse_completion) 
 colnames(mse_eigen) <- colnames(mse_completion)
@@ -97,8 +100,8 @@ for (num.sim in 1:num_sim) {
   pca.boente.obj <- pca.est[[num.sim]]$pca.obj$pca.boente.obj
   pca.pm.obj <- pca.est[[num.sim]]$pca.obj$pca.pm.obj
   pca.pm.im.obj <- pca.est[[num.sim]]$pca.obj$pca.pm.im.obj
-  pca.gk.M.obj <- pca.est[[num.sim]]$pca.obj$pca.gk.M.obj
-  pca.gk.trim.obj <- pca.est[[num.sim]]$pca.obj$pca.gk.trim.obj
+  # pca.gk.M.obj <- pca.est[[num.sim]]$pca.obj$pca.gk.M.obj
+  # pca.gk.trim.obj <- pca.est[[num.sim]]$pca.obj$pca.gk.trim.obj
   pca.ogk.M.obj <- pca.est[[num.sim]]$pca.obj$pca.ogk.M.obj
   pca.ogk.trim.obj <- pca.est[[num.sim]]$pca.obj$pca.ogk.trim.obj
   
@@ -124,8 +127,8 @@ for (num.sim in 1:num_sim) {
       mean((check_eigen_sign(pca.boente.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.pm.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.pm.im.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.gk.M.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.gk.trim.obj$eig.fun, eig.true) - eig.true)^2),
+      # mean((check_eigen_sign(pca.gk.M.obj$eig.fun, eig.true) - eig.true)^2),
+      # mean((check_eigen_sign(pca.gk.trim.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.ogk.M.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.ogk.trim.obj$eig.fun, eig.true) - eig.true)^2)
     )
@@ -142,8 +145,8 @@ for (num.sim in 1:num_sim) {
     predict(pca.boente.obj, K = NULL),
     predict(pca.pm.obj, K = NULL),
     predict(pca.pm.im.obj, K = NULL),
-    predict(pca.gk.M.obj, K = NULL),
-    predict(pca.gk.trim.obj, K = NULL),
+    # predict(pca.gk.M.obj, K = NULL),
+    # predict(pca.gk.trim.obj, K = NULL),
     predict(pca.ogk.M.obj, K = NULL),
     predict(pca.ogk.trim.obj, K = NULL)
   )
@@ -161,9 +164,9 @@ for (num.sim in 1:num_sim) {
       pred_list[[3]][ind, ],
       pred_list[[4]][ind, ],
       pred_list[[5]][ind, ],
-      pred_list[[6]][ind, ],
-      pred_list[[7]][ind, ],
-      pred_list[[8]][ind, ]
+      pred_list[[6]][ind, ]
+      # pred_list[[7]][ind, ],
+      # pred_list[[8]][ind, ]
     )
     sse_reconstr[i, ] <- apply(df, 2, function(pred) { 
       mean((x.2$x.full[ind, ] - pred)^2)
@@ -190,13 +193,13 @@ for (num.sim in 1:num_sim) {
                          conti = FALSE),
       pred_missing_curve(x[ind, ],
                          pred_list[[6]][ind, ], 
-                         conti = FALSE),
-      pred_missing_curve(x[ind, ],
-                         pred_list[[7]][ind, ], 
-                         conti = FALSE),
-      pred_missing_curve(x[ind, ],
-                         pred_list[[8]][ind, ], 
                          conti = FALSE)
+      # pred_missing_curve(x[ind, ],
+      #                    pred_list[[7]][ind, ], 
+      #                    conti = FALSE),
+      # pred_missing_curve(x[ind, ],
+      #                    pred_list[[8]][ind, ], 
+      #                    conti = FALSE)
     )
     df <- df[NA_ind, ]
     if (length(NA_ind) == 1) {
@@ -217,8 +220,8 @@ for (num.sim in 1:num_sim) {
     pca.boente.obj$PVE,
     pca.pm.obj$PVE,
     pca.pm.im.obj$PVE,
-    pca.gk.M.obj$PVE,
-    pca.gk.trim.obj$PVE,
+    # pca.gk.M.obj$PVE,
+    # pca.gk.trim.obj$PVE,
     pca.ogk.M.obj$PVE,
     pca.ogk.trim.obj$PVE
   )
@@ -229,8 +232,8 @@ for (num.sim in 1:num_sim) {
     pca.boente.obj$K,
     pca.pm.obj$K,
     pca.pm.im.obj$K,
-    pca.gk.M.obj$K,
-    pca.gk.trim.obj$K,
+    # pca.gk.M.obj$K,
+    # pca.gk.trim.obj$K,
     pca.ogk.M.obj$K,
     pca.ogk.trim.obj$K
   )
@@ -245,7 +248,8 @@ if (is.null(K)) {
 
 
 data.frame(Method = c("Yao","Kraus","Boente","PM","PM-Im",
-                      "GK-M","GK-trim","OGK-M","OGK-trim")) %>% 
+                      # "GK-M","GK-trim",
+                      "OGK-M","OGK-trim")) %>% 
   left_join(data.frame(
     Method = colnames(PVE_K),
     PVE = format(round(colMeans(PVE_K), 2), 2)
