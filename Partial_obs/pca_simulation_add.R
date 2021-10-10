@@ -28,13 +28,13 @@ source("cov_gk.R")
 ### Simulation Parameters
 #####################################
 ### simulation type
-sim_type <- "delaigle"
+# sim_type <- "delaigle"
 # sim_type <- "kraus"
-# sim_type <- "boente"
+sim_type <- "boente"
 
 ### Overall setting
 num_sim <- 100   # number of simulations
-out_prop <- 0.2   # proportion of outliers
+out_prop <- 0.1   # proportion of outliers
 data_type <- "partial"   # type of functional data
 n_cores <- 12   # number of threads for parallel computing
 kernel <- "epanechnikov"   # kernel function for local smoothing
@@ -117,23 +117,25 @@ while (num.sim < num_sim + 1) {
   #              " secs"))
   
   
-  ### OGK estimate
+  ### OGK estimate using M-estimator
   start_time <- Sys.time()
   set.seed(seed)
   tryCatch({
-    # OGK using M-estimator
+    # OGK
     cov.obj <- cov_ogk(x, 
-                       type = "M")
-    mu.ogk.M <- cov.obj$mean
-    cov.ogk.M <- cov.obj$cov
-    noise.var.ogk.M <- cov.obj$noise.var
+                       type = "M",
+                       reweight = FALSE)
+    mu.ogk <- cov.obj$mean
+    cov.ogk <- cov.obj$cov
+    noise.var.ogk <- cov.obj$noise.var
     
-    # OGK using Trimmed SD
+    # OGK + Hard rejection
     cov.obj <- cov_ogk(x, 
-                       type = "trim")
-    mu.ogk.trim <- cov.obj$mean
-    cov.ogk.trim <- cov.obj$cov
-    noise.var.ogk.trim <- cov.obj$noise.var
+                       type = "M",
+                       reweight = TRUE)
+    mu.ogk.hard <- cov.obj$mean
+    cov.ogk.hard <- cov.obj$cov
+    noise.var.ogk.hard <- cov.obj$noise.var
   }, error = function(e) { 
     print("OGK cov error")
     print(e)
@@ -150,19 +152,15 @@ while (num.sim < num_sim + 1) {
   
   
   # if some covariances is a not finite value
-  if (!is.finite(sum(cov.gk.M)) | 
-      !is.finite(sum(cov.gk.trim)) | 
-      !is.finite(sum(cov.ogk.M)) |
-      !is.finite(sum(cov.ogk.trim))) {
+  if (!is.finite(sum(cov.ogk)) | 
+      !is.finite(sum(cov.ogk.hard))) {
     cat("Estimated covariances do not have finite values. \n")
     next
   }
   
   # if all covariances are 0
-  if ((sum(cov.gk.M) == 0) | 
-      (sum(cov.gk.trim) == 0) |
-      (sum(cov.ogk.M) == 0) | 
-      (sum(cov.ogk.trim) == 0)) {
+  if ((sum(cov.ogk) == 0) | 
+      (sum(cov.ogk.hard) == 0)) {
     cat("Estimated covariance have all 0 values. \n")
     next
   }
@@ -177,19 +175,19 @@ while (num.sim < num_sim + 1) {
   #                               mu.gk.trim, cov.gk.trim, sig2 = noise.var.gk.trim,
   #                               work.grid, PVE = pve, K = K)
   # OGK
-  pca.ogk.M.obj <- funPCA(x.2$Lt, x.2$Ly,
-                              mu.ogk.M, cov.ogk.M, sig2 = noise.var.ogk.M,
-                              work.grid, PVE = pve, K = K)
-  pca.ogk.trim.obj <- funPCA(x.2$Lt, x.2$Ly,
-                                 mu.ogk.trim, cov.ogk.trim, sig2 = noise.var.ogk.trim,
-                                 work.grid, PVE = pve, K = K)
+  pca.ogk.obj <- funPCA(x.2$Lt, x.2$Ly,
+                        mu.ogk, cov.ogk, sig2 = noise.var.ogk,
+                        work.grid, PVE = pve, K = K)
+  pca.ogk.hard.obj <- funPCA(x.2$Lt, x.2$Ly,
+                             mu.ogk.hard, cov.ogk.hard, sig2 = noise.var.ogk.hard,
+                             work.grid, PVE = pve, K = K)
   
   
   ### Save PCA object
   # pca.est[[num.sim]]$pca.obj$pca.gk.M.obj <- pca.gk.M.obj
   # pca.est[[num.sim]]$pca.obj$pca.gk.trim.obj <- pca.gk.trim.obj
-  pca.est[[num.sim]]$pca.obj$pca.ogk.M.obj <- pca.ogk.M.obj
-  pca.est[[num.sim]]$pca.obj$pca.ogk.trim.obj <- pca.ogk.trim.obj
+  pca.est[[num.sim]]$pca.obj$pca.ogk.obj <- pca.ogk.obj
+  pca.est[[num.sim]]$pca.obj$pca.ogk.hard.obj <- pca.ogk.hard.obj
   
   num.sim <- num.sim + 1 
   # save(list = c("pca.est"),
@@ -202,5 +200,4 @@ save(list = c("pca.est"),
 
 
 sapply(pca.est, function(x){ length(x$pca.obj) })
-
 

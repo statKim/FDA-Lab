@@ -56,7 +56,7 @@ pve <- 0.95   # Not used if K is given
 #####################################
 ### Completion
 #####################################
-num_method <- length(pca.est[[1]]$pca.obj)-2
+num_method <- length(pca.est[[1]]$pca.obj)
 mse_eigen <- matrix(NA, num_sim, num_method)
 mse_reconstr <- matrix(NA, num_sim, num_method-1)   # exclude Kraus
 mse_completion <- matrix(NA, num_sim, num_method)
@@ -65,10 +65,10 @@ K_res <- matrix(NA, num_sim, num_method)
 
 colnames(mse_reconstr) <- c("Yao","Boente","PM","PM-Im",
                             # "GK-M","GK-trim",
-                            "OGK-M","OGK-trim")
+                            "OGK","OGK-hard")
 colnames(mse_completion) <- c("Yao","Kraus","Boente","PM","PM-Im",
                               # "GK-M","GK-trim",
-                              "OGK-M","OGK-trim")
+                              "OGK","OGK-hard")
 colnames(pve_res) <- colnames(mse_completion) 
 colnames(K_res) <- colnames(mse_completion) 
 colnames(mse_eigen) <- colnames(mse_completion)
@@ -102,8 +102,8 @@ for (num.sim in 1:num_sim) {
   pca.pm.im.obj <- pca.est[[num.sim]]$pca.obj$pca.pm.im.obj
   # pca.gk.M.obj <- pca.est[[num.sim]]$pca.obj$pca.gk.M.obj
   # pca.gk.trim.obj <- pca.est[[num.sim]]$pca.obj$pca.gk.trim.obj
-  pca.ogk.M.obj <- pca.est[[num.sim]]$pca.obj$pca.ogk.M.obj
-  pca.ogk.trim.obj <- pca.est[[num.sim]]$pca.obj$pca.ogk.trim.obj
+  pca.ogk.obj <- pca.est[[num.sim]]$pca.obj$pca.ogk.obj
+  pca.ogk.hard.obj <- pca.est[[num.sim]]$pca.obj$pca.ogk.hard.obj
   
   
   
@@ -129,8 +129,8 @@ for (num.sim in 1:num_sim) {
       mean((check_eigen_sign(pca.pm.im.obj$eig.fun, eig.true) - eig.true)^2),
       # mean((check_eigen_sign(pca.gk.M.obj$eig.fun, eig.true) - eig.true)^2),
       # mean((check_eigen_sign(pca.gk.trim.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.ogk.M.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.ogk.trim.obj$eig.fun, eig.true) - eig.true)^2)
+      mean((check_eigen_sign(pca.ogk.obj$eig.fun, eig.true) - eig.true)^2),
+      mean((check_eigen_sign(pca.ogk.hard.obj$eig.fun, eig.true) - eig.true)^2)
     )
   }
 
@@ -147,8 +147,8 @@ for (num.sim in 1:num_sim) {
     predict(pca.pm.im.obj, K = NULL),
     # predict(pca.gk.M.obj, K = NULL),
     # predict(pca.gk.trim.obj, K = NULL),
-    predict(pca.ogk.M.obj, K = NULL),
-    predict(pca.ogk.trim.obj, K = NULL)
+    predict(pca.ogk.obj, K = NULL),
+    predict(pca.ogk.hard.obj, K = NULL)
   )
   
   sse_reconstr <- matrix(NA, length(cand), num_method-1)
@@ -222,8 +222,8 @@ for (num.sim in 1:num_sim) {
     pca.pm.im.obj$PVE,
     # pca.gk.M.obj$PVE,
     # pca.gk.trim.obj$PVE,
-    pca.ogk.M.obj$PVE,
-    pca.ogk.trim.obj$PVE
+    pca.ogk.obj$PVE,
+    pca.ogk.hard.obj$PVE
   )
   
   K_res[num.sim, ] <- c(
@@ -234,8 +234,8 @@ for (num.sim in 1:num_sim) {
     pca.pm.im.obj$K,
     # pca.gk.M.obj$K,
     # pca.gk.trim.obj$K,
-    pca.ogk.M.obj$K,
-    pca.ogk.trim.obj$K
+    pca.ogk.obj$K,
+    pca.ogk.hard.obj$K
   )
 }
 
@@ -249,7 +249,7 @@ if (is.null(K)) {
 
 data.frame(Method = c("Yao","Kraus","Boente","PM","PM-Im",
                       # "GK-M","GK-trim",
-                      "OGK-M","OGK-trim")) %>% 
+                      "OGK","OGK-hard")) %>% 
   left_join(data.frame(
     Method = colnames(PVE_K),
     PVE = format(round(colMeans(PVE_K), 2), 2)

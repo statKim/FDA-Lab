@@ -127,11 +127,16 @@ cov_pm <- function(X,
   }
   diag(rob.cov) <- diag(rob.cov) - noise.var
   
-  # 2-dimensional smoothing - does not need to adjust noise variance
+  # smoothing
   if (smooth == T) {
+    gr <- seq(0, 1, length.out = p)   # grid of time points
+    
+    # mean smoothing
+    rob.mean <- smooth.spline(gr, rob.mean)$y
+    
+    # covariance smoothing - bivariate smoothing
     p <- nrow(rob.cov)
     knots <- min(p/2, 35)   # Remark 3 from Xiao(2013)
-    gr <- seq(0, 1, length.out = p)
     cov.sm.obj <- refund::fbps(rob.cov, 
                                knots = knots,
                                list(x = gr,

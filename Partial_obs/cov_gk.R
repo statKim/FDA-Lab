@@ -1,39 +1,39 @@
-cc <- cov_ogk(X, 
-              type = "M",
-              smooth = T,
-              noise.var = T,
-              reweight = F)
-cc2 <- cov_ogk(X, 
-               type = "M",
-               smooth = T,
-               noise.var = T,
-               reweight = T)
-cc$noise.var
-cc2$noise.var
-par(mfrow = c(2, 3))
-GA::persp3D(1:51, 1:51, cc$cov,
-            theta = -70, phi = 30, expand = 1)
-GA::persp3D(1:51, 1:51, cc2$cov,
-            theta = -70, phi = 30, expand = 1)
-matplot(cbind(cc$mean, cc2$mean), type = "l")
-
-cc <- cov_ogk(X, 
-              type = "M",
-              smooth = F,
-              noise.var = T,
-              reweight = F)
-cc2 <- cov_ogk(X, 
-               type = "M",
-               smooth = F,
-               noise.var = T,
-               reweight = T)
-cc$noise.var
-cc2$noise.var
-GA::persp3D(1:51, 1:51, cc$cov,
-            theta = -70, phi = 30, expand = 1)
-GA::persp3D(1:51, 1:51, cc2$cov,
-            theta = -70, phi = 30, expand = 1)
-matplot(cbind(cc$mean, cc2$mean), type = "l")
+# cc <- cov_ogk(X, 
+#               type = "M",
+#               smooth = T,
+#               noise.var = T,
+#               reweight = F)
+# cc2 <- cov_ogk(X, 
+#                type = "M",
+#                smooth = T,
+#                noise.var = T,
+#                reweight = T)
+# cc$noise.var
+# cc2$noise.var
+# par(mfrow = c(2, 3))
+# GA::persp3D(1:51, 1:51, cc$cov,
+#             theta = -70, phi = 30, expand = 1)
+# GA::persp3D(1:51, 1:51, cc2$cov,
+#             theta = -70, phi = 30, expand = 1)
+# matplot(cbind(cc$mean, cc2$mean), type = "l")
+# 
+# cc <- cov_ogk(X, 
+#               type = "M",
+#               smooth = F,
+#               noise.var = T,
+#               reweight = F)
+# cc2 <- cov_ogk(X, 
+#                type = "M",
+#                smooth = F,
+#                noise.var = T,
+#                reweight = T)
+# cc$noise.var
+# cc2$noise.var
+# GA::persp3D(1:51, 1:51, cc$cov,
+#             theta = -70, phi = 30, expand = 1)
+# GA::persp3D(1:51, 1:51, cc2$cov,
+#             theta = -70, phi = 30, expand = 1)
+# matplot(cbind(cc$mean, cc2$mean), type = "l")
 
 
 
@@ -159,11 +159,16 @@ cov_ogk <- function(X,
   }
   diag(rob.cov) <- diag(rob.cov) - noise.var
   
-  # 2-dimensional smoothing - does not need to adjust noise variance
+  # smoothing
   if (smooth == T) {
+    gr <- seq(0, 1, length.out = p)   # grid of time points
+    
+    # mean smoothing
+    rob.mean <- smooth.spline(gr, rob.mean)$y
+    
+    # covariance smoothing - bivariate smoothing
     p <- nrow(rob.cov)
     knots <- min(p/2, 35)   # Remark 3 from Xiao(2013)
-    gr <- seq(0, 1, length.out = p)
     cov.sm.obj <- refund::fbps(rob.cov, 
                                knots = knots,
                                list(x = gr,
@@ -305,18 +310,23 @@ cov_gk <- function(X,
   }
   diag(rob.cov) <- diag(rob.cov) - noise.var
   
-  # 2-dimensional smoothing - does not need to adjust noise variance
+  # smoothing
   if (smooth == T) {
+    gr <- seq(0, 1, length.out = p)   # grid of time points
+    
+    # mean smoothing
+    rob.mean <- smooth.spline(gr, rob.mean)$y
+    
+    # covariance smoothing - bivariate smoothing
     p <- nrow(rob.cov)
     knots <- min(p/2, 35)   # Remark 3 from Xiao(2013)
-    gr <- seq(0, 1, length.out = p)
     cov.sm.obj <- refund::fbps(rob.cov, 
                                knots = knots,
                                list(x = gr,
                                     z = gr))
     rob.cov <- cov.sm.obj$Yhat
   }
-  
+
   # make positive-semi-definite
   if (isTRUE(psd)) {
     eig <- eigen(rob.cov)
