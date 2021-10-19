@@ -11,7 +11,7 @@ require(mvtnorm)
 # out.prop
 # out.type : 1~3 are available
 sim_delaigle <- function(n = 100, model = 2, 
-                         type = c("partial","snippet","sparse","dense"),
+                         type = c("partial","snippet1","snippet2","sparse","dense"),
                          out.prop = 0.2, out.type = 1,
                          noise = 0) {
   
@@ -49,9 +49,14 @@ sim_delaigle <- function(n = 100, model = 2,
               Lt = apply(x.obs, 1, function(y){ gr[y] }),
               y = x$y,
               x.full = x.full)
-  } else if (type == "snippet") {   # generate functional snippets
-    # Lin & Wang(2020) setting
-    len.frag = c(0.1, 0.3)   # length of domain for each curves
+  } else if (type %in% c("snippet1","snippet2")) {   # generate functional snippets
+    # Delaigle(2020) setting
+    if (type == "snippet1") {
+      len.frag = c(0.1, 0.3)   # length of domain for each curves
+    } else {
+      len.frag = c(0.4, 0.6)   # length of domain for each curves
+    }
+    
     a_l <- len.frag[1]
     b_l <- len.frag[2]
     
