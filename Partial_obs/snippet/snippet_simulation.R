@@ -3,7 +3,6 @@
 ### - Partially observed case
 ### - 5-fold CV is performed for hyperparameters
 ################################################
-library(GA)   # persp plot
 library(mvtnorm)
 library(fdapace)   # 1, 2
 library(mcfda)   # 7
@@ -16,6 +15,7 @@ library(tidyverse)
 # library(xtable)
 library(robfpca)
 source("R/sim_delaigle.R")
+source("R/sim_delaigle2.R")
 source("R/sim_lin.R")
 source("Boente_cov.R")
 
@@ -27,27 +27,28 @@ source("Boente_cov.R")
 num_sim <- 30   # number of simulations
 out_prop <- 0.2   # proportion of outliers
 out_type <- 2   # type of outliers
-data_type <- "snippet1"   # type of functional data
+data_type <- "snippet"   # type of functional data
 # kernel <- "epanechnikov"   # kernel function for local smoothing
 kernel <- "gauss"   # kernel function for local smoothing
 bw_boente <- 0.2   # bandwidth for Boente(2020) - Error occurs for small bw
 n_cores <- 12   # number of threads for parallel computing
 pve <- 0.95   # Not used if K is given
-K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
 
+sim_type <- "delaigle"
+# sim_type <- "lin"
+
+### t dist case
+dist <- "t"
+out_prop <- 0
+
+### Outlier 2 case
+dist <- "normal"
+out_prop <- 0
 
 #####################################
 ### Simulation
 #####################################
-mse_eigen <- matrix(NA, num_sim, 5)
-colnames(mse_eigen) <- c("Yao","Lin","Boente","Lin+Huber","Lin+Bisquare")
-mse_var <- mse_eigen
-mse_cov <- mse_eigen
-mse_intra <- mse_eigen
-mse_extra <- mse_eigen
-
-# simulation result
-# pca.est <- list()
+pca.est <- list()   # list containing PCA objects
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, num_sim)   # collection of seed with no error occurs
@@ -61,21 +62,38 @@ while (num.sim < num_sim) {
   #############################
   n <- 100
   n.grid <- 51
-  # x.2 <- sim_lin(n = n, 
-  #                model = 1,
-  #                out.prop = 0, 
-  #                out.type = 1,
-  #                noise = 0.1)
-  x.2 <- sim_delaigle(n = n,
-                      model = 2,
-                      type = data_type,
-                      out.prop = 0.2,
-                      out.type = out_type,
-                      noise = 0.1)
-  
+
+  if (sim_type == "delaigle") {
+    # x.2 <- sim_delaigle(n = n,
+    #                     model = 2,
+    #                     type = data_type,
+    #                     out.prop = 0.2,
+    #                     out.type = out_type,
+    #                     noise = 0.1)
+    x.2 <- sim_delaigle2(n = n,
+                         model = 2,
+                         type = data_type,
+                         dist = dist,
+                         out.prop = out_prop,
+                         out.type = out_type,
+                         noise = 0.1)
+    K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+  } else if (sim_type == "lin") {
+    x.2 <- sim_lin(n = n,
+                   model = 1,
+                   out.prop = out_prop,
+                   out.type = 1,
+                   noise = 0.1)
+    K <- 5   # fixed number of PCs (If NULL, it is selected by PVE)
+  }
+
   x <- list2matrix(x.2)
   # matplot(t(x), type = "l")
-
+  # plot(x.2$Lt[[1]], x.2$Ly[[1]], type = "l", xlim = c(0, 1), ylim = range(unlist(x.2$Ly)))
+  # for (i in 2:n) {
+  #   lines(x.2$Lt[[i]], x.2$Ly[[i]])
+  # }
+  
   
   #############################
   ### Covariance estimation
@@ -175,72 +193,6 @@ while (num.sim < num_sim) {
             cov.bisquare.obj$theta))
     mu.bisquare <- predict(mu.bisquare.obj, work.grid)
     cov.bisquare <- predict(cov.bisquare.obj, work.grid)
-    
-    # # test plot
-    # par(mfrow = c(1, 2))
-    # matplot(work.grid,
-    #         t(x), 
-    #         type = "l")
-    # matlines(work.grid,
-    #          cbind(mu.yao,
-    #                mu.lin,
-    #                mu.huber,
-    #                mu.bisquare),
-    #          lwd = 2)
-    # matplot(work.grid,
-    #         cbind(diag(cov.yao),
-    #               diag(cov.lin),
-    #               diag(cov.huber),
-    #               diag(cov.bisquare)),
-    #         type = "l")
-    
-    
-    # # calculate sum of squares
-    # Lt <- x.2$Lt
-    # Ly <- x.2$Ly
-    # gr <- work.grid
-    # ss_huber <- lapply(1:n, function(i) {
-    #   ind <- match(Lt[[i]], gr)
-    #   return( (Ly[[i]] - mu.huber[ind])^2 )
-    # })
-    # ss_bisquare <- lapply(1:n, function(i) {
-    #   ind <- match(Lt[[i]], gr)
-    #   return( (Ly[[i]] - mu.bisquare[ind])^2 )
-    # })
-    # bw.locpolysmooth(Lt = Lt,
-    #                  Ly = ss_huber,
-    #                  method = "huber",
-    #                  cv_loss = "huber",
-    #                  # K = 100,
-    #                  kernel = kernel,
-    #                  ncores = 1)
-    # bw.locpolysmooth(Lt = Lt,
-    #                  Ly = ss_bisquare,
-    #                  method = "bisquare",
-    #                  cv_loss = "bisquare",
-    #                  # K = 100,
-    #                  kernel = kernel,
-    #                  ncores = 1)
-    
-    # # source("load_source.R")
-    # var.huber.obj <- varfunc.rob(x.2$Lt, x.2$Ly,
-    #                              method = "huber", kernel = kernel,
-    #                              mu = mu.huber.obj, 
-    #                              cv = TRUE, ncores = n_cores)
-    # var.huber.obj$obj$bw
-    # cov.huber.obj <- covfunc.rob(x.2$Lt, x.2$Ly, 
-    #                              method = "huber", kernel = kernel, 
-    #                              mu = mu.huber.obj,
-    #                              sig2x = var.huber.obj,
-    #                              cv = TRUE, ncores = n_cores)
-    # mu.huber <- predict(mu.huber.obj, work.grid)
-    # cov.huber <- predict(cov.huber.obj, work.grid)
-    # cov.huber.obj$theta
-    # GA::persp3D(gr, gr, cov.huber,
-    #             theta = -70, phi = 30, expand = 1)
-    # matplot(cbind(diag(cov.true),
-    #               diag(cov.lin),
-    #               diag(cov.huber)), type = "l")
   }, error = function(e) { 
     print("Huber cov error")
     print(e)
@@ -266,7 +218,7 @@ while (num.sim < num_sim) {
     mu.boente <- cov.boente.obj$mu
     cov.boente <- cov.boente.obj$cov
     # noise var from source code of sparseFPCA package
-    noise_boente <- eigen(cov.boente)$values[1] / (1e3 - 1)
+    noise_boente <- cov.boente.obj$noise_var
   }, error = function(e) {
     print("Boente (2020) cov error")
     print(e)
@@ -315,9 +267,12 @@ while (num.sim < num_sim) {
   
   
   # gr <- work.grid
+  # if (sim_type == "delaigle") {
+  #   cov.true <- get_cov_fragm(gr)
+  # } else if (sim_type == "lin") {
+  #   cov.true <- get_cov_lin(gr)
+  # }
   # par(mfrow = c(2, 3))
-  # cov.true <- get_cov_fragm(gr)
-  # # cov.true <- get_cov_lin(gr)
   # GA::persp3D(gr, gr, cov.true,
   #             main = "True",
   #             theta = -70, phi = 30, expand = 1)
@@ -331,7 +286,7 @@ while (num.sim < num_sim) {
   #             theta = -70, phi = 30, expand = 1)
   # GA::persp3D(gr, gr, cov.bisquare,
   #             theta = -70, phi = 30, expand = 1)
-  # # par(mfrow = c(1, 1))
+  # par(mfrow = c(1, 1))
   
   
   # if some covariances is a not finite value
@@ -373,6 +328,56 @@ while (num.sim < num_sim) {
                              mu.bisquare, cov.bisquare, sig2 = cov.bisquare.obj$sig2e, 
                              work.grid, PVE = pve, K = K)
   
+  ### Save PCA object
+  num.sim <- num.sim + 1 
+  print(paste0("Total # of simulations: ", num.sim))
+  pca.est[[num.sim]] <- list(seed = seed,
+                             x.2 = x.2,
+                             work.grid = work.grid,
+                             pca.obj = list(pca.yao.obj = pca.yao.obj,
+                                            pca.lin.obj = pca.lin.obj,
+                                            pca.boente.obj = pca.boente.obj,
+                                            pca.huber.obj = pca.huber.obj,
+                                            pca.bisquare.obj = pca.bisquare.obj))
+}
+if (sim_type == "delaigle") {
+  save(list = c("pca.est"),
+       file = paste0("RData/pca-snippet-", dist, "-", out_prop, ".RData"))
+} else if (sim_type == "lin") {
+  save(list = c("pca.est"),
+       file = paste0("RData/pca-snippet-lin-", out_prop, ".RData"))
+}
+
+
+
+
+
+###############################
+### Result summary
+###############################
+mse_eigen <- matrix(NA, num_sim, 5)
+colnames(mse_eigen) <- c("Yao","Lin","Boente","Huber","Bisquare")
+mse_score <- mse_eigen
+# mse_score1 <- mse_eigen
+mse_var <- mse_eigen
+mse_cov <- mse_eigen
+mse_intra <- mse_eigen
+mse_extra <- mse_eigen
+m_pve <- mse_eigen
+
+for (num.sim in 1:num_sim) {
+  ### Get generated data
+  x.2 <- pca.est[[num.sim]]$x.2
+  x <- list2matrix(x.2)
+  work.grid <- pca.est[[num.sim]]$work.grid
+  
+  ### Get funPCA.obj
+  pca.yao.obj <- pca.est[[num.sim]]$pca.obj$pca.yao.obj
+  pca.lin.obj <- pca.est[[num.sim]]$pca.obj$pca.lin.obj
+  pca.boente.obj <- pca.est[[num.sim]]$pca.obj$pca.boente.obj
+  pca.huber.obj <- pca.est[[num.sim]]$pca.obj$pca.huber.obj
+  pca.bisquare.obj <- pca.est[[num.sim]]$pca.obj$pca.bisquare.obj
+  
   ### Combine PCA objects
   pca.obj <- list(
     pca.yao.obj,
@@ -382,34 +387,62 @@ while (num.sim < num_sim) {
     pca.bisquare.obj
   )
   
+  ### Average of PVE
+  m_pve[num.sim, ] <- sapply(pca.obj, function(method){ method$PVE })
+  
   ### Eigen function - Compute for fixed K
-  if (is.null(K)) {
-    mse_eigen[num.sim + 1, ] <- rep(NA, ncol(mse_eigen))
-  } else {
+  if (sim_type == "delaigle") {
+    cov.true <- get_cov_fragm(work.grid)
     eig.true <- get_delaigle_eigen(work.grid, model = 2)
-    # calculate MSE
-    mse_eigen[num.sim + 1, ] <- sapply(pca.obj, function(method){
-      mean((check_eigen_sign(method$eig.fun, eig.true) - eig.true)^2)
-    })
+  } else if (sim_type == "lin") {
+    cov.true <- get_cov_lin(work.grid)
+    eig.true <- get_eigen(cov.true, work.grid)$phi[, 1:K]
   }
+  # calculate MSE
+  mse_eigen[num.sim, ] <- sapply(pca.obj, function(method){
+    mean((check_eigen_sign(method$eig.fun, eig.true) - eig.true)^2)
+  })
+  
+  ### PC score
+  if (sim_type == "delaigle") {
+    pc.true <- x.2$xi
+    if (dist == "t") {
+      out.ind <- apply(pc.true, 2, function(pc){ 
+        which(pc %in% boxplot(pc, plot = F)$out) 
+      }) %>% 
+        unlist() %>% 
+        unique()
+      ind <- which(1:n %in% out.ind)
+    } else {
+      ind <- which(x.2$y == 0)
+    }
+    mse_score[num.sim, ] <- sapply(pca.obj, function(method){
+      mean((method$pc.score - pc.true)[ind, ]^2)
+    })
+    # mse_score1[num.sim, ] <- sapply(pca.obj, function(method){
+    #   mean((method$pc.score[1, ] - pc.true[1, ])^2)
+    # })
+  } else if (sim_type == "lin") {
+    mse_score[num.sim, ] <- 0
+  }
+
   
   ### Variance and Covariance
-  cov.true <- get_cov_fragm(work.grid)
-  mse_var[num.sim + 1, ] <- sapply(pca.obj, function(method){
+  mse_var[num.sim, ] <- sapply(pca.obj, function(method){
     mean((diag(method$cov) - diag(cov.true))^2)
   })
-  mse_cov[num.sim + 1, ] <- sapply(pca.obj, function(method){
+  mse_cov[num.sim, ] <- sapply(pca.obj, function(method){
     mean((method$cov - cov.true)^2)
   })
   
   ### Intra and Extrapolated region - Delaigle(2020)
-  design.idx <- get_design_index(x.2$Lt)
-  mse_intra[num.sim + 1, ] <- sapply(pca.obj, function(method){
+  design.idx <- get_design_index(x.2$Lt, work.grid)
+  mse_intra[num.sim, ] <- sapply(pca.obj, function(method){
     get_ise(cov_inter(cov.true, design.idx), 
             cov_inter(method$cov, design.idx), 
             work.grid)
   })
-  mse_extra[num.sim + 1, ] <- sapply(pca.obj, function(method){
+  mse_extra[num.sim, ] <- sapply(pca.obj, function(method){
     get_ise(cov_extra(cov.true, design.idx), 
             cov_extra(method$cov, design.idx), 
             work.grid)
@@ -427,25 +460,30 @@ while (num.sim < num_sim) {
   #           ),
   #           type = "l")
   # }
-  
-  ### Next simulation
-  num.sim <- num.sim + 1
-  print(paste0("Total # of simulations: ", num.sim))
 }
 
 
 data.frame(Method = c("Yao","Lin","Boente",
-                      "Lin+Huber","Lin+Bisquare")) %>% 
-  # left_join(data.frame(
-  #   Method = colnames(PVE_K),
-  #   PVE = format(round(colMeans(PVE_K), 2), 2)
-  # ), by = "Method") %>% 
+                      "Huber","Bisquare")) %>% 
+  left_join(data.frame(
+    Method = colnames(mse_eigen),
+    PVE = format(round(colMeans(m_pve), 2), 2)
+  ), by = "Method") %>%
   left_join(data.frame(
     Method = colnames(mse_eigen),
     Eigen = paste0(
       format(round(sqrt( colMeans(mse_eigen) ), 2), 2),
       " (",
       format(round(sqrt( apply(mse_eigen, 2, sd) ), 2), 2),
+      ")"
+    )
+  ), by = "Method") %>% 
+  left_join(data.frame(
+    Method = colnames(mse_score),
+    Score = paste0(
+      format(round(sqrt( colMeans(mse_score) ), 2), 2),
+      " (",
+      format(round(sqrt( apply(mse_score, 2, sd) ), 2), 2),
       ")"
     )
   ), by = "Method") %>% 
@@ -491,7 +529,74 @@ data.frame(Method = c("Yao","Lin","Boente",
 
 
 
+### Eigen function trajectories
+par(mfrow = c(2, ceiling(K/2)))
+for (k in 1:K) {
+  matplot(work.grid,
+          cbind(
+            eig.true[, k],
+            check_eigen_sign(pca.yao.obj$eig.fun, eig.true)[, k],
+            check_eigen_sign(pca.lin.obj$eig.fun, eig.true)[, k],
+            check_eigen_sign(pca.boente.obj$eig.fun, eig.true)[, k],
+            check_eigen_sign(pca.huber.obj$eig.fun, eig.true)[, k],
+            check_eigen_sign(pca.bisquare.obj$eig.fun, eig.true)[, k]
+          ),
+          type = "l",
+          col = 1:6,
+          lty = 1:6,
+          main = paste("Eigenfunction", k),
+          xlab = "", ylab = "",
+          lwd = rep(2, 6))
+  if (k == 1) {
+    legend("topleft",
+           c("True","Yao","Lin","Boente","Huber","Bisquare"),
+           col = 1:6,
+           lty = 1:6,
+           lwd = rep(2, 6))
+  }
+}
 
 
 
 
+source("function_outlier.R")
+sim <- 30
+x.2 <- pca.est[[sim]]$x.2
+x <- list2matrix(x.2)
+k <- pca.est[[sim]]$pca.obj[[1]]$K
+mname <- c("Yao","Lin","Boente","Huber","Bisquare")
+par(mfrow = c(2, 3))
+for (i in 1:5) {
+  SD <- score_dist(pca.est[[sim]]$pca.obj[[i]])   # score distance
+  OD <- orthogonal_dist(pca.est[[sim]]$pca.obj[[i]])   # orthogonal distance
+  # mcd_fit <- covMcd(OD^(2/3))
+  mcd_fit <- cov.mcd(matrix(OD^(2/3)))
+  cut_y <- (mcd_fit$center + sqrt(as.numeric(mcd_fit$cov))*qnorm(0.975))^(3/2)
+  cut_x <- sqrt(qchisq(0.975, k))
+  
+  plot(SD, OD,
+       col = 3*x.2$y + 1,
+       xlab = "Score distance",
+       ylab = "Orthogonal distance",
+       main = mname[i],
+       # xlim = c(0, 1), ylim = c(0, 60),
+       cex.lab = 1.5,
+       cex.main = 1.5)
+  grid()
+  abline(v = cut_x, col = 2)
+  abline(h = cut_y, col = 2)
+}
+
+
+
+pca.yao.obj$sig2
+pca.lin.obj$sig2
+pca.boente.obj$sig2
+pca.huber.obj$sig2
+pca.bisquare.obj$sig2
+
+
+
+domain <- range(unlist(Lt))   # range of timepoints
+min_bw <- 2*max(unlist(lapply(Lt, diff)))   # minimun candidate of bw
+bw_cand <- seq(min_bw, diff(domain)/3, length.out = 10)

@@ -314,11 +314,11 @@ for (sim in 1:num_sim) {
     
     pc1 <- pca.est[[sim]]$pca.obj[[i]]$pc.score[, 1]
     y_hat <- rep(0, n)
-    y_hat[which(SD %in% adjbox(pc1, plot = F)$out)] <- 1
+    y_hat[which(pc1 %in% adjbox(pc1, plot = F)$out)] <- 1
     out[[1]] <- y_hat
     
     y_hat <- rep(0, n)
-    y_hat[which(SD %in% boxplot(pc1, plot = F)$out)] <- 1
+    y_hat[which(pc1 %in% boxplot(pc1, plot = F)$out)] <- 1
     out[[2]] <- y_hat
     
     

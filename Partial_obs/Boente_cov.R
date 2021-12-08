@@ -74,8 +74,12 @@ cov_boente <- function(x, bw.mu, bw.cov, kern = "epanechnikov", cv = FALSE, seed
                        toGrid = gr,
                        mu = df$mu[idx])
   
+  # noise variance
+  noise_var <- eigen(cov.fun2$G)$values[1] / (1e3 - 1)
+  
   return(list(mu = mu,
-              cov = cov.fun2$G))
+              cov = cov.fun2$G,
+              noise_var = noise_var))
 }
 
 
