@@ -1,5 +1,8 @@
 # library(sparseFPCA)
 
+##############################################################
+### 뭔가 잘못됨... partial obs에서 매우 오래걸림
+##############################################################
 
 ### mean and covariance in Boente (2020)
 cov_boente <- function(x, bw.mu, bw.cov, kern = "epanechnikov", cv = FALSE, seed = 123) {

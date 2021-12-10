@@ -61,6 +61,8 @@
 
 ### Robust covariance estimation for partially observed functional data
 
+- Boente에서 또 뭔가 이상함... 너무 오래 걸림...
+
 - Theory
 
     - Boente et al.(2014)는 curve 자체를 elliptical process로부터 나왔다고 정의
