@@ -1,3 +1,5 @@
+library(MASS)
+
 ### penalized spline for each curve
 pspline_curve <- function(t, x) {
   grid.length <- length(x)

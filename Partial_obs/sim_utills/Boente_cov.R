@@ -7,6 +7,8 @@ cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, ncores = 1, seed = 123) {
   gr <- seq(min(unlist(x$Lt)), max(unlist(x$Lt)), length.out = 51)
   
   
+  start_time <- Sys.time()
+  
   # Start cluster
   if (isTRUE(cv)) {
     alpha <- 0.2
@@ -39,16 +41,41 @@ cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, ncores = 1, seed = 123) {
     ma <- matrixx(X, mh)
   }
   
+  end_time <- Sys.time()
+  print(paste0("mean stage : ", 
+               round(difftime(end_time, 
+                              start_time, 
+                              units = "secs"), 3),
+               " secs"))
   
+  start_time <- Sys.time()
   
   # Compute the estimated cov function
   cov.fun2 <- cov.fun.hat2(X=X, h=bw.cov, mh=mh, ma=ma, ncov=length(gr), trace=FALSE)
+  
+  end_time <- Sys.time()
+  print(paste0("cov stage : ", 
+               round(difftime(end_time, 
+                              start_time, 
+                              units = "secs"), 3),
+               " secs"))
+  start_time <- Sys.time()
+  
   # smooth it
   yy <- as.vector(cov.fun2$G)
   xx <- cov.fun2$grid
   tmp <- fitted(mgcv::gam(yy ~ s(xx[,1], xx[,2]), family='gaussian'))
   cov.fun2$G <- matrix(tmp, length(unique(xx[,1])), length(unique(xx[,1])))
   cov.fun2$G <- ( cov.fun2$G + t(cov.fun2$G) ) / 2
+  
+  end_time <- Sys.time()
+  print(paste0("smoothing stage : ", 
+               round(difftime(end_time, 
+                              start_time, 
+                              units = "secs"), 3),
+               " secs"))
+  start_time <- Sys.time()
+  
   
   # obtain mean function
   df <- data.frame(t = unlist(X$pp),
@@ -60,8 +87,16 @@ cov_boente <- function(x, bw.mu, bw.cov, cv = FALSE, ncores = 1, seed = 123) {
                        toGrid = gr,
                        mu = df$mu[idx])
   
+  end_time <- Sys.time()
+  print(paste0("converet stage : ", 
+               round(difftime(end_time, 
+                              start_time, 
+                              units = "secs"), 3),
+               " secs"))
+  
   # noise variance
   noise_var <- eigen(cov.fun2$G)$values[1] / (1e3 - 1)
+  
   
   return(list(mu = mu,
               cov = cov.fun2$G,
