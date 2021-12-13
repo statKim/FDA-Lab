@@ -1,7 +1,7 @@
-################################################
-### Simulation using Kraus(2015) setting
+###################################################
+### Simulation using Delaigle et al.(2021) setting
 ### - 5-fold CV is performed for hyperparameters
-################################################
+###################################################
 library(robfpca)   # proposed methods and data generating
 library(tidyverse)
 library(fdapace)
@@ -21,14 +21,33 @@ source("sim_utills/Boente_cov.R")
 # source("test/sim_kraus.R")
 
 
-
 #####################################
 ### Simulation Model setting
+### - Model 1 : "Delaigle"
+### - Model 2 : "Kraus"
 #####################################
+
+# ### Model 1
+# setting <- "Delaigle"
+# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+# pve <- 0.95   # Not used if K is given
+# bw_cand <- seq(0.01, 0.3, length.out = 10)
+
+### Model 2
 setting <- "Kraus"
 K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
 bw_cand <- seq(0.01, 0.1, length.out = 10)
+
+
+
+#####################################
+### Outlier setting
+### - Case 1 : Not-contaminated
+### - Case 2 : t-distribution
+### - Case 3 : 10% contamination
+### - Case 4 : 20% contamination
+#####################################
 
 # ### Case 1
 # dist_type <- "normal"
@@ -59,6 +78,7 @@ if (dist_type == "tdist") {
            "-prop", out_prop*10, ".RData")
   )
 }
+
 
 
 #####################################
@@ -246,8 +266,8 @@ while (num.sim < num_sim) {
   print(paste0("Kraus : ", 
                time_d[num.sim + 1, 2],
                " secs"))
-
-    
+  
+  
   ### Robust Kraus
   start_time <- Sys.time()
   registerDoRNG(seed)
@@ -281,15 +301,8 @@ while (num.sim < num_sim) {
     # library(sparseFPCA)
     # source("sim_utills/Boente_cov.R")
     bw_boente <- 0.1   # bandwidth for Boente(2021) - Error occurs for small bw
-    cov.boente.obj <- cov_boente(x.2, bw.mu = bw_boente, bw.cov = bw_boente)
-    
-    
-    # [1] "mean stage : 35.962 secs"
-    # [1] "cov stage : 1132.178 secs"
-    # [1] "smoothing stage : 0.436 secs"
-    # [1] "converet stage : 0.003 secs"
-    # user   system  elapsed 
-    # 1027.412  141.382 1168.617
+    cov.boente.obj <- cov_boente(x.2, bw.mu = bw_boente, bw.cov = bw_boente,
+                                 seed = seed)
     
     # # 5-fold CV
     # cov.boente.obj <- cov_boente(x.2, 
@@ -368,7 +381,7 @@ while (num.sim < num_sim) {
       eig.true <- get_kraus_eigen(work.grid) 
     }
     
-    # calculate MSE
+    # Eigen MISE
     mse_eigen[num.sim + 1, ] <- c(
       mean((check_eigen_sign(pca.yao.obj$eig.fun, eig.true) - eig.true)^2),
       mean((check_eigen_sign(pca.kraus.obj$eig.fun, eig.true) - eig.true)^2),
@@ -379,14 +392,14 @@ while (num.sim < num_sim) {
     )
     
     
-    # calculate Cosine similarity
+    # Eigne angle
     mse_eigen2[num.sim + 1, ] <- c(
-      mean( subspace(pca.yao.obj$eig.fun, eig.true) ) ,
-      mean( subspace(pca.kraus.obj$eig.fun, eig.true) ),
-      mean( subspace(pca.Mkraus.obj$eig.fun, eig.true) ), 
-      mean( subspace(pca.boente.obj$eig.fun, eig.true) ),
-      mean( subspace(pca.ogk.obj$eig.fun, eig.true) ),
-      mean( subspace(pca.ogk.sm.obj$eig.fun, eig.true) ) 
+      subspace(pca.yao.obj$eig.fun, eig.true),
+      subspace(pca.kraus.obj$eig.fun, eig.true),
+      subspace(pca.Mkraus.obj$eig.fun, eig.true),
+      subspace(pca.boente.obj$eig.fun, eig.true),
+      subspace(pca.ogk.obj$eig.fun, eig.true),
+      subspace(pca.ogk.sm.obj$eig.fun, eig.true)
     )
     
   }
@@ -397,10 +410,6 @@ while (num.sim < num_sim) {
   cand <- which(
     (apply(x, 1, function(x){ sum(is.na(x)) }) > 0) & (x.2$out.ind == 0)
   )
-  # cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-  # if (out_prop != 0) {
-  #   cand <- cand[cand <= 80]   # exclude outlier curves
-  # }
   
   # reconstructed curves
   pred_yao_mat <- predict(pca.yao.obj, K = K)
@@ -527,15 +536,6 @@ while (num.sim < num_sim) {
 
 
 
-# mse_eigen <- mse_eigen[1:3,]
-# mse_eigen2 <- mse_eigen2[1:3,]
-# mse_reconstr <-mse_reconstr[1:3,]
-# mse_completion <- mse_completion[1:3,]
-# pve_res <- pve_res[1:3,]
-# K_res <- K_res[1:3,]
-# time_d <- time_d[1:3,]
-
-
 ### Summary results
 if (is.null(K)) {
   PVE_K <- K_res
@@ -595,200 +595,4 @@ res
 # Make results to LaTeX code
 library(xtable)
 xtable(res)
-
-
-
-
-
-
-
-
-
-result1 <- round(
-  cbind(
-    colMeans(pve_res),
-    apply(pve_res, 2, sd),
-    colMeans(mse_eigen),
-    apply(mse_eigen, 2, sd),
-    colMeans(mse_eigen2),
-    apply(mse_eigen2, 2, sd),
-    colMeans(mse_reconstr),
-    apply(mse_reconstr, 2, sd),
-    colMeans(mse_completion),
-    apply(mse_completion, 2, sd)
-  ),
-  3
-)
-colnames(result1) <- c(
-  'PVE (mean)',
-  'PVE(sd)',
-  'MSE eigen (mean)',
-  'MSE eigen (sd)',
-  'MSE eigen cos (mean)',
-  'MSE eigen cos (sd)',
-  'MSE rec (mean)',
-  'MSE rec (sd)',
-  'MSE completion (mean)',
-  'MSE completion (sd)'
-)
-result1
-
-## duration time
-time_result = cbind(colMeans(time_d), apply(time_d, 2, sd))
-rownames(time_result) <- c("Yao",
-                           "Kraus",
-                           "R Kraus",
-                           "Boente",
-                           "OGK(non-smooth)",
-                           "OGK(smooth)")
-time_result
-
-# save(mse_eigen,
-#      mse_eigen2,
-#      mse_reconstr,
-#      mse_completion,
-#      result1,
-#      K_res,
-#      pve_res,
-#      file = '/Users/yaejilim/Desktop/K_20.RData')
-
-
-
-for (j in 1:nrow(result1)) {
-  aa <- vector()
-  for (l in c(1, 3, 5, 7, 9)) {
-    temp1 = paste(result1[j, l], '(', result1[j, l + 1], ') &' , sep = '')
-    aa = c(aa, temp1)
-    
-  }
-  
-  print(aa)
-}
-
-
-
-
-par(mfrow = c(1, 3))
-pca.yao.obj$eig.fun = check_eigen_sign(pca.yao.obj$eig.fun, eig.true)
-pca.kraus.obj$eig.fun = check_eigen_sign(pca.kraus.obj$eig.fun[, 1:ncol(eig.true)], eig.true)
-pca.Mkraus.obj$eig.fun = check_eigen_sign(pca.Mkraus.obj$eig.fun[, 1:ncol(eig.true)], eig.true)
-pca.boente.obj$eig.fun = check_eigen_sign(pca.boente.obj$eig.fun[, 1:ncol(eig.true)], eig.true)
-pca.ogk.sm.obj$eig.fun = check_eigen_sign(pca.ogk.sm.obj$eig.fun, eig.true)
-for(l in 1:3){
-  plot(gr,eig.true[,l], type='l', ylim=range(0,eig.true[,l],pca.Mkraus.obj $eig.fun[,l])*1.3, xlab='t',lwd=2, ylab='', main=paste(l,'st eigenfunction',sep=''))
-  lines(gr, pca.yao.obj$eig.fun[, l], col = 2, lwd = 2)
-  lines(gr,
-        pca.kraus.obj$eig.fun[, l],
-        col = 3,
-        lwd = 2)
-  lines(gr,
-        pca.Mkraus.obj$eig.fun[, l],
-        col = 4,
-        lwd = 2)
-  lines(gr, pca.boente.obj$eig.fun[, l], col = 5, lwd = 2)
-  lines(gr,
-        pca.ogk.sm.obj$eig.fun[, l],
-        col = 6,
-        lwd = 2)
-  legend('topright', 
-         c('True', 'Sparse FPCA', 'Kraus', 'Robust Kraus', 'S-estimator', 'Proposed'), 
-         col=c(1:6),lty=1,lwd=2)
-}
-
-
-
-
-# colMeans(K_res)
-# colMeans(pve_res)
-
-if (is.null(K)) {
-  PVE_K <- K_res
-} else {
-  PVE_K <- pve_res
-}
-
-
-gr <- work.grid
-par(mfrow = c(3, 3))
-cov.true <- get_delaigle_cov(gr, model=2)
-GA::persp3D(gr, gr, cov.true,
-            theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, cov.yao,
-            theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, cov.kraus,
-            theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, cov.Mest,
-            theta = -70, phi = 30, expand = 1)              
-GA::persp3D(gr, gr, cov.boente,
-            theta = -70, phi = 30, expand = 1)
-GA::persp3D(gr, gr, cov.ogk,
-            theta = -70, phi = 30, expand = 1)   
-GA::persp3D(gr, gr, cov.ogk.sm,
-            theta = -70, phi = 30, expand = 1)         
-
-par(mfrow = c(1, 1))
-
-tt=matrix(nrow=nrow(x), ncol=2)
-for(i in 1:nrow(x)){tt[i,]=range(x[i,], na.rm=T)}
-which.max(tt[,2])
-which.min(tt[,1])
-
-quartz()
-par(mfrow=c(2,2))
-for( ind in c(11,37   , 16,8)  ){
-  print(ind)
-  pred_yao <- pred_yao_mat[ind, ]
-  pred_kraus <- pred.missfd(x[ind, ], x)
-  pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], x,   smooth = F,    R = cov.Mest)
-  pred_boente <- pred_boente_mat[ind, ]
-  pred_ogk_sm <- pred_ogk_sm_mat[ind, ]
-  
-  
-  # #       plot(gr,x[ind,], type='l', ylim=range(c( x[ind,], pred_ogk_sm_noise), na.rm=T), lwd=2, xlab='t', ylab='')
-  # lines(gr,x.2$x.full[ind,],lwd=2,lty=2, col=gray(0.8))
-  # lines(gr,x[ind,],lwd=2,lty=1, col=1)
-  
-  
-  
-  plot(gr,x[ind,], type='l', ylim=range(c( x[ind,], pred_ogk_sm, pred_kraus_M_sm ,pred_boente[which(is.na(x[ind,])==T)]), na.rm=T)*1.5, lwd=2, xlab='t', ylab='')
-  lines(gr,x.2$x.full[ind,],lwd=2,lty=2, col=gray(0.8))
-  lines(gr,x[ind,],lwd=2,lty=1, col=1)
-  lines(gr[which(is.na(x[ind,])==T)],pred_yao[which(is.na(x[ind,])==T)], col=2, lwd=2) 
-  lines(gr, pred_kraus, col=3, lwd=2) 
-  lines( gr,pred_kraus_M_sm, col=4, lwd=2)  
-  lines( gr[which(is.na(x[ind,])==T)], pred_boente[which(is.na(x[ind,])==T)], col=5, lwd=2)  
-  lines( gr[which(is.na(x[ind,])==T)],pred_ogk_sm[which(is.na(x[ind,])==T)], col=6, lwd=2) 
-  
-  legend('topright',  c('True', 'Sparse FPCA',  'Kraus', 'Robust Kraus', 'S-estimator','Proposed'), col=c(1:6),lty=1,lwd=2)
-}
-
-
-
-
-which.min(mse_reconstr[,6])
-
-par(mfrow=c(1,2))
-for( ind in c(68, 72)  ){
-  print(ind)
-  pred_yao <- pred_yao_mat[ind, ]
-  pred_boente <- pred_boente_mat[ind, ]
-  pred_ogk_sm <- pred_ogk_sm_mat[ind, ]
-  
-  
-  # #       plot(gr,x[ind,], type='l', ylim=range(c( x[ind,], pred_ogk_sm_noise), na.rm=T), lwd=2, xlab='t', ylab='')
-  # lines(gr,x.2$x.full[ind,],lwd=2,lty=2, col=gray(0.8))
-  # lines(gr,x[ind,],lwd=2,lty=1, col=1)
-  
-  
-  
-  plot(gr,x[ind,], type='l', ylim=range(c( x[ind,], pred_ogk_sm ,pred_boente), na.rm=T), lwd=2, xlab='t', ylab='')
-  lines(gr,x.2$x.full[ind,],lwd=2,lty=2, col=gray(0.8))
-  lines(gr,x[ind,],lwd=2,lty=1, col=1)
-  lines(gr,pred_yao, col=2, lwd=2) 
-  lines( gr, pred_boente, col=5, lwd=2)  
-  lines( gr,pred_ogk_sm, col=6, lwd=2) 
-  
-  legend('topright',  c('True', 'Sparse FPCA', 'S-estimator','Proposed'), col=c(1:2,5,6),lty=1,lwd=2)
-}
-
 

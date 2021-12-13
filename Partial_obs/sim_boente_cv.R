@@ -23,14 +23,15 @@ source("sim_utills/Boente_cov.R")
 #####################################
 ### Simulation Model setting
 #####################################
-# setting <- "Kraus"
-# K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
-# bw_cand <- seq(0.01, 0.1, length.out = 10)
-
-setting <- "Delaigle"
-K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+setting <- "Kraus"
+K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
-bw_cand <- seq(0.01, 0.3, length.out = 10)
+bw_cand <- seq(0.01, 0.1, length.out = 10)
+
+# setting <- "Delaigle"
+# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+# pve <- 0.95   # Not used if K is given
+# bw_cand <- seq(0.01, 0.3, length.out = 10)
 
 
 # ### Case 1
@@ -38,19 +39,19 @@ bw_cand <- seq(0.01, 0.3, length.out = 10)
 # out_type <- 1   # type of outliers (fixed; Do not change)
 # out_prop <- 0   # proportion of outliers
 
-### Case 2
-dist_type <- "tdist"
-out_prop <- 0   # proportion of outliers
+# ### Case 2
+# dist_type <- "tdist"
+# out_prop <- 0   # proportion of outliers
 
 # ### Case 3
 # dist_type <- "normal"
 # out_type <- 1   # type of outliers (fixed; Do not change)
 # out_prop <- 0.1   # proportion of outliers
 
-# ### Case 4
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.2   # proportion of outliers
+### Case 4
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.2   # proportion of outliers
 
 
 
@@ -70,6 +71,7 @@ if (dist_type == "tdist") {
   file_name <- paste0("RData/", setting, "-", dist_type, ".RData")
 } else {
   file_name <- paste0("RData/", setting, "-", dist_type, 
+                      "-prop", out_prop*10, ".RData")
 }
 load(file_name)
 
