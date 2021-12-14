@@ -23,23 +23,32 @@ source("sim_utills/Boente_cov.R")
 
 #####################################
 ### Simulation Model setting
+### - Model 1 : "Delaigle"
+### - Model 2 : "Kraus"
 #####################################
-setting <- "Kraus"
-K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
+
+### Model 1
+setting <- "Delaigle"
+K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
-bw_cand <- seq(0.01, 0.1, length.out = 10)
+bw_cand <- seq(0.01, 0.3, length.out = 10)
 
-
-# setting <- "Delaigle"
-# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+# ### Model 2
+# setting <- "Kraus"
+# K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 # pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.01, 0.3, length.out = 10)
+# bw_cand <- seq(0.01, 0.1, length.out = 10)
 
 
 
 #####################################
 ### Outlier setting
+### - Case 1 : Not-contaminated
+### - Case 2 : t-distribution
+### - Case 3 : 10% contamination
+### - Case 4 : 20% contamination
 #####################################
+
 # ### Case 1
 # dist_type <- "normal"
 # out_type <- 1   # type of outliers (fixed; Do not change)
@@ -58,6 +67,7 @@ out_prop <- 0   # proportion of outliers
 # dist_type <- "normal"
 # out_type <- 1   # type of outliers (fixed; Do not change)
 # out_prop <- 0.2   # proportion of outliers
+
 
 if (dist_type == "tdist") {
   print(
@@ -283,73 +293,66 @@ while (num.sim < num_sim) {
   
   
   ### Curve reconstruction via PCA
-  # index of non-outlier curves having missing values (Only non-outlier index)
+  # reconstructed curves
+  pred_reconstr <- list(
+    predict(pca.huber.obj, K = K),
+    predict(pca.bisquare.obj, K = K),
+    predict(pca.tdist.obj, K = K)
+  )
+  
+  # MISE of reconstruction
+  Not_out_ind <- which(x.2$out.ind == 0)
+  mse_reconstr[num.sim, ] <- sapply(pred_reconstr, function(method){
+    if (is.matrix(method)) {
+      return( mean((method[Not_out_ind, ] - x.2$x.full[Not_out_ind, ])^2) )
+    } else {
+      return(NA)
+    }
+  })
+  
+  
+  # index of non-outlying curves having missing values (Only non-outlier index)
   cand <- which(
     (apply(x, 1, function(x){ sum(is.na(x)) }) > 0) & (x.2$out.ind == 0)
   )
-  # cand <- which(apply(x, 1, function(x){ sum(is.na(x)) }) > 0)
-  # if (out_prop != 0) {
-  #   cand <- cand[cand <= 80]   # exclude outlier curves
-  # }
   
-  # reconstructed curves
-  pred_huber_mat <- predict(pca.huber.obj, K = K)
-  pred_bisquare_mat <- predict(pca.bisquare.obj, K = K)
-  pred_tdist_mat <- predict(pca.tdist.obj, K = K)
-  
-  
-  sse_reconstr <- matrix(NA, length(cand), 3)
-  sse_completion <- matrix(NA, length(cand), 3)
+  # sse_reconstr <- matrix(NA, length(cand), 6)
+  sse_completion <- matrix(NA, length(cand), 6)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
     
-    pred_huber <- pred_huber_mat[ind, ]
-    pred_bisquare <- pred_bisquare_mat[ind, ]
-    pred_tdist <- pred_tdist_mat[ind, ]
-    
-    # ISE for reconstruction of overall interval
-    df <- cbind(
-      pred_huber,
-      pred_bisquare,
-      pred_tdist
+    # prediction for missing parts
+    pred_comp <- list(
+      pred_reconstr[[1]][ind, ],
+      pred_reconstr[[2]][ind, ],
+      pred_reconstr[[3]][ind, ]
     )
-    sse_reconstr[i, ] <- apply(df, 2, function(pred) { 
-      mean((x.2$x.full[ind, ] - pred)^2)
-    })
     
     
+    # # ISE for reconstruction of overall interval
+    # sse_reconstr[i, ] <- sapply(pred_reconstr, function(method){
+    #   if (is.matrix(method)) {
+    #     return( mean((method[ind, ] - x.2$x.full[ind, ])^2) )
+    #   } else {
+    #     return(NA)
+    #   }
+    # })
     
     # ISE for completion
-    ind <- cand[i]
-    NA_ind <- which(is.na(x[ind, ]))
-    
-    df <- cbind(
-      pred_missing_curve(x[ind, ], 
-                         pred_huber_mat[ind, ], 
-                         conti = FALSE),
-      pred_missing_curve(x[ind, ], 
-                         pred_bisquare_mat[ind, ],
-                         conti = FALSE),
-      pred_missing_curve(x[ind, ], 
-                         pred_tdist_mat[ind, ], 
-                         conti = FALSE)
-    )
-    df <- df[NA_ind, ]
-    if (length(NA_ind) == 1) {
-      df <- matrix(df, nrow = 1)
-    }
-    sse_completion[i, ] <- apply(df, 2, function(pred) { 
-      mean((x.2$x.full[ind, NA_ind] - pred)^2)
+    NA_ind <- which(is.na(x[ind, ]))   # index of missing periods
+    sse_completion[i, ] <- sapply(pred_comp, function(method){
+      mean((method[NA_ind] - x.2$x.full[ind, NA_ind])^2)
     })
   }
+  
   
   # Update number of simulations and save seed which does not occur errors
   num.sim <- num.sim + 1
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
-  mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
+  # mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
   mse_completion[num.sim, ] <- colMeans(sse_completion)
   
   pve_res[num.sim, ] <- c(

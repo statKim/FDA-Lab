@@ -8,12 +8,19 @@ library(fdapace)
 library(doParallel)   # parallel computing
 library(doRNG)   # set.seed for foreach
 library(pracma)   # subspace
-# devtools::install_github('msalibian/sparseFPCA', ref = "master")
-library(sparseFPCA)   # Boente (2021) 
+
+# Codes can be obtained from Kraus(2015), JRSS-B.
 source("Kraus(2015)/pred.missfd.R")
 source("Kraus(2015)/simul.missfd.R")
+
+# R-Kraus
 source("sim_utills/robust_Kraus.R")
+
+# For Boente et al.(2021), you may install the package from the follow code.
+# devtools::install_github('msalibian/sparseFPCA', ref = "master")
+library(sparseFPCA)   # Boente (2021) 
 source("sim_utills/Boente_cov.R")
+
 
 ### 아래는 function 수정해서 사용할 경우에만 load할 것
 # source("test/cov_ogk.R")
@@ -248,9 +255,9 @@ while (num.sim < num_sim) {
   ### Kraus
   start_time <- Sys.time()
   tryCatch({
-    mean.kraus <- mean.missfd(x)
+    mu.kraus <- mean.missfd(x)
     cov.kraus <- var.missfd(x)
-    eig.kraus	<- eigen.missfd(cov.kraus)$vectors
+    # eig.kraus	<- eigen.missfd(cov.kraus)$vectors
   }, error = function(e) { 
     print("Kraus cov error")
     print(e)
@@ -274,7 +281,6 @@ while (num.sim < num_sim) {
   tryCatch({
     mu.Mest <- mean_Mest(x)	
     cov.Mest <- cov_Mest(x)
-    
   }, error = function(e) { 
     print("R-Kraus cov error")
     print(e)
@@ -356,15 +362,38 @@ while (num.sim < num_sim) {
                            mu.boente, cov.boente, sig2 = boente.noise.est, 
                            work.grid, PVE = pve, K = K)
   #  Kraus
-  pca.kraus.obj <- funPCA(x.2$Lt, x.2$Ly,
-                          mean.kraus, cov.kraus, sig2 = 0,
-                          work.grid, PVE = pve, K = K)
+  eig.kraus <- get_eigen(cov.kraus, work.grid)
+  if (!is_null(K)) {
+    K_kraus <- K
+    pve_kraus <- eig.kraus$PVE[K_kraus]
+  } else {
+    K_kraus <- which(eig.kraus$PVE > pve)[1]
+    pve_kraus <- eig.kraus$PVE[K_kraus]
+  }
+  pca.kraus.obj <- list(K = K_kraus,
+                        PVE = pve_kraus,
+                        mu = mu.kraus,
+                        cov = cov.kraus,
+                        lambda = eig.kraus$lambda,
+                        eig.fun = eig.kraus$phi)
   # Robust Kraus
-  pca.Mkraus.obj <- funPCA(x.2$Lt, x.2$Ly,
-                           mu.Mest, cov.Mest, sig2 = 0,
-                           work.grid, PVE = pve, K = K)
+  eig.Mkraus <- get_eigen(cov.Mest, work.grid)
+  if (!is_null(K)) {
+    K_Mkraus <- K
+    pve_Mkraus <- eig.Mkraus$PVE[K_Mkraus]
+  } else {
+    K_Mkraus <- which(eig.Mkraus$PVE > pve)[1]
+    pve_Mkraus <- eig.Mkraus$PVE[K_Mkraus]
+  }
+  pca.kraus.obj <- list(K = K_Mkraus,
+                        PVE = pve_Mkraus,
+                        mu = mu.Mest,
+                        cov = cov.Mest,
+                        lambda = eig.Mkraus$lambda,
+                        eig.fun = eig.Mkraus$phi)
   # OGK
-  pca.ogk.obj <- funPCA(x.2$Lt, x.2$Ly, mu.ogk, cov.ogk, sig2 = 0,
+  pca.ogk.obj <- funPCA(x.2$Lt, x.2$Ly, 
+                        mu.ogk, cov.ogk, sig2 = 0,
                         work.grid, PVE = pve, K = K)
   pca.ogk.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
                            mu.ogk.sm, cov.ogk.sm, sig2 = 0,
@@ -406,78 +435,66 @@ while (num.sim < num_sim) {
   
   
   ### Curve reconstruction via PCA
-  # index of non-outlier curves having missing values (Only non-outlier index)
+  # reconstructed curves
+  pred_reconstr <- list(
+    predict(pca.yao.obj, K = K),
+    NA,   # Kraus does not do reconstruction
+    NA,   # R-Kraus does not do reconstruction
+    predict(pca.boente.obj, K = K),
+    predict(pca.ogk.obj, K = K),
+    predict(pca.ogk.sm.obj, K = K)
+  )
+  
+  # MISE of reconstruction
+  Not_out_ind <- which(x.2$out.ind == 0)
+  mse_reconstr[num.sim, ] <- sapply(pred_reconstr, function(method){
+    if (is.matrix(method)) {
+      return( mean((method[Not_out_ind, ] - x.2$x.full[Not_out_ind, ])^2) )
+    } else {
+      return(NA)
+    }
+  })
+  
+  
+  # index of non-outlying curves having missing values (Only non-outlier index)
   cand <- which(
     (apply(x, 1, function(x){ sum(is.na(x)) }) > 0) & (x.2$out.ind == 0)
   )
   
-  # reconstructed curves
-  pred_yao_mat <- predict(pca.yao.obj, K = K)
-  pred_kraus_mat <- predict(pca.kraus.obj, K = K)
-  pred_mkraus_mat <- predict(pca.Mkraus.obj, K = K)
-  pred_boente_mat <- predict(pca.boente.obj, K = K)
-  pred_ogk_mat <- predict(pca.ogk.obj, K = K)
-  pred_ogk_sm_mat <- predict(pca.ogk.sm.obj, K = K)
-  
-  
-  sse_reconstr <- matrix(NA, length(cand), 6)
+  # sse_reconstr <- matrix(NA, length(cand), 6)
   sse_completion <- matrix(NA, length(cand), 6)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
     
-    pred_yao <- pred_yao_mat[ind, ]
-    pred_kraus <- pred.missfd(x[ind, ], x)
-    pred_kraus_M_sm <- pred.rob.missfd(x[ind, ], 
-                                       x,   
-                                       smooth = F,  
-                                       R = cov.Mest)
-    pred_boente <- pred_boente_mat[ind, ]
-    pred_ogk <- pred_ogk_mat[ind, ]
-    pred_ogk_sm <- pred_ogk_sm_mat[ind, ]
-    
-    # ISE for reconstruction of overall interval
-    df <- cbind(
-      pred_yao,
-      pred_kraus,
-      pred_kraus_M_sm,      
-      pred_boente, 
-      pred_ogk, 
-      pred_ogk_sm
+    # prediction for missing parts
+    pred_comp <- list(
+      pred_reconstr[[1]][ind, ],
+      pred.missfd(x[ind, ], x),   # Kraus
+      pred.rob.missfd(x[ind, ],   # R-Kraus
+                      x,
+                      smooth = F,
+                      R = cov.Mest),
+                      # R = pca.Mkraus.obj$cov),   # little bit different with cov.Mest
+      pred_reconstr[[4]][ind, ],
+      pred_reconstr[[5]][ind, ],
+      pred_reconstr[[6]][ind, ]
     )
-    sse_reconstr[i, ] <- apply(df, 2, function(pred) { 
-      mean((x.2$x.full[ind, ] - pred)^2)
-    })
     
     
+    # # ISE for reconstruction of overall interval
+    # sse_reconstr[i, ] <- sapply(pred_reconstr, function(method){
+    #   if (is.matrix(method)) {
+    #     return( mean((method[ind, ] - x.2$x.full[ind, ])^2) )
+    #   } else {
+    #     return(NA)
+    #   }
+    # })
     
     # ISE for completion
-    ind <- cand [i]
-    NA_ind <- which(is.na(x[ind, ]))
-    pred_yao <- pred_yao_mat[ind, ]
-    pred_kraus <- pred.missfd(x[ind, ], x)
-    pred_kraus_M_sm <- pred.rob.missfd(x[ind, ],
-                                       x,   
-                                       smooth = F,  
-                                       R = cov.Mest)
-    pred_boente <- pred_boente_mat[ind, ]
-    pred_ogk <- pred_ogk_mat[ind, ]
-    pred_ogk_sm <- pred_ogk_sm_mat[ind, ]
-    
-    df <- cbind(
-      pred_missing_curve(x[ind, ], pred_yao, conti = FALSE),
-      pred_missing_curve(x[ind, ], pred_kraus, conti = FALSE),
-      pred_missing_curve(x[ind, ], pred_kraus_M_sm, conti = FALSE),
-      pred_missing_curve(x[ind, ], pred_boente, conti = FALSE),
-      pred_missing_curve(x[ind, ], pred_ogk, conti = FALSE),
-      pred_missing_curve(x[ind, ], pred_ogk_sm, conti = FALSE)
-    )
-    df <- df[NA_ind, ]
-    if (length(NA_ind) == 1) {
-      df <- matrix(df, nrow = 1)
-    }
-    sse_completion[i, ] <- apply(df, 2, function(pred) { 
-      mean((x.2$x.full[ind, NA_ind] - pred)^2)
+    NA_ind <- which(is.na(x[ind, ]))   # index of missing periods
+    sse_completion[i, ] <- sapply(pred_comp, function(method){
+      mean((method[NA_ind] - x.2$x.full[ind, NA_ind])^2)
     })
   }
   
@@ -486,7 +503,7 @@ while (num.sim < num_sim) {
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
-  mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
+  # mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
   mse_completion[num.sim, ] <- colMeans(sse_completion)
   
   pve_res[num.sim, ] <- c(
@@ -534,6 +551,16 @@ while (num.sim < num_sim) {
        file = file_name)
 }
 
+
+
+# load("RData/Delaigle-normal-prop0.RData")
+# load("RData/Delaigle-tdist.RData")
+# load("RData/Delaigle-normal-prop1.RData")
+# load("RData/Delaigle-normal-prop2.RData")
+# load("RData/Kraus-normal-prop0.RData")
+# load("RData/Kraus-tdist.RData")
+# load("RData/Kraus-normal-prop1.RData")
+# load("RData/Kraus-normal-prop2.RData")
 
 
 ### Summary results
@@ -594,5 +621,5 @@ res
 
 # Make results to LaTeX code
 library(xtable)
-xtable(res)
+xtable(res[-5, -(1:2)])
 
