@@ -7,6 +7,7 @@ library(fdapace)
 library(doParallel)   # parallel computing
 library(doRNG)   # set.seed for foreach
 library(pracma)   # subspace
+library(mcfda.rob)
 # devtools::install_github('msalibian/sparseFPCA', ref = "master")
 library(sparseFPCA)   # Boente (2021) 
 source("Kraus(2015)/pred.missfd.R")
@@ -319,27 +320,51 @@ for (i in c(1:5, 96:100)) {
 
 
 ################ Figure. Correlation surfaces - Model 1 ################
-gr <- work.grid
-par(mfrow = c(2, 3))
+load("RData/Delaigle-tdist.RData")
+sim.seed <- 5   # 5 or 46
+seed <- sim.seed
+work.grid <- pca.est[[sim.seed]]$work.grid
+
+### Covariance functions
 cov.true <- get_delaigle_cov(gr, model = 2)
-GA::persp3D(gr, gr, cov2cor(cov.true),
+cov.yao <- pca.est[[sim.seed]]$pca.obj$pca.yao.obj$cov
+cov.kraus <- pca.est[[sim.seed]]$pca.obj$pca.kraus.obj$cov
+cov.Mkraus <- pca.est[[sim.seed]]$pca.obj$pca.Mkraus.obj$cov
+cov.boente <- pca.est[[sim.seed]]$pca.obj$pca.boente.obj$cov
+cov.ogk <- pca.est[[sim.seed]]$pca.obj$pca.ogk.sm.obj$cov
+cov.ogk <- pca.est[[sim.seed]]$pca.obj$pca.ogk.sm.MM.obj$cov   ## MM
+
+### Correlation surfaces
+# postscript("cor_surface.eps", horizontal = TRUE)
+par(mfrow = c(2, 3))
+GA::persp3D(work.grid, work.grid,
+            cov2cor(cov.true),
             theta = -70, phi = 30, expand = 1,
             xlab = 't', ylab = 's', zlab = '', main = 'True')
-GA::persp3D(gr, gr, cov2cor(cov.yao),
+GA::persp3D(work.grid, work.grid,
+            cov2cor(cov.yao),
             theta = -70, phi = 30, expand = 1,
             xlab = 't', ylab = 's', zlab = '', main = 'Sparse FPCA')
-GA::persp3D(gr, gr, cov2cor(cov.kraus),
+GA::persp3D(work.grid, work.grid,
+            cov2cor(cov.kraus),
             theta = -70, phi = 30, expand = 1,
             xlab = 't', ylab = 's', zlab = '', main = 'Kraus')
-GA::persp3D(gr, gr, cov2cor(cov.Mest),
+GA::persp3D(work.grid, work.grid,
+            cov2cor(cov.Mkraus),
             theta = -70, phi = 30, expand = 1,
             xlab = 't', ylab = 's', zlab = '', main = 'Robust Kraus')              
-GA::persp3D(gr, gr, cov2cor(cov.boente),
+GA::persp3D(work.grid, work.grid,
+            cov2cor(cov.boente),
             theta = -70, phi = 30, expand = 1,
             xlab = 't', ylab = 's', zlab = '', main = 'Robust FPCA')
-GA::persp3D(gr, gr, cov2cor(cov.ogk.sm.noise),
+GA::persp3D(work.grid, work.grid,
+            cov2cor(cov.ogk),
             theta = -70, phi = 30, expand = 1,
             xlab = 't', ylab = 's', zlab = '', main = 'Proposed FPCA')   
+# dev.off()
+
+
+
 
 
 

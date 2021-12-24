@@ -1,8 +1,14 @@
 ###################################################
-### Simulation using Delaigle et al.(2021) setting
-### - 5-fold CV is performed for hyperparameters
+### Simulations on the paper
 ###################################################
+
+### Download required packages
+# devtools::install_github("statKim/robfpca")
+# devtools::install_github("statKim/mcfda.rob")
+
+### Load packages
 library(robfpca)   # proposed methods and data generating
+library(mcfda.rob)   # R-Kraus
 library(tidyverse)
 library(fdapace)
 library(doParallel)   # parallel computing
@@ -20,12 +26,6 @@ source("sim_utills/robust_Kraus.R")
 # devtools::install_github('msalibian/sparseFPCA', ref = "master")
 library(sparseFPCA)   # Boente (2021) 
 source("sim_utills/Boente_cov.R")
-
-
-### 아래는 function 수정해서 사용할 경우에만 load할 것
-# source("test/cov_ogk.R")
-# source("test/sim_delaigle.R")
-# source("test/sim_kraus.R")
 
 
 #####################################
@@ -123,7 +123,6 @@ num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, num_sim)   # collection of seed with no error occurs
 while (num.sim < num_sim) {
-  #seed =extreme_seed[num.sim+1]
   seed <- seed + 1
   set.seed(seed)
   print(paste0("Seed: ", seed))
@@ -447,7 +446,7 @@ while (num.sim < num_sim) {
   
   # MISE of reconstruction
   Not_out_ind <- which(x.2$out.ind == 0)
-  mse_reconstr[num.sim, ] <- sapply(pred_reconstr, function(method){
+  sse_reconstr <- sapply(pred_reconstr, function(method){
     if (is.matrix(method)) {
       return( mean((method[Not_out_ind, ] - x.2$x.full[Not_out_ind, ])^2) )
     } else {
@@ -503,7 +502,7 @@ while (num.sim < num_sim) {
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
-  # mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
+  mse_reconstr[num.sim, ] <- sse_reconstr
   mse_completion[num.sim, ] <- colMeans(sse_completion)
   
   pve_res[num.sim, ] <- c(

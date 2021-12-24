@@ -49,6 +49,8 @@ bw_cand <- seq(0.01, 0.3, length.out = 10)
 ### - Case 4 : 20% contamination
 #####################################
 
+MM <- TRUE   # method of moments
+
 # ### Case 1
 # dist_type <- "normal"
 # out_type <- 1   # type of outliers (fixed; Do not change)
@@ -70,16 +72,12 @@ out_prop <- 0   # proportion of outliers
 
 
 if (dist_type == "tdist") {
-  print(
-    paste0("RData/", setting, "-sens-", dist_type, ".RData")
-  )
+  file_name <- paste0("RData/", setting, "-sens-", dist_type, "-MM-", MM, ".RData")
 } else {
-  print(
-    paste0("RData/", setting, "-sens-", dist_type, 
-           "-prop", out_prop*10, ".RData")
-  )
+  file_name <- paste0("RData/", setting, "-sens-", dist_type, 
+                      "-prop", out_prop*10, "-MM-", MM, ".RData")
 }
-
+file_name
 
 
 #####################################
@@ -157,11 +155,13 @@ while (num.sim < num_sim) {
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
+                                MM = MM,
                                 bw_cand = bw_cand,
                                 type = 'huber')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "huber",
+                       MM = MM,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.huber <- cov.obj$mean
@@ -189,11 +189,13 @@ while (num.sim < num_sim) {
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
+                                MM = MM,
                                 bw_cand = bw_cand,
                                 type = 'bisquare')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "bisquare",
+                       MM = MM,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.bisquare <- cov.obj$mean
@@ -221,11 +223,13 @@ while (num.sim < num_sim) {
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
+                                MM = MM,
                                 bw_cand = bw_cand,
                                 type = 'tdist')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "tdist",
+                       MM = MM,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.tdist <- cov.obj$mean
@@ -302,7 +306,7 @@ while (num.sim < num_sim) {
   
   # MISE of reconstruction
   Not_out_ind <- which(x.2$out.ind == 0)
-  mse_reconstr[num.sim, ] <- sapply(pred_reconstr, function(method){
+  sse_reconstr <- sapply(pred_reconstr, function(method){
     if (is.matrix(method)) {
       return( mean((method[Not_out_ind, ] - x.2$x.full[Not_out_ind, ])^2) )
     } else {
@@ -317,7 +321,7 @@ while (num.sim < num_sim) {
   )
   
   # sse_reconstr <- matrix(NA, length(cand), 6)
-  sse_completion <- matrix(NA, length(cand), 6)
+  sse_completion <- matrix(NA, length(cand), 3)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
@@ -352,7 +356,7 @@ while (num.sim < num_sim) {
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
-  # mse_reconstr[num.sim, ] <- colMeans(sse_reconstr)
+  mse_reconstr[num.sim, ] <- sse_reconstr
   mse_completion[num.sim, ] <- colMeans(sse_completion)
   
   pve_res[num.sim, ] <- c(
@@ -379,23 +383,17 @@ while (num.sim < num_sim) {
                              pca.obj = list(pca.huber.obj = pca.huber.obj,
                                             pca.bisquare.obj = pca.bisquare.obj,
                                             pca.tdist.obj = pca.tdist.obj))
-  if (dist_type == "tdist") {
-    file_name <- paste0("RData/", setting, "-sens-", dist_type, ".RData")
-  } else {
-    file_name <- paste0("RData/", setting, "-sens-", dist_type, 
-                        "-prop", out_prop*10, ".RData")
-  }
-  save(pca.est, mse_eigen, mse_eigen2, 
-       mse_reconstr, mse_completion, 
-       K_res, pve_res, time_d,
-       file = file_name)
 }
-
+save(pca.est, mse_eigen, mse_eigen2, 
+     mse_reconstr, mse_completion, 
+     K_res, pve_res, time_d,
+     file = file_name)
 
 
 # load("RData/Delaigle-sens-tdist.RData")
 # load("RData/Kraus-sens-tdist.RData")
-
+# load("RData/Delaigle-sens-tdist-MM-TRUE.RData")
+# load("RData/Kraus-sens-tdist-MM-TRUE.RData")
 
 ### Summary results
 if (is.null(K)) {

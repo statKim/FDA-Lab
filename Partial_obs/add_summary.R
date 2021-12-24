@@ -4,6 +4,7 @@
 ###   by using pre-saved RData.
 ################################################
 library(robfpca)   # proposed methods and data generating
+library(mcfda.rob)   # R-Kraus
 library(tidyverse)
 library(fdapace)
 library(doParallel)   # parallel computing
