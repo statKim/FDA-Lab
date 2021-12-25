@@ -16,8 +16,8 @@ library(doRNG)   # set.seed for foreach
 library(pracma)   # subspace
 
 # Codes can be obtained from Kraus(2015), JRSS-B.
-source("Kraus(2015)/pred.missfd.R")
-source("Kraus(2015)/simul.missfd.R")
+source("sim_utills/pred.missfd.R")
+source("sim_utills/simul.missfd.R")
 
 # R-Kraus
 source("sim_utills/robust_Kraus.R")
@@ -34,11 +34,11 @@ source("sim_utills/Boente_cov.R")
 ### - Model 2 : "Kraus"
 #####################################
 
-# ### Model 1
-# setting <- "Delaigle"
-# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
-# pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.01, 0.3, length.out = 10)
+### Model 1
+setting <- "Delaigle"
+K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+pve <- 0.95   # Not used if K is given
+bw_cand <- seq(0.01, 0.3, length.out = 10)
 
 ### Model 2
 setting <- "Kraus"
@@ -56,24 +56,24 @@ bw_cand <- seq(0.01, 0.1, length.out = 10)
 ### - Case 4 : 20% contamination
 #####################################
 
-# ### Case 1
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0   # proportion of outliers
+### Case 1
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0   # proportion of outliers
 
 ### Case 2
 dist_type <- "tdist"
 out_prop <- 0   # proportion of outliers
 
-# ### Case 3
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.1   # proportion of outliers
+### Case 3
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.1   # proportion of outliers
 
-# ### Case 4
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.2   # proportion of outliers
+### Case 4
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.2   # proportion of outliers
 
 if (dist_type == "tdist") {
   print(
@@ -190,10 +190,12 @@ while (num.sim < num_sim) {
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
                                 bw_cand = bw_cand,
+                                MM = TRUE,
                                 type = 'huber')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "huber",
+                       MM = TRUE,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.ogk.sm <- cov.obj$mean

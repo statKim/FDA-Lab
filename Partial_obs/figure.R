@@ -326,7 +326,7 @@ seed <- sim.seed
 work.grid <- pca.est[[sim.seed]]$work.grid
 
 ### Covariance functions
-cov.true <- get_delaigle_cov(gr, model = 2)
+cov.true <- get_delaigle_cov(work.grid, model = 2)
 cov.yao <- pca.est[[sim.seed]]$pca.obj$pca.yao.obj$cov
 cov.kraus <- pca.est[[sim.seed]]$pca.obj$pca.kraus.obj$cov
 cov.Mkraus <- pca.est[[sim.seed]]$pca.obj$pca.Mkraus.obj$cov

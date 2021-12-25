@@ -1,66 +1,67 @@
-### Functional snippets
 
-- IRLS algorithm -> 문제 없음!!!
-  - `MASS::rlm()` 과 `IRLScpp()` 을 비교했을 떄, 결과가 거의 동일
-    - 즉, 알고리즘 자체는 맞는 방법이나, 전체적으로 under-estimate되는 경향이 보임...
-  - 기존 IRLScpp에서 weight의 분모 계산에서 0이 나옴(residual = 0인 경우가 있었음)
-    - 0이 되는 경우는 임의의 작은 수인 0.0001로 대체
-    - C++ Eigen으로 해보려고 며칠을 헤매다가, 걍 for 문으로 해결함
-  - 기존의 IRLScpp에서 scale updating은 잘못된 방법임
-    - initial로 fixed해서 하면 extreme noise에서 잘 작동 안함
-    - M-scale (Bisquare)로 수정 (iterative method)
-      - 일단 너무 느리다... 중첩 for문이 너무 길어짐
-        - pmax?? pmin?? 그거로 책에 있는 exact form의 element-wise min으로 계산하자
-- Outlier setting
-  - Extreme value distribution에서 generate??
-  - 여기서는 snippet이라 extreme outlier여도 될듯 (현재 out_type=2 처럼)
-- Real data
-  - CD4 데이터 (Boente(2021) 참고)
-    - snippet이라고 해도 될지 애매... sparse 케이스이긴 함
-      - 전체 domain으로 보면, long-snippet 형태라 적용할 수 있긴 할듯
-    - matern corr structure를 따를지를 모르겠음
-    - 문제점...
-      - noise variance의 bw가 너무 크게 나와서 안돌아감...
-      - log변환한 다음에 하면, noise가 NaN이 나옴...
-  - Spinal bone mineral density
-    - Lin & Wang(2020)에서는 raw cov를 그려보니까 diagonal과 인접한 부분부터 급격하게 0으로 떨어지기 때문에 matern covariance structure를 사용함
-    - outlier가 없음...
-- 결과 요약
-  - Eigenfunction, var, col + intra, extra??
-    - 근데 cov 요약은 좀 애매해보임.... 아예 true PC로부터 generate해서 PC를 얼마나 잘 estimate하는지 해볼까?
-  - Eigen, PC score
-    - 30번 한 결과를 보니까, var, cov 요약하지 말고 PCA 결과 위주로 요약하는 것이 좋아보임
-  - ROBPCA 논문에서는 eigenvalue로도 요약함 (maxsub, PVE, MSE)
-- Variance smoothing이 계속 over-smoothing됨 (bw가 너무 큰 것이 선택됨)
-- cov structure가 matern corr를 만족하는지 확인하는 test 같은 것이 있나??
-- 시뮬레이션 세팅을 score로부터 generate하되, cov형태가 matern corr 형태를 따르는 경우로 찾아보기
-  - Delaigle 세팅 model 2를 사용해서 score를 Normal에서 generate함
-    - outlier는 t-dist에서 generate?? 아니면 score 자체를 t-dist로??
-  - Boente(2021) 논문 세팅 model 2 확인!!!
-  - 근데 cov structure도 matern 말고 fourier(Lin 논문)나 다른 corr structure도 적용해서 해봐야할듯
-- Boente에서 bw 작을 때 에러나는 이유가 epan kernel의 support 때문이었음(내가 짠 거나 mcfda는 따로 안해줌)
-  - gauss 추가해보자!!
-    - 근데 이거 하려면, CV 함수랑 모두 바꿔줘야됨....
-    - 그냥 옵션에서 k.epan 함수를 다르게 지정하도록 함 
-      - kern=="gauss"일 떄는 k.epan 함수를 guess kernel로 지정 (전역변수로 다시 지정)
-- CV 해결하기 => 현재는 너무 over-smoothing 되는 경향이 있음...
-  - curve-out CV 말고 그냥 obs-wise CV 하면 잘 working하는 거 같음 (mcfda에서도 이렇게 함, 근데 논문에서는 아님)
-- IRLS tolerence 계산식 수정?? 지금은 absolute sum으로 되어있음 (근데 크게 중요하지는 않은듯)
-- bisquare일 떄 bw_loss 확인 => 지금 Huber로 돌아간거 같음
-- Biweight loss 추가해보기 (CV 포함)
-  - Huber와 크게 다르지 않음
-- Lin paper 처럼 diagonal part, off-diagonal part 차이 계산해보기
-- completion은 의미가 좀 없어보이고, clustering이나 classification으로??
-- irregular grid로 바꾸기
-- 우선 fixed bw로 결과 좀 확인해보기 (Yao랑 Boente가 계속 말썽임...)
-  - epan kernel로는 에러 많이 떴었음!! Gauss kernel로 해보자!!
-  - 근데 Boente는 epan만 되게 해놨음
-- IRLS.cpp에 locpolysmooth에서 maxit, tol 옵션 추가하고 maxit = 50으로 수정
-- `robfpca`에서 delta = 1.345로 fixed하고, bw = range/5로 fixed 하기
-- simulation setting을 irregular(`synfd`)와 regular(Delaigle)로 하면 될듯
 
 ### Robust covariance estimation for partially observed functional data
+- 시뮬레이션 코드 패키지에 정리하고 README 정리하기
+  
+- hampel로 한 결과 요약하기
+  
+  - Table 1, 2에 hampel로 한 결과 추가하기
+  - sensitivity analysis도 hampel로 요약
+  
+- eq(3.4)를 Hampel loss로 해보기
+  - 참고로 bisquare는 squared term이 아니다 보니까 MME로 못씀
+  - cut-off value는 Sinova(2018)에서 한 quantile based로 설정
+    - a=median, b=Q(0.75), c=Q(0.85)
+  - 근데 이거로 했을 때에는 이전엔 huber scale을 썼는데, 여기서만 hampel 써도 이상할듯....
+    - 우선은 이거로 가고, 나중에 리뷰어가 지적하면 그때 수정하던가 하기로 함
+  
+- Thm 2를 M-estimator의 asymptotic으로 할 수 없을까?
+  - M-estimator의 asymptotic으로 uniform convergence가 아닌 point-wise convergence는 별로 의미가 없다고 함...
+  
+- 기존 cov_gk에서는 \sigma^2_R 계산할 때 location estimator는 빼지 않았었음
+  - 또한 i, jth 에 동시에 있는 값들로 다시 scale estimator계산했었음 (그런데 draft에서는 marginal estimator 썼다고 언급되어있음)
+  
+- sensitivity analysis에서 reconstruction 부분에서 num.sim+1 부분 잘못되었었음... reconstruction만 다시 계산하기
+  - 이거 걍 다시 해야됨.... cv에서 type = "huber"로 fixed 되어있었음....
+    - 근데 어차피 제일 큰 bw만 select되었어서, 굳이 다시 할 필요는 없긴 할듯
+  
+- draft의 equation (3.4)로 했을 때 결과 비슷한지 테스트 해보기
+  - 지금 한 거로 표 1, 2에 결과요약하기
+  - 근데 이거 좀 이상한데.... outlier 있으니까 너무 나빠짐
+    - 원래 centering 안해주긴 했었는데, 해줘도 나쁨...
+  
+- Model 1 - Case 2에서 yao랑 proposed 차이 크게 나는거 찾아보기
 
+- 표 바뀐거로 수정하기
+  - Model 2(Kraus) - Case 2의 sensitivity analysis에서 t(3) MLE 에러 3번 뜸(그래서 기존 전체 방법 결과와 약간 다름)
+  - reconstruction 전체 curve로 안하고 missing 있는 것들로만 계산했었는데, outlier 제외 전체 curve로 계산되도록 수정함
+  
+- cov_ogk에서 bw는 제일 큰 것만 선택됨
+
+- 일단 boente에서 seed 옵션 넣고 돌림, 
+
+- fields::smooth.2d()의 bw 옵션 제대로 작동하는지 체크해보기(지금 설치된 fields 버전 먼저 확인하기)
+  - 근데 이건 진짜 이상 없음...(아예 똑같이 나옴)
+  
+- 시뮬레이션에서 잘못된 것
+  - Boente CV 안돌아감
+    - Boente에서 또 뭔가 이상함... 너무 오래 걸림... (뭔가 수정 잘못한듯... 예전거 사용하니까 됨)
+    - 근데 너무 오래 걸림...(Delaigle은 약 20분, Kraus는 약 30분..)
+    - CV한거랑 seed fixed한거랑 별 차이 없다고 언급하고 pass??
+
+  - out_prop 있을때 다 <=80 인 경우에 대해서만 계산 (수정함)
+  
+- robfpca
+  - README에 Description으로 file discription 추가하기 
+  - fields::smooth.2d에서 bw 옵션도 수정해야할 것임(또는 버전 이상의 경우로 설치되도록 설정)
+    - 간단히 example로 테스트했을 때는 영향 없던거 같긴 한데... 다시 한 번 확인하긴 해야할듯...
+      - 시뮬에서 무조건 큰 bw만 골라짐...
+
+  - README에서 True랑 Kraus도 추가해서 비교하기
+  
+- mcfda.rob
+  - 전에 했던 것들(결국 안쓰게된 것) 정리해서 그냥 패키지처럼 만들기
+  
 - Boente에서 또 뭔가 이상함... 너무 오래 걸림...
 
 - Theory
@@ -452,3 +453,65 @@
 		- var, cov, etc
 		- cov surface ggplot으로 해보기
 		https://homepage.divms.uiowa.edu/~luke/classes/STAT4580/threenum.html
+		
+
+### Functional snippets (중단)
+
+- IRLS algorithm -> 문제 없음!!!
+  - `MASS::rlm()` 과 `IRLScpp()` 을 비교했을 떄, 결과가 거의 동일
+    - 즉, 알고리즘 자체는 맞는 방법이나, 전체적으로 under-estimate되는 경향이 보임...
+  - 기존 IRLScpp에서 weight의 분모 계산에서 0이 나옴(residual = 0인 경우가 있었음)
+    - 0이 되는 경우는 임의의 작은 수인 0.0001로 대체
+    - C++ Eigen으로 해보려고 며칠을 헤매다가, 걍 for 문으로 해결함
+  - 기존의 IRLScpp에서 scale updating은 잘못된 방법임
+    - initial로 fixed해서 하면 extreme noise에서 잘 작동 안함
+    - M-scale (Bisquare)로 수정 (iterative method)
+      - 일단 너무 느리다... 중첩 for문이 너무 길어짐
+        - pmax?? pmin?? 그거로 책에 있는 exact form의 element-wise min으로 계산하자
+- Outlier setting
+  - Extreme value distribution에서 generate??
+  - 여기서는 snippet이라 extreme outlier여도 될듯 (현재 out_type=2 처럼)
+- Real data
+  - CD4 데이터 (Boente(2021) 참고)
+    - snippet이라고 해도 될지 애매... sparse 케이스이긴 함
+      - 전체 domain으로 보면, long-snippet 형태라 적용할 수 있긴 할듯
+    - matern corr structure를 따를지를 모르겠음
+    - 문제점...
+      - noise variance의 bw가 너무 크게 나와서 안돌아감...
+      - log변환한 다음에 하면, noise가 NaN이 나옴...
+  - Spinal bone mineral density
+    - Lin & Wang(2020)에서는 raw cov를 그려보니까 diagonal과 인접한 부분부터 급격하게 0으로 떨어지기 때문에 matern covariance structure를 사용함
+    - outlier가 없음...
+- 결과 요약
+  - Eigenfunction, var, col + intra, extra??
+    - 근데 cov 요약은 좀 애매해보임.... 아예 true PC로부터 generate해서 PC를 얼마나 잘 estimate하는지 해볼까?
+  - Eigen, PC score
+    - 30번 한 결과를 보니까, var, cov 요약하지 말고 PCA 결과 위주로 요약하는 것이 좋아보임
+  - ROBPCA 논문에서는 eigenvalue로도 요약함 (maxsub, PVE, MSE)
+- Variance smoothing이 계속 over-smoothing됨 (bw가 너무 큰 것이 선택됨)
+- cov structure가 matern corr를 만족하는지 확인하는 test 같은 것이 있나??
+- 시뮬레이션 세팅을 score로부터 generate하되, cov형태가 matern corr 형태를 따르는 경우로 찾아보기
+  - Delaigle 세팅 model 2를 사용해서 score를 Normal에서 generate함
+    - outlier는 t-dist에서 generate?? 아니면 score 자체를 t-dist로??
+  - Boente(2021) 논문 세팅 model 2 확인!!!
+  - 근데 cov structure도 matern 말고 fourier(Lin 논문)나 다른 corr structure도 적용해서 해봐야할듯
+- Boente에서 bw 작을 때 에러나는 이유가 epan kernel의 support 때문이었음(내가 짠 거나 mcfda는 따로 안해줌)
+  - gauss 추가해보자!!
+    - 근데 이거 하려면, CV 함수랑 모두 바꿔줘야됨....
+    - 그냥 옵션에서 k.epan 함수를 다르게 지정하도록 함 
+      - kern=="gauss"일 떄는 k.epan 함수를 guess kernel로 지정 (전역변수로 다시 지정)
+- CV 해결하기 => 현재는 너무 over-smoothing 되는 경향이 있음...
+  - curve-out CV 말고 그냥 obs-wise CV 하면 잘 working하는 거 같음 (mcfda에서도 이렇게 함, 근데 논문에서는 아님)
+- IRLS tolerence 계산식 수정?? 지금은 absolute sum으로 되어있음 (근데 크게 중요하지는 않은듯)
+- bisquare일 떄 bw_loss 확인 => 지금 Huber로 돌아간거 같음
+- Biweight loss 추가해보기 (CV 포함)
+  - Huber와 크게 다르지 않음
+- Lin paper 처럼 diagonal part, off-diagonal part 차이 계산해보기
+- completion은 의미가 좀 없어보이고, clustering이나 classification으로??
+- irregular grid로 바꾸기
+- 우선 fixed bw로 결과 좀 확인해보기 (Yao랑 Boente가 계속 말썽임...)
+  - epan kernel로는 에러 많이 떴었음!! Gauss kernel로 해보자!!
+  - 근데 Boente는 epan만 되게 해놨음
+- IRLS.cpp에 locpolysmooth에서 maxit, tol 옵션 추가하고 maxit = 50으로 수정
+- `robfpca`에서 delta = 1.345로 fixed하고, bw = range/5로 fixed 하기
+- simulation setting을 irregular(`synfd`)와 regular(Delaigle)로 하면 될듯
