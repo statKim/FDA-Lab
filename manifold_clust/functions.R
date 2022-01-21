@@ -6,28 +6,38 @@
 ### kCFC for Riemannian functional data
 #### Algorithm
 #### 1. Initial clustering of functional principal component scores
+####  1-1. FPCA using overall data
+####  1-2. k-means clustering using FPC scores
 #### 2. Iterative updating via reclassification
-
-kCFC_manifold <- function(Ly, 
-                          Lt, 
+####  2-1. FPCA for each cluster
+####       For a cluster in ith curve, FPCA is performed without ith observation.
+####  2-2. Predict ith curve for each cluster
+####  2-3. Assign new cluster which minimizes the L2 norm between ith curve and prediction for each cluster
+#### 3. Repeat 2 until no more curves are classified.
+kCFC_manifold <- function(y, 
+                          t, 
                           k = 3,
                           kSeed = 123, 
                           maxIter = 125, 
                           optnsSW = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.90,
                                          userBwMu = "GCV", 
-                                         userBwCov = "GCV", 
-                                         kernel=kern, 
-                                         maxK=K, 
-                                         mfdName='euclidean',
-                                         error=TRUE),
+                                         userBwCov = "GCV"),
+                                         # kernel = "epan", 
+                                         # maxK=K, 
+                                         # error = FALSE),
                           # optnsSW = list(methodMuCovEst = 'smooth', 
                           #                FVEthreshold = 0.90, 
                           #                methodBwCov = 'GCV', 
                           #                methodBwMu = 'GCV'), 
-                          optnsCS = list(methodMuCovEst = 'smooth', 
+                          # optnsCS = list(methodMuCovEst = 'smooth', 
+                          #                FVEthreshold = 0.70, 
+                          #                methodBwCov = 'GCV', 
+                          #                methodBwMu = 'GCV')
+                          optnsCS = list(mfdName = "Sphere",
                                          FVEthreshold = 0.70, 
-                                         methodBwCov = 'GCV', 
-                                         methodBwMu = 'GCV')) { 
+                                         userBwMu = 'GCV', 
+                                         userBwCov = 'GCV')) { 
   
   if( (k <2) || (floor(length(y)*0.5) < k) ){
     warning("The value of 'k' is outside [2, 0.5*N]; reseting to 3.")
@@ -36,8 +46,13 @@ kCFC_manifold <- function(Ly,
     stop("Please allow at least 1 iteration.")
   }
   
-  ## First RFPCA => RFPCA로 수정
-  fpcaObjY <- FPCA(y, t, optnsSW)
+  ## First RFPCA and threshold by FVE
+  fpcaObjY <- RFPCA(Ly = y, 
+                    Lt = t, 
+                    optns = optnsSW)
+  fpcaObjY <- RFPCA.FVE(RFPCA.obj = fpcaObjY, 
+                        Lt = t, Ly = y, 
+                        FVEthreshold = optnsSW$FVEthreshold)
   N <- length(y)
   if( fpcaObjY$optns$dataType == 'Sparse' ){
     stop(paste0("The data has to be 'Dense' for kCFC to be relevant; the current dataType is : '", fpcaObjY$optns$dataType,"'!") )
@@ -47,24 +62,30 @@ kCFC_manifold <- function(Ly,
   if(!is.null(kSeed)){
     set.seed(kSeed)
   }
-  initialClustering <- kmeans( fpcaObjY$xiEst, centers = k, algorithm = "MacQueen", iter.max = maxIter)
+  initialClustering <- kmeans( fpcaObjY$xi, centers = k, algorithm = "MacQueen", iter.max = maxIter)
   clustConf0 <- as.factor(initialClustering$cluster)
   indClustIds <- lapply(levels(clustConf0), function(u) which(clustConf0 == u) )
   if( any( min( sapply( indClustIds, length)) <= c(3)) ){
     stop(paste0("kCFC stopped during the initial k-means step. The smallest cluster has three (or less) curves. " ,
                 "Consider using a smaller number of clusters (k) or a different random seed (kSeed)."))
   }
-  listOfFPCAobjs <- lapply(indClustIds, function(u) FPCA(y[u], t[u], optnsCS) )
+  listOfFPCAobjs <- lapply(indClustIds, function(u) {
+    obj <- RFPCA(Ly = y[u], 
+                 Lt = t[u],
+                 optns = optnsCS) 
+    RFPCA.FVE(RFPCA.obj = obj,
+              Lt = t[u], Ly = y[u], 
+              FVEthreshold = optnsCS$FVEthreshold)
+  })
   
   ## Iterative clustering
-  ymat <- List2Mat(y,t); 
   convInfo <- "None"
   clustConf <- list() 
   
   for(j in seq_len(maxIter)){ 
     
     # Get new costs and relevant cluster configuration
-    iseCosts       <- sapply(listOfFPCAobjs, function(u) GetISEfromFPCA(u, y,t,ymat))
+    iseCosts <- sapply(listOfFPCAobjs, function(u){ GetISEfromFPCA(u, y, t) })
     clustConf[[j]] <- as.factor(apply(iseCosts, 1, which.min))
     
     # Check that clustering progressed reasonably 
@@ -102,7 +123,83 @@ kCFC_manifold <- function(Ly,
 }
 
 
+### Obtain ISE using geodesic distance
+GetISEfromRFPCA <- function(fpcaObj, y, t) {
+  obs.grid <- fpcaObj$obsGrid
+  
+  # Reconstruction using K components
+  pred <- predict(object = fpcaObj,
+                  newLt = t,
+                  newLy = y,
+                  # K = k,
+                  xiMethod = "IN",
+                  type = "traj")
+  
+  ise <- sapply(1:n, function(i) {
+    d_0 <- distance(mfd = mfd,
+                    X = y[[i]],
+                    Y = pred[i, , ])
+    trapzRcpp(obs.grid, d_0^2)
+  })
+  
+  return(ise)
+}
 
+
+### Get fraction of varianc explained (FVE)
+RFPCA.FVE <- function(RFPCA.obj, 
+                      Lt, Ly, 
+                      FVEthreshold = 0.95) {
+  mfd <- RFPCA.obj$mfd
+  # work.grid <- RFPCA.obj$workGrid
+  obs.grid <- RFPCA.obj$obsGrid
+  K <- RFPCA.obj$K
+  
+  # Null residual variance, U_0
+  U_0 <- sapply(Ly, function(y) {
+    d_0 <- distance(mfd = mfd,
+                    X = y,
+                    Y = RFPCA.obj$muObs)
+    return( trapzRcpp(obs.grid, d_0^2) )
+    # d_0 <- distance(mfd = mfd,
+    #                 X = y,
+    #                 Y = RFPCA.obj$muWork)
+    # return( trapzRcpp(work.grid, d_0^2) )
+  })
+  U_0 <- mean(U_0)
+  
+  FVE <- rep(0, K)
+  for (k in 1:K) {
+    # Reconstruction using K components
+    pred <- predict(object = RFPCA.obj,
+                    newLt = Lt,
+                    newLy = Ly,
+                    K = k,
+                    xiMethod = "IN",
+                    type = "traj")
+    
+    # Residual variance using K components, U_K
+    U_k <- sapply(1:n, function(i) {
+      d_k <- distance(mfd = mfd,
+                      X = Ly[[i]],
+                      Y = pred[i, , ])
+      return( trapzRcpp(obs.grid, d_k^2) )
+    })
+    U_k <- mean(U_k)
+    
+    FVE[k] <- (U_0 - U_k) / U_0
+  }
+  
+  K <- min( which(FVE > FVEthreshold) )
+  RFPCA.obj$phi <- RFPCA.obj$phi[, , 1:K]
+  RFPCA.obj$lam <- RFPCA.obj$lam[1:K]
+  RFPCA.obj$xi <- RFPCA.obj$xi[, 1:K]
+  RFPCA.obj$FVE <- FVE[1:K]
+  RFPCA.obj$FVEthreshold <- FVEthreshold
+  RFPCA.obj$K <- K
+  
+  return(RFPCA.obj)
+}
 
 
 ### Utility functions
@@ -120,6 +217,20 @@ array2list <- function(X, t){
          Lt = Lt)
   )
 }
+
+list2array <- function(Ly) {
+  n <- length(Ly)   # number of curves
+  m <- nrow(Ly[[1]])   # number of axis of manifolds
+  p <- ncol(Ly[[1]])   # number of timepoints
+  Y <- array(0, dim = c(n, m, p))
+  
+  for (i in 1:n) {
+    Y[i, , ] <- Ly[[i]]
+  }
+  
+  return(Y)
+}
+
 
 
 list2matrix <- function(Ly, Lt){

@@ -1,9 +1,10 @@
 library(RFPCA)
+source("functions.R")
 
 # First simulate some data
 set.seed(1)
 n <- 100
-m <- 51   # Number of different pooled time points
+m <- 31   # Number of different pooled time points
 K <- 20
 lambda <- 0.07 ^ (seq_len(K) / 2)
 D <- 3
@@ -28,8 +29,8 @@ samp <- MakeMfdProcess(mfd, n, mu, pts,
                        sigma2 = 0)
 # spSamp <- SparsifyM(samp$X, samp$T, sparsity)
 spSamp <- array2list(samp$X, samp$T)
-yList <- spSamp$Ly
-tList <- spSamp$Lt
+Ly <- spSamp$Ly
+Lt <- spSamp$Lt
 
 
 ### Plot trajectories on sphere
@@ -40,7 +41,35 @@ plot3d(t(mu), type = "l", col = 1, lwd = 2, add = T)
 rgl.spheres(0, 0, 0, radius = 0.99, col = 'gray', alpha = 0.6, back = 'lines')
 
 for (i in 1:n) {
-  x1 <- t(yList[[i]])
+  x1 <- t(Ly[[i]])
   # plot3d(x1, type = "p", col = 2, size = 5, add = T)
   plot3d(x1, type = "l", col = i %% 6 + 1, lwd = 2, add = T)
 }
+
+
+
+### RFPCA
+bw <- 0.2
+kern <- 'epan'
+
+fit.rfpca <- RFPCA(Ly, Lt, 
+                   list(userBwMu=bw, 
+                        userBwCov=bw * 2, 
+                        kernel=kern, 
+                        maxK=5, 
+                        mfd=mfd, 
+                        error = FALSE))
+fit.rfpca2 <- RFPCA.FVE(fit.rfpca, tList, yList, 0.9)
+fit.rfpca2$FVEthreshold
+
+# Reconstruction using K components
+pred <- predict(object = fit.rfpca,
+                newLt = Lt[1],
+                newLy = Ly[1],
+                K = k,
+                xiMethod = "IN",
+                type = "traj")
+dim(pred)
+
+
+
