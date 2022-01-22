@@ -147,3 +147,16 @@ resSp2$userBwCov
 resSp3$userBwCov
 
 resSp2$optns
+
+
+
+# Reconstruction using K components
+pred <- predict(object = fit.rfpca,
+                newLt = Lt[1],
+                newLy = Ly[1],
+                K = k,
+                xiMethod = "IN",
+                type = "traj")
+dim(pred)
+
+
