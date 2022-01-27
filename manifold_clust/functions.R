@@ -20,21 +20,11 @@ kCRFC <- function(y,
                   k = 3,
                   kSeed = 123, 
                   maxIter = 125, 
+                  fast = TRUE,
                   optnsSW = list(mfdName = "Sphere",
                                  FVEthreshold = 0.90,
                                  userBwMu = "GCV", 
                                  userBwCov = "GCV"),
-                  # kernel = "epan", 
-                  # maxK=K, 
-                  # error = FALSE),
-                  # optnsSW = list(methodMuCovEst = 'smooth', 
-                  #                FVEthreshold = 0.90, 
-                  #                methodBwCov = 'GCV', 
-                  #                methodBwMu = 'GCV'), 
-                  # optnsCS = list(methodMuCovEst = 'smooth', 
-                  #                FVEthreshold = 0.70, 
-                  #                methodBwCov = 'GCV', 
-                  #                methodBwMu = 'GCV')
                   optnsCS = list(mfdName = "Sphere",
                                  FVEthreshold = 0.70, 
                                  userBwMu = 'GCV', 
@@ -63,7 +53,8 @@ kCRFC <- function(y,
   if(!is.null(kSeed)){
     set.seed(kSeed)
   }
-  initialClustering <- kmeans(fpcaObjY$xi, centers = k, algorithm = "MacQueen", iter.max = maxIter)
+  initialClustering <- kmeans(fpcaObjY$xi, centers = k, algorithm = "MacQueen", 
+                              iter.max = maxIter, nstart = 50)
   clustConf0 <- as.factor(initialClustering$cluster)
   indClustIds <- lapply(levels(clustConf0), function(u) which(clustConf0 == u) )
   if( any( min( sapply( indClustIds, length)) <= c(3)) ){
@@ -89,7 +80,12 @@ kCRFC <- function(y,
   for(j in seq_len(maxIter)){ 
     
     # Get new costs and relevant cluster configuration
-    iseCosts <- sapply(listOfFPCAobjs, function(u){ GetISEfromRFPCA(u, y, t) })
+    if (isTRUE(fast)) {
+      iseCosts <- sapply(listOfFPCAobjs, function(u){ GetISEfromRFPCA_fast(u, y, t) })
+    } else {
+      iseCosts <- sapply(1:k, function(u){ GetISEfromRFPCA(u, listOfFPCAobjs[[u]], y, t,
+                                                           indClustIds, optnsCS) })
+    }
     clustConf[[j]] <- as.factor(apply(iseCosts, 1, which.min))
     
     # Check that clustering progressed reasonably 
@@ -130,7 +126,49 @@ kCRFC <- function(y,
 
 
 ### Obtain ISE using geodesic distance
-GetISEfromRFPCA <- function(fpcaObj, y, t) {
+GetISEfromRFPCA <- function(cluster, fpcaObj, y, t,
+                            indClustIds, optnsCS) {
+  obs.grid <- fpcaObj$obsGrid
+  mfd <- fpcaObj$mfd
+  n <- length(t)
+  d <- nrow(y[[1]])
+  p <- ncol(y[[1]])
+  
+  pred <- array(0, dim = c(n, d, p))
+  # Reconstruction for same cluster
+  idx <- indClustIds[[cluster]]
+  for (i in idx) {
+    ind <- setdiff(idx, i)   # remove ith curve on cluster
+    fpcaObj_ind <- RFPCA(Ly = y[ind], Lt = t[ind], optns = optnsCS)
+    pred[i, , ] <- predict(object = fpcaObj_ind,
+                           newLt = t[i],
+                           newLy = y[i],
+                           # K = k,
+                           xiMethod = "IN",
+                           type = "traj")
+  }
+  
+  # Reconstruction using K components
+  idx_other_cluster <- unlist(indClustIds[-cluster])
+  pred[idx_other_cluster, , ] <- predict(object = fpcaObj,
+                                         newLt = t[idx_other_cluster],
+                                         newLy = y[idx_other_cluster],
+                                         # K = k,
+                                         xiMethod = "IN",
+                                         type = "traj")
+  
+  ise <- sapply(1:n, function(i){
+    d_0 <- distance(mfd = mfd,
+                    X = y[[i]],
+                    Y = pred[i, , ])
+    trapzRcpp(X = obs.grid, 
+              Y = d_0^2)
+  })
+  
+  return(ise)
+}
+
+GetISEfromRFPCA_fast <- function(fpcaObj, y, t) {
   obs.grid <- fpcaObj$obsGrid
   mfd <- fpcaObj$mfd
   n <- length(t)
@@ -252,5 +290,74 @@ list2array <- function(Ly) {
 #   return(ymat)
 # }
 
+
+### Generate simulated data
+# n : the number of curves
+# type : the type of spaces. (Default is "Sphere")
+# k : the number of clusters
+simul_data <- function(n = 100, type = "Sphere", k = 2) {
+  
+  # n <- 100  # number of curves
+  m <- 51   # number of different time points
+  K <- 20   # number of components
+  # k <- 2    # number of clusters
+  
+  # Generate for each cluster
+  Lt <- list()
+  Ly <- list()
+  mu_list <- list()
+  cluster <- rep(1:k, each = n/k)
+  for (i in 1:k) {
+    lambda <- (i*0.07)^(seq_len(K) / 2)
+    # D <- 3
+    basisType <- 'legendre01'
+    sigma2 <- 0
+    muList <- list(
+      function(x) x * 2,
+      function(x) sin(x * 1 * pi * i) * pi / 2 * 0.6,
+      function(x) rep(0, length(x))
+      # function(x) x * 2, 
+      # function(x) sin(x * 1 * pi) * pi / 2 * 0.6,
+      # function(x) rep(0, length(x))
+    )
+    pts <- seq(0, 1, length.out = m)
+    mfd <- structure(1, class = type)
+    mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
+    
+    # Generate samples
+    samp <- MakeMfdProcess(mfd = mfd, 
+                           n = n/k, 
+                           mu = mu, 
+                           pts = pts, 
+                           K = K, 
+                           lambda = lambda, 
+                           basisType = basisType, 
+                           sigma2 = sigma2)
+    # sparsity <- m
+    # # spSamp <- SparsifyM(samp$X, samp$T, sparsity)
+    spSamp <- array2list(samp$X, samp$T)
+    Ly <- c(Ly, spSamp$Ly)
+    Lt <- c(Lt, spSamp$Lt)
+    mu_list <- c(mu_list, list(mu))
+  }
+  
+  data <- list(
+    Lt = Lt,
+    Ly = Ly,
+    mu = mu_list
+  )
+  
+  # theta_1 <- c(0.4, 0.3)
+  # theta_2 <- c(0.2, 0.1)
+  # phi <- list(
+  #   cbind(sqrt(2)*sin(pi*gr),
+  #         sqrt(2)*cos(pi*gr)),
+  #   cbind(sqrt(2)*sin(2*pi*gr),
+  #         sqrt(2)*cos(2*pi*gr))
+  # )
+  
+  
+  return(data)
+}
 
 

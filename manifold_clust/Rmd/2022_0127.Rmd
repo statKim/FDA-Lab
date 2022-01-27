@@ -1,0 +1,638 @@
+---
+title: "k-Centres Riemannian Functional Clustering (kCRFC)"
+date: "2022-01-27"
+output: 
+    html_document:
+        theme: paper
+        # highlight: github
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(rgl)
+knit_hooks$set(webgl = hook_webgl)   # for 3D data
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  # fig.width = 12, fig.height = 6,
+  # out.width = "80%",
+  fig.align = "center"
+)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+
+# Data Generation on 2-dimensional Sphere
+
+## Data generation
+> Dai, X., & Müller, H. G. (2018). Principal component analysis for functional data on Riemannian manifolds and spheres. The Annals of Statistics, 46(6B), 3334-3361.
+
+- Dai et al.(2018) 에서 meanfunction의 형태와 PC score의 variance만 바꿔서 시뮬레이션 진행 (paper 22 page 참고)
+<!-- - $\mu_{\mathcal{M}}(t) = \exp_{[0,0,1]}(2t, 0.3\pi\sin(\pi t), 0)$ for $\mathcal{M}=S^2$ -->
+- True PC score의 variance와 meanfunction의 2번째 axis 형태를 다음과 같이 바꾼 형태로 진행
+  - **Case 1**
+    - $\xi_k \sim N(0, (1+0.07)^{k/2})$
+    - $-0.3\pi\sin(\pi t)$
+  - **Case 2**
+    - $\xi_k \sim N(0, (1+0.07)^{k/2})$
+    - $0.3\pi\cos(4\pi t)$
+  - **Case 3**
+    - $\xi_k \sim N(0, (1+0.07)^{k/2})$
+    - $0.3\pi\sin(3\pi t)$
+
+## Data example
+- **Top Left** : Meanfunction of Case 1 + individual curves
+- **Top Right** : Meanfunction of Case 1
+- **Bottom Left** : Meanfunction of Case 2
+- **Bottom Right** : Meanfunction of Case 3
+
+```{r}
+# devtools::install_github('CrossD/RFPCA')
+library(RFPCA)    # RFPCA and MFPCA
+library(mclust)   # clustering measure
+source("functions.R")
+```
+
+```{r webgl=TRUE, fig.width=10}
+### Parameters for simulation
+seed <- 1
+set.seed(seed)
+n <- 100  # number of curves
+m <- 20   # number of different time points
+K <- 20   # number of components
+k <- 2    # number of clusters
+n_k <- c(rep(round(n/k), k-1),
+         n - (round(n/k) * (k-1)))   # number of curves for each cluster
+
+### 3 different cases of generated data
+mfrow3d(2, 2)
+for (sim.type in 1:3) {
+  # sim.type <- 3   # type of generated data
+
+  ### Generate curves for each cluster
+  Lt <- list()
+  Ly <- list()
+  mu_list <- list()   # meanfunction for each cluster
+  xi_list <- list()   # true FPC scores
+  phi_list <- list()   # true eigenfunctions
+  cluster <- rep(1:k, n_k)   # cluster index
+  for (i in 1:k) {
+    lambda <- 0.07^(seq_len(K) / 2)
+    basisType <- 'legendre01'
+    xiFun <- rnorm
+    sigma2 <- 0.01
+    muList <- list(
+      function(x) x * 2,
+      function(x) sin(x * 1 * pi) * pi / 2 * 0.6,
+      function(x) rep(0, length(x))
+    )
+      
+    if (i == 2) {
+      # basisType <- "fourier"
+      if (sim.type == 1) {
+        lambda <- (i*0.07)^(seq_len(K) / 2)
+        muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+      } else if (sim.type == 2) {
+        lambda <- (i*0.07)^(seq_len(K) / 2)
+        muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
+      } else if (sim.type == 3) {
+        lambda <- (i*0.07)^(seq_len(K) / 2)
+        muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+        # basisType <- "fourier"
+        # xiFun <- rcauchy
+        # muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+        # muList[[2]] <- function(x) (cos(x * 5 * pi)) * pi / 2 * 0.6
+        # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+      }
+    }
+    
+    pts <- seq(0, 1, length.out = m)
+    mfd <- structure(1, class = 'Sphere')
+    mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
+    
+    # Generate samples
+    samp <- MakeMfdProcess(mfd = mfd, 
+                           n = n_k[i], 
+                           mu = mu, 
+                           pts = pts, 
+                           K = K, 
+                           xiFun = xiFun,
+                           lambda = lambda, 
+                           basisType = basisType, 
+                           sigma2 = sigma2)
+    spSamp <- array2list(samp$X, samp$T)
+    Ly <- c(Ly, spSamp$Ly)
+    Lt <- c(Lt, spSamp$Lt)
+    mu_list <- c(mu_list, list(mu))
+    xi_list <- c(xi_list, list(samp$xi))
+    phi_list <- c(phi_list, list(samp$phi))
+  }
+  
+  
+  ### Plot trajectories on sphere
+  if (sim.type == 1) {
+    # Cluster 1
+    plot3d(t(mu_list[[1]]), col = 1, size = 5, 
+           # xlab = 'x', ylab = 'y', zlab = 'z',
+           xlab = '', ylab = '', zlab = '', axes = FALSE,
+           xlim = c(-1, 1), ylim = c(-1, 1), zlim = c(-1, 1))
+    plot3d(t(mu_list[[1]]), type = "l", col = 1, lwd = 3, add = T)
+    
+    # Cluster 2
+    plot3d(t(mu_list[[2]]), col = 2, size = 5, add = T)
+    plot3d(t(mu_list[[2]]), type = "l", col = 2, lwd = 3, add = T)
+    rgl.spheres(0, 0, 0, radius = 0.99, col = 'gray', alpha = 0.6)  
+    
+    # Individual trajectories
+    for (i in 1:n) {
+      x1 <- t(Ly[[i]])
+      col_curve <- as.numeric(cluster[i])
+      # plot3d(x1, type = "p", col = 2, size = 5, add = T)
+      plot3d(x1, type = "l", col = col_curve, lwd = 1, add = T)
+    }
+  }
+  
+  # Cluster 1
+  plot3d(t(mu_list[[1]]), col = 1, size = 5, 
+         # xlab = 'x', ylab = 'y', zlab = 'z',
+         xlab = '', ylab = '', zlab = '', axes = FALSE,
+         xlim = c(-1, 1), ylim = c(-1, 1), zlim = c(-1, 1))
+  plot3d(t(mu_list[[1]]), type = "l", col = 1, lwd = 3, add = T)
+  
+  # Cluster 2
+  plot3d(t(mu_list[[2]]), col = 2, size = 5, add = T)
+  plot3d(t(mu_list[[2]]), type = "l", col = 2, lwd = 3, add = T)
+  rgl.spheres(0, 0, 0, radius = 0.99, col = 'gray', alpha = 0.6)
+}
+
+```
+
+
+# Clustering Results
+
+- `fdapace`에 있는 `kCFC()` 함수에서의 FPCA 부분을 RFPCA로 바꾸어 진행
+
+## Case 1
+```{r}
+### Parameters for simulation
+seed <- 1
+set.seed(seed)
+n <- 100  # number of curves
+m <- 20   # number of different time points
+K <- 20   # number of components
+k <- 2    # number of clusters
+n_k <- c(rep(round(n/k), k-1),
+         n - (round(n/k) * (k-1)))   # number of curves for each cluster
+sim.type <- 1   # type of generated data
+
+### Generate curves for each cluster
+Lt <- list()
+Ly <- list()
+mu_list <- list()   # meanfunction for each cluster
+xi_list <- list()   # true FPC scores
+phi_list <- list()   # true eigenfunctions
+cluster <- rep(1:k, n_k)   # cluster index
+for (i in 1:k) {   # generate for each cluster
+  lambda <- 0.07^(seq_len(K) / 2)
+  basisType <- 'legendre01'
+  xiFun <- rnorm
+  sigma2 <- 0.01
+  muList <- list(
+    function(x) x * 2,
+    function(x) sin(x * 1 * pi) * pi / 2 * 0.6,
+    function(x) rep(0, length(x))
+  )
+  
+  if (i == 2) {
+    # basisType <- "fourier"
+    if (sim.type == 1) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+    } else if (sim.type == 2) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
+    } else if (sim.type == 3) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+      # basisType <- "fourier"
+      # xiFun <- rcauchy
+      # muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+      # muList[[2]] <- function(x) (cos(x * 5 * pi)) * pi / 2 * 0.6
+      # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+    }
+  }
+  
+  pts <- seq(0, 1, length.out = m)
+  mfd <- structure(1, class = 'Sphere')
+  mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
+  
+  # Generate samples
+  samp <- MakeMfdProcess(mfd = mfd, 
+                         n = n_k[i], 
+                         mu = mu, 
+                         pts = pts, 
+                         K = K, 
+                         xiFun = xiFun,
+                         lambda = lambda, 
+                         basisType = basisType, 
+                         sigma2 = sigma2)
+  spSamp <- array2list(samp$X, samp$T)
+  Ly <- c(Ly, spSamp$Ly)
+  Lt <- c(Lt, spSamp$Lt)
+  mu_list <- c(mu_list, list(mu))
+  xi_list <- c(xi_list, list(samp$xi))
+  phi_list <- c(phi_list, list(samp$phi))
+}
+
+### FPCA
+# RFPCA
+fit.rfpca <- RFPCA(Ly = Ly,
+                   Lt = Lt, 
+                   optns = list(mfdName = "Sphere",
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV", 
+                                # kernel = kern, 
+                                FVEthreshold = 0.90,
+                                # maxK = 5, 
+                                error = FALSE))
+# MFPCA
+fit.mfpca <- RFPCA(Ly = Ly,
+                   Lt = Lt, 
+                   optns = list(mfdName = "Euclidean",
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV", 
+                                # kernel = kern, 
+                                FVEthreshold = 0.90,
+                                # maxK = 5, 
+                                error = FALSE))
+# fit.rfpca$K
+# fit.mfpca$K
+
+
+### kCFC with Riemannian metric
+fit.kCFC.Riemann <- kCRFC(y = Ly, 
+                          t = Lt, 
+                          k = k,
+                          kSeed = seed, 
+                          optnsSW = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.90,
+                                         userBwMu = "GCV", 
+                                         userBwCov = "GCV"),
+                          optnsCS = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.70, 
+                                         userBwMu = 'GCV', 
+                                         userBwCov = 'GCV'))
+
+### kCFC with Euclidean metric
+fit.kCFC.L2 <- kCRFC(y = Ly, 
+                     t = Lt, 
+                     k = k,
+                     kSeed = seed, 
+                     optnsSW = list(mfdName = "Euclidean",
+                                    FVEthreshold = 0.90,
+                                    userBwMu = "GCV", 
+                                    userBwCov = "GCV"),
+                     optnsCS = list(mfdName = "Euclidean",
+                                    FVEthreshold = 0.70, 
+                                    userBwMu = 'GCV', 
+                                    userBwCov = 'GCV'))
+
+par(mfrow = c(2, 2))
+plot(fit.rfpca$xi[, 1:2], col = cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "RFPCA + True cluster")
+plot(fit.mfpca$xi[, 1:2], col = cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "MFPCA + True cluster")
+plot(fit.rfpca$xi[, 1:2], col = fit.kCFC.Riemann$cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "kCFC(R)")
+plot(fit.mfpca$xi[, 1:2], col = fit.kCFC.L2$cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "kCFC(M)")
+
+# print CCR
+cat(paste("CCR - kCFC(R) :",
+            1 - classError(cluster, fit.kCFC.Riemann$cluster)$errorRate))
+cat(paste("CCR - kCFC(M) :",
+            1 - classError(cluster, fit.kCFC.L2$cluster)$errorRate))
+```
+
+
+## Case 2
+```{r}
+### Parameters for simulation
+seed <- 1
+set.seed(seed)
+n <- 100  # number of curves
+m <- 20   # number of different time points
+K <- 20   # number of components
+k <- 2    # number of clusters
+n_k <- c(rep(round(n/k), k-1),
+         n - (round(n/k) * (k-1)))   # number of curves for each cluster
+sim.type <- 2   # type of generated data
+
+### Generate curves for each cluster
+Lt <- list()
+Ly <- list()
+mu_list <- list()   # meanfunction for each cluster
+xi_list <- list()   # true FPC scores
+phi_list <- list()   # true eigenfunctions
+cluster <- rep(1:k, n_k)   # cluster index
+for (i in 1:k) {   # generate for each cluster
+  lambda <- 0.07^(seq_len(K) / 2)
+  basisType <- 'legendre01'
+  xiFun <- rnorm
+  sigma2 <- 0.01
+  muList <- list(
+    function(x) x * 2,
+    function(x) sin(x * 1 * pi) * pi / 2 * 0.6,
+    function(x) rep(0, length(x))
+  )
+  
+  if (i == 2) {
+    # basisType <- "fourier"
+    if (sim.type == 1) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+    } else if (sim.type == 2) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
+    } else if (sim.type == 3) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+      # basisType <- "fourier"
+      # xiFun <- rcauchy
+      # muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+      # muList[[2]] <- function(x) (cos(x * 5 * pi)) * pi / 2 * 0.6
+      # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+    }
+  }
+  
+  pts <- seq(0, 1, length.out = m)
+  mfd <- structure(1, class = 'Sphere')
+  mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
+  
+  # Generate samples
+  samp <- MakeMfdProcess(mfd = mfd, 
+                         n = n_k[i], 
+                         mu = mu, 
+                         pts = pts, 
+                         K = K, 
+                         xiFun = xiFun,
+                         lambda = lambda, 
+                         basisType = basisType, 
+                         sigma2 = sigma2)
+  spSamp <- array2list(samp$X, samp$T)
+  Ly <- c(Ly, spSamp$Ly)
+  Lt <- c(Lt, spSamp$Lt)
+  mu_list <- c(mu_list, list(mu))
+  xi_list <- c(xi_list, list(samp$xi))
+  phi_list <- c(phi_list, list(samp$phi))
+}
+
+### FPCA
+# RFPCA
+fit.rfpca <- RFPCA(Ly = Ly,
+                   Lt = Lt, 
+                   optns = list(mfdName = "Sphere",
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV", 
+                                # kernel = kern, 
+                                FVEthreshold = 0.90,
+                                # maxK = 5, 
+                                error = FALSE))
+# MFPCA
+fit.mfpca <- RFPCA(Ly = Ly,
+                   Lt = Lt, 
+                   optns = list(mfdName = "Euclidean",
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV", 
+                                # kernel = kern, 
+                                FVEthreshold = 0.90,
+                                # maxK = 5, 
+                                error = FALSE))
+# fit.rfpca$K
+# fit.mfpca$K
+
+
+### kCFC with Riemannian metric
+fit.kCFC.Riemann <- kCRFC(y = Ly, 
+                          t = Lt, 
+                          k = k,
+                          kSeed = seed, 
+                          optnsSW = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.90,
+                                         userBwMu = "GCV", 
+                                         userBwCov = "GCV"),
+                          optnsCS = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.70, 
+                                         userBwMu = 'GCV', 
+                                         userBwCov = 'GCV'))
+
+### kCFC with Euclidean metric
+fit.kCFC.L2 <- kCRFC(y = Ly, 
+                     t = Lt, 
+                     k = k,
+                     kSeed = seed, 
+                     optnsSW = list(mfdName = "Euclidean",
+                                    FVEthreshold = 0.90,
+                                    userBwMu = "GCV", 
+                                    userBwCov = "GCV"),
+                     optnsCS = list(mfdName = "Euclidean",
+                                    FVEthreshold = 0.70, 
+                                    userBwMu = 'GCV', 
+                                    userBwCov = 'GCV'))
+
+par(mfrow = c(2, 2))
+plot(fit.rfpca$xi[, 1:2], col = cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "RFPCA + True cluster")
+plot(fit.mfpca$xi[, 1:2], col = cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "MFPCA + True cluster")
+plot(fit.rfpca$xi[, 1:2], col = fit.kCFC.Riemann$cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "kCFC(R)")
+plot(fit.mfpca$xi[, 1:2], col = fit.kCFC.L2$cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "kCFC(M)")
+
+
+# print CCR
+cat(paste("CCR - kCFC(R) :",
+            1 - classError(cluster, fit.kCFC.Riemann$cluster)$errorRate))
+cat(paste("CCR - kCFC(M) :",
+            1 - classError(cluster, fit.kCFC.L2$cluster)$errorRate))
+```
+
+
+## Case 3
+```{r}
+### Parameters for simulation
+seed <- 1
+set.seed(seed)
+n <- 100  # number of curves
+m <- 20   # number of different time points
+K <- 20   # number of components
+k <- 2    # number of clusters
+n_k <- c(rep(round(n/k), k-1),
+         n - (round(n/k) * (k-1)))   # number of curves for each cluster
+sim.type <- 3   # type of generated data
+
+### Generate curves for each cluster
+Lt <- list()
+Ly <- list()
+mu_list <- list()   # meanfunction for each cluster
+xi_list <- list()   # true FPC scores
+phi_list <- list()   # true eigenfunctions
+cluster <- rep(1:k, n_k)   # cluster index
+for (i in 1:k) {   # generate for each cluster
+  lambda <- 0.07^(seq_len(K) / 2)
+  basisType <- 'legendre01'
+  xiFun <- rnorm
+  sigma2 <- 0.01
+  muList <- list(
+    function(x) x * 2,
+    function(x) sin(x * 1 * pi) * pi / 2 * 0.6,
+    function(x) rep(0, length(x))
+  )
+  
+  if (i == 2) {
+    # basisType <- "fourier"
+    if (sim.type == 1) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+    } else if (sim.type == 2) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
+    } else if (sim.type == 3) {
+      lambda <- (i*0.07)^(seq_len(K) / 2)
+      muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+      # basisType <- "fourier"
+      # xiFun <- rcauchy
+      # muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
+      # muList[[2]] <- function(x) (cos(x * 5 * pi)) * pi / 2 * 0.6
+      # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+    }
+  }
+  
+  pts <- seq(0, 1, length.out = m)
+  mfd <- structure(1, class = 'Sphere')
+  mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
+  
+  # Generate samples
+  samp <- MakeMfdProcess(mfd = mfd, 
+                         n = n_k[i], 
+                         mu = mu, 
+                         pts = pts, 
+                         K = K, 
+                         xiFun = xiFun,
+                         lambda = lambda, 
+                         basisType = basisType, 
+                         sigma2 = sigma2)
+  spSamp <- array2list(samp$X, samp$T)
+  Ly <- c(Ly, spSamp$Ly)
+  Lt <- c(Lt, spSamp$Lt)
+  mu_list <- c(mu_list, list(mu))
+  xi_list <- c(xi_list, list(samp$xi))
+  phi_list <- c(phi_list, list(samp$phi))
+}
+
+### FPCA
+# RFPCA
+fit.rfpca <- RFPCA(Ly = Ly,
+                   Lt = Lt, 
+                   optns = list(mfdName = "Sphere",
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV", 
+                                # kernel = kern, 
+                                FVEthreshold = 0.90,
+                                # maxK = 5, 
+                                error = FALSE))
+# MFPCA
+fit.mfpca <- RFPCA(Ly = Ly,
+                   Lt = Lt, 
+                   optns = list(mfdName = "Euclidean",
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV", 
+                                # kernel = kern, 
+                                FVEthreshold = 0.90,
+                                # maxK = 5, 
+                                error = FALSE))
+# fit.rfpca$K
+# fit.mfpca$K
+
+
+### kCFC with Riemannian metric
+fit.kCFC.Riemann <- kCRFC(y = Ly, 
+                          t = Lt, 
+                          k = k,
+                          kSeed = seed, 
+                          optnsSW = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.90,
+                                         userBwMu = "GCV", 
+                                         userBwCov = "GCV"),
+                          optnsCS = list(mfdName = "Sphere",
+                                         FVEthreshold = 0.70, 
+                                         userBwMu = 'GCV', 
+                                         userBwCov = 'GCV'))
+
+### kCFC with Euclidean metric
+fit.kCFC.L2 <- kCRFC(y = Ly, 
+                     t = Lt, 
+                     k = k,
+                     kSeed = seed, 
+                     optnsSW = list(mfdName = "Euclidean",
+                                    FVEthreshold = 0.90,
+                                    userBwMu = "GCV", 
+                                    userBwCov = "GCV"),
+                     optnsCS = list(mfdName = "Euclidean",
+                                    FVEthreshold = 0.70, 
+                                    userBwMu = 'GCV', 
+                                    userBwCov = 'GCV'))
+
+par(mfrow = c(2, 2))
+plot(fit.rfpca$xi[, 1:2], col = cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "RFPCA + True cluster")
+plot(fit.mfpca$xi[, 1:2], col = cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "MFPCA + True cluster")
+plot(fit.rfpca$xi[, 1:2], col = fit.kCFC.Riemann$cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "kCFC(R)")
+plot(fit.mfpca$xi[, 1:2], col = fit.kCFC.L2$cluster, 
+     xlab = "PC 1", ylab = "PC 2", main = "kCFC(M)")
+
+
+# print CCR
+cat(paste("CCR - kCFC(R) :",
+            1 - classError(cluster, fit.kCFC.Riemann$cluster)$errorRate))
+cat(paste("CCR - kCFC(M) :",
+            1 - classError(cluster, fit.kCFC.L2$cluster)$errorRate))
+```
+
+
+## Result from 30 repetitons
+- **CCR** : Correct Classification Rate
+- **aRand** : adjusted Rand index
+```{r}
+load("RData/2022_0127.RData")
+knitr::kable(
+  res,
+  # digits = 3,
+  # col.names = c("Method","CCR","aRand","MISE","ISE"),
+  align = "c",
+  escape = FALSE,
+  # caption = "Table 1. Average MISE and MSE and their standard errors for the completion and reconstruction in 100 simulations."
+) %>%
+  kable_styling("striped", full_width = FALSE, font_size = 14) %>%
+  add_header_above(c(" " = 1,
+                     "Case 1" = 2,
+                     "Case 2" = 2,
+                     "Case 3" = 2))
+```
+
+
+
+# Conclusion
+
+- Clustering이나 classification 목적으로 sphere(또는 manifold)에서 functional data를 generate하는 reference가 없어서, 우선 임의로 mean의 형태만 다르게 하여 테스트 (관련 reference가 있는지 더 찾아봐야할 듯)
+- 여기서 MFPCA라고 한 부분이 정확한 MFPCA인지 확인이 필요 (Exponential map을 Euclidean metric으로 계산한 것을 MFPCA라고 생각했는데 확인해봐야할 듯)
+- Clustering 결과에서 standard error가 다소 큰 편임 
+  - 간혹 몇 개 결과에서 CCR이 0.5 ~ 0.6 정도로 매우 안좋아지는 경우가 종종 발생
+  - 현재 initial FPCA에서 FVE = 0.9, iteration에서의 FPCA FVE = 0.7로 두고 한 결과이지만, 모두 0.9로 두고 한 경우에도 CCR이 크게 나빠지는 경우가 발생함
+
+
