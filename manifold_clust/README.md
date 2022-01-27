@@ -18,3 +18,17 @@
   3. sin fluctuate + lambda 다르게
 
 ### 2022.01.27(목)
+
+- airline real 데이터 찾아보기
+  - 이거 유료인거 같은데...ㅠㅠ
+  - 아마 못쓸듯... AOS published version paper 뒤쪽에 Acknowledgements에 데이터 사용허가 받았다고 함
+- kCFC property를 generalize할 수 있을지 찾아보기
+  - 우선 paper의 theory 파트 잘 읽어보기
+  - metric을 Riemannian metric으로 바꾸면 될까??
+- CCR에서 튀는 것들 잡을 수 있는 방법 찾아보기
+- 시뮬레이션 세팅 관련 reference 찾아보기
+- `RFPCA` 패키지에서 Euclidean 옵션이 MFPCA가 맞는지 확인이 필요
+  - Multivariate FPCA와 동일!!
+
+
+### 2022.02.07(월)
