@@ -4,6 +4,7 @@ library(RFPCA)    # RFPCA and MFPCA
 library(mclust)   # clustering measure
 library(Funclustering)   # funclust (Currently, it is not supported by cran.)
 library(funHDDC)   # funHDDC
+library(tidyverse)
 source("functions.R")
 
 
@@ -14,11 +15,11 @@ k <- 2    # number of clusters
 n_k <- c(rep(round(n/k), k-1),
          n - (round(n/k) * (k-1)))   # number of curves for each cluster
 num.sim <- 30   # number of simulations
-sim.type <- 2   # type of generated data
+sim.type <- 1   # type of generated data
 
 ### Option for the number of PCs
-num.pc.method <- "FVE"   # using FVE thresholds
-# num.pc.method <- 2     # fixed number
+# num.pc.method <- "FVE"   # using FVE thresholds
+num.pc.method <- 2     # fixed number
 if (num.pc.method == "FVE") {
     FVEthresholdSW <- 0.90
     FVEthresholdCS <- 0.70
@@ -118,19 +119,19 @@ for (seed in 1:num.sim) {
                                              userBwMu = 'GCV', 
                                              userBwCov = 'GCV'))
     
-    ### kCFC with Euclidean metric
+    ### kCFC with Euclidean metric (multivariate FPCA)
     fit.kCFC.L2 <- kCRFC(y = Ly, 
                          t = Lt, 
                          k = k,
                          kSeed = seed, 
                          maxIter = 125, 
-                         optnsSW = list(mfdName = "Sphere",
+                         optnsSW = list(mfdName = "Euclidean",
                                         FVEthreshold = FVEthresholdSW,
                                         maxK = maxK,
                                         # error = T,
                                         userBwMu = "GCV", 
                                         userBwCov = "GCV"),
-                         optnsCS = list(mfdName = "Sphere",
+                         optnsCS = list(mfdName = "Euclidean",
                                         FVEthreshold = FVEthresholdCS,
                                         maxK = maxK,
                                         # error = T,
@@ -167,7 +168,7 @@ for (seed in 1:num.sim) {
     
     
     ### funclust
-    # CWtime<- 1:m
+    set.seed(seed)
     CWtime <- Lt[[1]]
     CWfd <- lapply(1:3, function(mdim){
         data <- sapply(Ly, function(y){ y[mdim, ] })
@@ -178,6 +179,7 @@ for (seed in 1:num.sim) {
     
     
     ### funHDDC
+    set.seed(seed)
     fit.funHDDC <- funHDDC(CWfd, 
                            K = k,
                            model = "AkjBQkDk",
@@ -214,7 +216,6 @@ apply(aRand, 2, sd)
 
 
 ### Combine results
-library(tidyverse)
 if (sim.type == 1) {
     res <- data.frame(Method = c("kCFC(R)","kCFC(M)",
                                  "K-means(R)","K-means(M)",
@@ -240,7 +241,8 @@ if (sim.type == 1) {
             )
         ), by = "Method")
 } else if (sim.type > 1) {
-    res2 <- data.frame(Method = c("kCFC(R)","kCFC(M)","K-means(R)","K-means(M)")) %>% 
+    res2 <- data.frame(Method = c("kCFC(R)","kCFC(M)","K-means(R)","K-means(M)",
+                                  "funclust","funHDDC")) %>% 
         # CCR
         left_join(data.frame(
             Method = colnames(CCR),
