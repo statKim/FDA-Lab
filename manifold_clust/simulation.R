@@ -1,6 +1,9 @@
 # devtools::install_github('CrossD/RFPCA')
+# devtools::install_url("https://cran.r-project.org/src/contrib/Archive/Funclustering/Funclustering_1.0.2.tar.gz")
 library(RFPCA)    # RFPCA and MFPCA
 library(mclust)   # clustering measure
+library(Funclustering)   # funclust (Currently, it is not supported by cran.)
+library(funHDDC)   # funHDDC
 source("functions.R")
 
 
@@ -11,12 +14,27 @@ k <- 2    # number of clusters
 n_k <- c(rep(round(n/k), k-1),
          n - (round(n/k) * (k-1)))   # number of curves for each cluster
 num.sim <- 30   # number of simulations
-sim.type <- 3   # type of generated data
+sim.type <- 2   # type of generated data
 
-CCR <- matrix(0, num.sim, 4)
-aRand <- matrix(0, num.sim, 4)
-colnames(CCR) <- c("kCFC(R)","kCFC(M)","K-means(R)","K-means(M)")
-colnames(aRand) <- c("kCFC(R)","kCFC(M)","K-means(R)","K-means(M)")
+### Option for the number of PCs
+num.pc.method <- "FVE"   # using FVE thresholds
+# num.pc.method <- 2     # fixed number
+if (num.pc.method == "FVE") {
+    FVEthresholdSW <- 0.90
+    FVEthresholdCS <- 0.70
+    maxK <- Inf
+} else if (as.integer(num.pc.method)) {
+    FVEthresholdSW <- 1
+    FVEthresholdCS <- 1
+    maxK <- num.pc.method
+}
+
+
+CCR <- matrix(0, num.sim, 6)
+aRand <- matrix(0, num.sim, 6)
+colnames(CCR) <- c("kCFC(R)","kCFC(M)","K-means(R)","K-means(M)",
+                   "funclust","funHDDC")
+colnames(aRand) <- colnames(CCR)
 for (seed in 1:num.sim) {
     print(paste0("Seed: ", seed))
     set.seed(seed)
@@ -88,12 +106,14 @@ for (seed in 1:num.sim) {
                               kSeed = seed, 
                               maxIter = 125, 
                               optnsSW = list(mfdName = "Sphere",
-                                             FVEthreshold = 0.90,
+                                             FVEthreshold = FVEthresholdSW,
+                                             maxK = maxK,
                                              # error = T,
                                              userBwMu = "GCV", 
                                              userBwCov = "GCV"),
                               optnsCS = list(mfdName = "Sphere",
-                                             FVEthreshold = 0.70, 
+                                             FVEthreshold = FVEthresholdCS,
+                                             maxK = maxK,
                                              # error = T,
                                              userBwMu = 'GCV', 
                                              userBwCov = 'GCV'))
@@ -104,13 +124,15 @@ for (seed in 1:num.sim) {
                          k = k,
                          kSeed = seed, 
                          maxIter = 125, 
-                         optnsSW = list(mfdName = "Euclidean",
-                                        FVEthreshold = 0.90,
+                         optnsSW = list(mfdName = "Sphere",
+                                        FVEthreshold = FVEthresholdSW,
+                                        maxK = maxK,
                                         # error = T,
                                         userBwMu = "GCV", 
                                         userBwCov = "GCV"),
-                         optnsCS = list(mfdName = "Euclidean",
-                                        FVEthreshold = 0.70, 
+                         optnsCS = list(mfdName = "Sphere",
+                                        FVEthreshold = FVEthresholdCS,
+                                        maxK = maxK,
                                         # error = T,
                                         userBwMu = 'GCV', 
                                         userBwCov = 'GCV'))
@@ -122,8 +144,8 @@ for (seed in 1:num.sim) {
                                     userBwMu = "GCV", 
                                     userBwCov = "GCV", 
                                     # kernel = kern, 
-                                    FVEthreshold = 0.90,
-                                    # maxK = 5, 
+                                    FVEthreshold = FVEthresholdSW,
+                                    maxK = maxK,
                                     error = FALSE))
     set.seed(seed)
     fit.kmeans.Riemann <- kmeans(fit.rfpca$xi, centers = k,
@@ -136,12 +158,32 @@ for (seed in 1:num.sim) {
                                     userBwMu = "GCV", 
                                     userBwCov = "GCV", 
                                     # kernel = kern, 
-                                    FVEthreshold = 0.90,
-                                    # maxK = 5, 
+                                    FVEthreshold = FVEthresholdSW,
+                                    maxK = maxK,
                                     error = FALSE))
     set.seed(seed)
     fit.kmeans.L2 <- kmeans(fit.mfpca$xi, centers = k,
                             iter.max = 30, nstart = 50)
+    
+    
+    ### funclust
+    # CWtime<- 1:m
+    CWtime <- Lt[[1]]
+    CWfd <- lapply(1:3, function(mdim){
+        data <- sapply(Ly, function(y){ y[mdim, ] })
+        smooth.basisPar(CWtime, data, lambda = 1e-2)$fd  
+    })
+    fit.funclust <- funclust(CWfd, K = k)
+    # fit.funclust$cls
+    
+    
+    ### funHDDC
+    fit.funHDDC <- funHDDC(CWfd, 
+                           K = k,
+                           model = "AkjBQkDk",
+                           init = "kmeans",
+                           threshold = 0.2)
+    fit.funHDDC$class
     
     
     # CCR (correct classification rate) and aRand (adjusted Rand index)
@@ -149,13 +191,17 @@ for (seed in 1:num.sim) {
         1 - classError(cluster, fit.kCFC.Riemann$cluster)$errorRate,
         1 - classError(cluster, fit.kCFC.L2$cluster)$errorRate,
         1 - classError(cluster, fit.kmeans.Riemann$cluster)$errorRate,
-        1 - classError(cluster, fit.kmeans.L2$cluster)$errorRate
+        1 - classError(cluster, fit.kmeans.L2$cluster)$errorRate,
+        1 - classError(cluster, fit.funclust$cls)$errorRate,
+        1 - classError(cluster, fit.funHDDC$class)$errorRate
     )
     aRand[seed, ] <- c(
         adjustedRandIndex(cluster, fit.kCFC.Riemann$cluster),
         adjustedRandIndex(cluster, fit.kCFC.L2$cluster),
         adjustedRandIndex(cluster, fit.kmeans.Riemann$cluster),
-        adjustedRandIndex(cluster, fit.kmeans.L2$cluster)
+        adjustedRandIndex(cluster, fit.kmeans.L2$cluster),
+        adjustedRandIndex(cluster, fit.funclust$cls),
+        adjustedRandIndex(cluster, fit.funHDDC$class)
     )
     
     print(CCR[seed, ])
@@ -170,7 +216,9 @@ apply(aRand, 2, sd)
 ### Combine results
 library(tidyverse)
 if (sim.type == 1) {
-    res <- data.frame(Method = c("kCFC(R)","kCFC(M)","K-means(R)","K-means(M)")) %>% 
+    res <- data.frame(Method = c("kCFC(R)","kCFC(M)",
+                                 "K-means(R)","K-means(M)",
+                                 "funclust","funHDDC")) %>% 
         # CCR
         left_join(data.frame(
             Method = colnames(CCR),
