@@ -361,3 +361,80 @@ simul_data <- function(n = 100, type = "Sphere", k = 2) {
 }
 
 
+
+
+################################################
+### Simulation setting from Dai (2022)
+### - Only different with mu_1 = (0, 0, 1)
+################################################
+
+# 지금 만드는 function 완성하고 체크해보기
+
+function(mfd) {
+    mfd <- structure(1, class = 'Sphere')
+    
+    
+    n_1 <- 50
+    n_2 <- 50
+    m <- 51   # number of timepoints
+    gr <- seq(0, 1, length.out = m)   # timepoints
+    
+    K_mu <- 5   # 1 or 3 or 5 (number of mean components)
+    K_X <- 50   # number of components
+    
+    theta <- 3^{-(1:K_X)}   # variance
+    xi <- sapply(theta, function(th){ rnorm(n_1, sd = th) })   # PC score
+    
+    psi <- cbind(
+        rep(1, m),
+        sapply(2:K_X, function(k){
+            if (k %% 2 == 0) { 
+                sqrt(2) * sin(2*k*pi*gr)
+            } else {
+                sqrt(2) * cos(2*(k-1)*pi*gr)
+            }
+        })
+    )
+    
+    
+    # mu_1 <- c(0, 0, 1)
+    mu_1 <- sqrt(rbeta(3, 2, 1))
+    mu_1 <- mu_1 / sqrt(sum(mu_1^2))
+    
+    inner_prod_hilbert <- function(f, g, gr) { fdapace::trapzRcpp(gr, f*g) }
+    rho <- function(f, g, gr){ acos( inner_prod_hilbert(f, g, gr) ) }
+    R <- function(q, p) {
+        rho_q <- rho(psi[, 1], q, gr)
+        u <- (psi[, 1] - rho_q*q) / sqrt(1 - rho_q^2)
+        up <- inner_prod_hilbert(u, p, gr)
+        qp <- inner_prod_hilbert(q, p, gr)
+        return( p + sin(rho_q)*(up*q - qp*u) + (cos(rho_q) - 1)*(qp*q + up*u) )
+    }
+    phi_1 <- sapply(1:K_X, function(k){ R(mu_1, psi[, k]) })
+    
+    
+    rieExp(mfd, mu_1, xi %*% t(phi_1))
+    
+    
+    
+    ### Group 2
+    v <- K_mu^{-1/2} * rowSums(phi_1[, 1:K_mu])
+    delta <- runif(1, -0.4, 0.4)
+    # mu_2 <- RFPCA::rieExp(mfd, mu_1, delta * v)
+    
+    mu_2 <- sapply(mu_1, function(mu_1i){ 
+        RFPCA::rieExp(mfd, mu_1i, matrix(delta * v, nrow = 1))
+    })
+    RFPCA::rieExp(mfd, 0, matrix(delta * v, nrow = 1))
+    
+    rieExp(createM("Euclidean"), mu_1, matrix(rep(delta * v, 3), nrow = 3, byrow = T))
+    
+    V <- matrix(rep(delta * v, 3), nrow = 3, byrow = T)
+    RFPCA::rieExp(mfd, mu_1, V)
+    
+    phi_1 <- d
+}
+
+
+
+    
