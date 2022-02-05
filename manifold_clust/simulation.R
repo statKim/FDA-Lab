@@ -15,11 +15,11 @@ k <- 2    # number of clusters
 n_k <- c(rep(round(n/k), k-1),
          n - (round(n/k) * (k-1)))   # number of curves for each cluster
 num.sim <- 30   # number of simulations
-sim.type <- 1   # type of generated data
+sim.type <- 2   # type of generated data
 
 ### Option for the number of PCs
-# num.pc.method <- "FVE"   # using FVE thresholds
-num.pc.method <- 2     # fixed number
+num.pc.method <- "FVE"   # using FVE thresholds
+# num.pc.method <- 2     # fixed number
 if (num.pc.method == "FVE") {
     FVEthresholdSW <- 0.90
     FVEthresholdCS <- 0.70
@@ -167,14 +167,16 @@ for (seed in 1:num.sim) {
                             iter.max = 30, nstart = 50)
     
     
-    ### funclust
+    ### funclust - set.seed 안먹힘
     set.seed(seed)
     CWtime <- Lt[[1]]
     CWfd <- lapply(1:3, function(mdim){
         data <- sapply(Ly, function(y){ y[mdim, ] })
-        smooth.basisPar(CWtime, data, lambda = 1e-2)$fd  
+        fda::smooth.basisPar(CWtime, data, lambda = 1e-2)$fd  
     })
-    fit.funclust <- funclust(CWfd, K = k)
+    # set.seed(seed)
+    fit.funclust <- funclust(CWfd, K = k, increaseDimension = T)
+    # 1 - classError(cluster, fit.funclust$cls)$errorRate
     # fit.funclust$cls
     
     
