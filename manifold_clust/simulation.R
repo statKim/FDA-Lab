@@ -15,7 +15,7 @@ k <- 2    # number of clusters
 n_k <- c(rep(round(n/k), k-1),
          n - (round(n/k) * (k-1)))   # number of curves for each cluster
 num.sim <- 30   # number of simulations
-sim.type <- 2   # type of generated data
+sim.type <- 3   # type of generated data
 
 ### Option for the number of PCs
 num.pc.method <- "FVE"   # using FVE thresholds
@@ -118,6 +118,8 @@ for (seed in 1:num.sim) {
                                              # error = T,
                                              userBwMu = 'GCV', 
                                              userBwCov = 'GCV'))
+    # fit.kCFC.Riemann$cluster   # clustering index
+    # fit.kCFC.Riemann$clustConf0   # initial clustering index from k-means
     
     ### kCFC with Euclidean metric (multivariate FPCA)
     fit.kCFC.L2 <- kCRFC(y = Ly, 
@@ -138,33 +140,33 @@ for (seed in 1:num.sim) {
                                         userBwMu = 'GCV', 
                                         userBwCov = 'GCV'))
     
-    ### K-means with RFPCA
-    fit.rfpca <- RFPCA(Ly = Ly,
-                       Lt = Lt, 
-                       optns = list(mfdName = "Sphere",
-                                    userBwMu = "GCV", 
-                                    userBwCov = "GCV", 
-                                    # kernel = kern, 
-                                    FVEthreshold = FVEthresholdSW,
-                                    maxK = maxK,
-                                    error = FALSE))
-    set.seed(seed)
-    fit.kmeans.Riemann <- kmeans(fit.rfpca$xi, centers = k,
-                                 iter.max = 30, nstart = 50)
-    
-    ### K-means with MFPCA
-    fit.mfpca <- RFPCA(Ly = Ly,
-                       Lt = Lt, 
-                       optns = list(mfdName = "Euclidean",
-                                    userBwMu = "GCV", 
-                                    userBwCov = "GCV", 
-                                    # kernel = kern, 
-                                    FVEthreshold = FVEthresholdSW,
-                                    maxK = maxK,
-                                    error = FALSE))
-    set.seed(seed)
-    fit.kmeans.L2 <- kmeans(fit.mfpca$xi, centers = k,
-                            iter.max = 30, nstart = 50)
+    # ### K-means with RFPCA
+    # fit.rfpca <- RFPCA(Ly = Ly,
+    #                    Lt = Lt, 
+    #                    optns = list(mfdName = "Sphere",
+    #                                 userBwMu = "GCV", 
+    #                                 userBwCov = "GCV", 
+    #                                 # kernel = kern, 
+    #                                 FVEthreshold = FVEthresholdSW,
+    #                                 maxK = maxK,
+    #                                 error = FALSE))
+    # set.seed(seed)
+    # fit.kmeans.Riemann <- kmeans(fit.rfpca$xi, centers = k,
+    #                              iter.max = 30, nstart = 50)
+    # 
+    # ### K-means with MFPCA
+    # fit.mfpca <- RFPCA(Ly = Ly,
+    #                    Lt = Lt, 
+    #                    optns = list(mfdName = "Euclidean",
+    #                                 userBwMu = "GCV", 
+    #                                 userBwCov = "GCV", 
+    #                                 # kernel = kern, 
+    #                                 FVEthreshold = FVEthresholdSW,
+    #                                 maxK = maxK,
+    #                                 error = FALSE))
+    # set.seed(seed)
+    # fit.kmeans.L2 <- kmeans(fit.mfpca$xi, centers = k,
+    #                         iter.max = 30, nstart = 50)
     
     
     ### funclust - set.seed 안먹힘
@@ -172,7 +174,7 @@ for (seed in 1:num.sim) {
     CWtime <- Lt[[1]]
     CWfd <- lapply(1:3, function(mdim){
         data <- sapply(Ly, function(y){ y[mdim, ] })
-        fda::smooth.basisPar(CWtime, data, lambda = 1e-2)$fd  
+        fda::smooth.basisPar(CWtime, data, lambda = 1e-2)$fd   # B-spline basis
     })
     # set.seed(seed)
     fit.funclust <- funclust(CWfd, K = k, increaseDimension = T)
@@ -187,23 +189,29 @@ for (seed in 1:num.sim) {
                            model = "AkjBQkDk",
                            init = "kmeans",
                            threshold = 0.2)
-    fit.funHDDC$class
+    # fit.funHDDC$class
     
     
     # CCR (correct classification rate) and aRand (adjusted Rand index)
     CCR[seed, ] <- c(
         1 - classError(cluster, fit.kCFC.Riemann$cluster)$errorRate,
         1 - classError(cluster, fit.kCFC.L2$cluster)$errorRate,
-        1 - classError(cluster, fit.kmeans.Riemann$cluster)$errorRate,
-        1 - classError(cluster, fit.kmeans.L2$cluster)$errorRate,
+        ## initial clustering (k-means)
+        1 - classError(cluster, fit.kCFC.Riemann$clustConf0)$errorRate,
+        1 - classError(cluster, fit.kCFC.L2$clustConf0)$errorRate,
+        # 1 - classError(cluster, fit.kmeans.Riemann$cluster)$errorRate,
+        # 1 - classError(cluster, fit.kmeans.L2$cluster)$errorRate,
         1 - classError(cluster, fit.funclust$cls)$errorRate,
         1 - classError(cluster, fit.funHDDC$class)$errorRate
     )
     aRand[seed, ] <- c(
         adjustedRandIndex(cluster, fit.kCFC.Riemann$cluster),
         adjustedRandIndex(cluster, fit.kCFC.L2$cluster),
-        adjustedRandIndex(cluster, fit.kmeans.Riemann$cluster),
-        adjustedRandIndex(cluster, fit.kmeans.L2$cluster),
+        ## initial clustering (k-means)
+        adjustedRandIndex(cluster, fit.kCFC.Riemann$clustConf0),
+        adjustedRandIndex(cluster, fit.kCFC.L2$clustConf0),
+        # adjustedRandIndex(cluster, fit.kmeans.Riemann$cluster),
+        # adjustedRandIndex(cluster, fit.kmeans.L2$cluster),
         adjustedRandIndex(cluster, fit.funclust$cls),
         adjustedRandIndex(cluster, fit.funHDDC$class)
     )

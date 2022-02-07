@@ -181,6 +181,7 @@ GetISEfromRFPCA_fast <- function(fpcaObj, y, t) {
                   xiMethod = "IN",
                   type = "traj")
   
+  # Calculate integrated squared distance (Refer to Eq (3) in Dai(2018), AOS)
   ise <- sapply(1:n, function(i){
     d_0 <- distance(mfd = mfd,
                     X = y[[i]],

@@ -23,7 +23,7 @@ head(flight)
 flight <- flight[, -9]   # remove 9th columns
 flight$aircraft <- factor(flight$aircraft)
 
-flight_id <- unique(data$aircraft)   # unique id
+flight_id <- unique(flight$aircraft)   # unique id
 length(flight_id)   # 2888
 
 range(flight$timeAtServer)
@@ -36,8 +36,8 @@ df <- flight %>%
 world <- ne_countries(scale = "medium", returnclass = "sf")
 map_bg <- ggplot(data = world) +
     geom_sf() +
-    coord_sf(xlim = range(df$longitude), 
-             ylim = range(df$latitude), 
+    coord_sf(xlim = range(df$longitude) + c(-5, 5), 
+             ylim = range(df$latitude) + c(-5, 5), 
              expand = FALSE)
 
 map_bg +

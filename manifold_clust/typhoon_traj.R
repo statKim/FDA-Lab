@@ -29,8 +29,8 @@ df$SID <- factor(df$SID)
 world <- ne_countries(scale = "medium", returnclass = "sf")
 map_bg <- ggplot(data = world) +
     geom_sf() +
-    coord_sf(xlim = range(df$LON),
-             ylim = range(df$LAT), 
+    coord_sf(xlim = range(df$LON) + c(-10, 10),
+             ylim = range(df$LAT) + c(-10, 10), 
              expand = FALSE)
 # df <- df %>% 
 #     arrange(order(as.POSIXlt(df$ISO_TIME)))
