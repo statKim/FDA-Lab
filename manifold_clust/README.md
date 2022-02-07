@@ -21,7 +21,7 @@
 
 - Real 데이터 찾아보기
   
-  - airline trajectory data
+  - Airline trajectory data
     - paper에 나와있는 링크는 유료인 것 같아서 아마 못쓸듯... 
       - AOS published version paper 뒤쪽에 Acknowledgements에 데이터 사용허가 받았다고 함
     - TrajAir
@@ -44,8 +44,8 @@
       - 데이터 다운 : https://www.aicrowd.com/challenges/cyd-campus-aircraft-localization-competition
       - 데이터가 OpenSky Network 기반이라고 함
       - 근데 여기서 timeAtServer 변수가 비행중 시간이 아닌 것 같음...
-  - `MigConnectivity` R package
-    - bird migration data
+  - Bird migration data
+    - `MigConnectivity` R package
     - https://methodsblog.com/2017/11/09/migratory-connectivity/
     - 근데 이건 시간별 관측이 아니라, 시작점이랑 끝점만 있는듯
   - 태풍 경로 데이터

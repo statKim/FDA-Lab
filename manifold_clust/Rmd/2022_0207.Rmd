@@ -1,0 +1,228 @@
+---
+title: "k-Centres Riemannian Functional Clustering (kCRFC)"
+# author: "Hyunsung Kim"
+date: '2022-02-07'
+output: 
+  pdf_document:
+    toc: false
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(rgl)
+knit_hooks$set(webgl = hook_webgl)   # for 3D data
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  # fig.width = 12, fig.height = 6,
+  # out.width = "80%",
+  fig.align = "center"
+)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+
+
+# 1. 시뮬레이션 결과 (30번 반복)
+
+- 비교방법론 추가 (multivariate functional clustering methods)
+  - funclust
+    - Jacques, J., & Preda, C. (2014). Model-based clustering for multivariate functional data. *Computational Statistics & Data Analysis*, *71*, 92-106.
+    - `Funclustering` 패키지
+    
+  - funHDDC
+    - Schmutz, A., Jacques, J., Bouveyron, C., Cheze, L., & Martin, P. (2020). Clustering multivariate functional data in group-specific functional subspaces. *Computational Statistics*, 1-31.
+    - `funHDDC` 패키지
+- 세팅은 지난번과 동일
+
+## FVE 기준의 PC 개수 (initial = 0.9, iteration = 0.7)
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rcccccc}
+  \hline
+  & \multicolumn{2}{c}{Case 1} & \multicolumn{2}{c}{Case 2} & \multicolumn{2}{c}{Case 3} \\
+  \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+  Method & CCR & aRand & CCR & aRand & CCR & aRand \\ 
+  \hline
+  kCFC(R) & 0.886 (0.095) & 0.627 (0.257) & 0.856 (0.140) & 0.579 (0.334) & 0.828 (0.151) & 0.514 (0.350) \\ 
+  kCFC(M) & 0.869 (0.075) & 0.563 (0.210) & 0.678 (0.110) & 0.166 (0.182) & 0.584 (0.058) & 0.032 (0.048) \\ 
+  K-means(R) & 0.815 (0.049) & 0.401 (0.118) & 0.650 (0.064) & 0.098 (0.073) & 0.604 (0.063) & 0.049 (0.058) \\ 
+  K-means(M) & 0.817 (0.054) & 0.409 (0.134) & 0.652 (0.069) & 0.102 (0.089) & 0.586 (0.057) & 0.033 (0.044) \\ 
+  funclust & 0.857 (0.117) & 0.559 (0.326) & 0.680 (0.125) & 0.182 (0.276) & 0.932 (0.090) & 0.775 (0.265) \\ 
+  funHDDC & 0.787 (0.053) & 0.333 (0.119) & 0.566 (0.045) & 0.015 (0.030) & 0.559 (0.044) & 0.012 (0.027) \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+## PC 개수 = 2로 고정
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rcccccc}
+  \hline
+  & \multicolumn{2}{c}{Case 1} & \multicolumn{2}{c}{Case 2} & \multicolumn{2}{c}{Case 3} \\
+  \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+  Method & CCR & aRand & CCR & aRand & CCR & aRand \\ 
+  \hline
+  kCFC(R) & 0.947 (0.043) & 0.803 (0.148) & 0.879 (0.143) & 0.651 (0.368) & 0.854 (0.174) & 0.614 (0.392) \\ 
+  kCFC(M) & 0.870 (0.072) & 0.564 (0.200) & 0.799 (0.148) & 0.438 (0.312) & 0.664 (0.143) & 0.178(0.272) \\ 
+  K-means(R) & 0.814 (0.047) & 0.397 (0.115) & 0.651 (0.058) & 0.096 (0.066) & 0.604 (0.061) & 0.049 (0.054) \\ 
+  K-means(M) & 0.818 (0.048) & 0.408 (0.117) & 0.649 (0.066) & 0.097 (0.082) & 0.591 (0.056) & 0.036(0.045) \\ 
+  funclust & 0.857 (0.117) & 0.559 (0.326) & 0.680 (0.125) & 0.182 (0.276) & 0.932 (0.090) & 0.775 (0.265) \\ 
+  funHDDC & 0.787 (0.053) & 0.333 (0.119) & 0.566 (0.045) & 0.015 (0.030) & 0.559 (0.044) & 0.012 (0.027) \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+## 요약
+- kCFC(R)에서 CCR이 급격하게 나빠지는 경우가 종종 있지만, 이 경우에는 다른 방법들도 잘 working하지 않는 경우였음
+- Case 3에서 특히, `funclust` 결과가 매우 좋음
+- `funclust`의 경우, seed 설정을 C++에서 하다보니, reproducible result를 얻지 못함
+
+
+\newpage
+
+# 2. Real data
+
+## Airline trajectory data
+  - Dai(2018) paper에서 사용한 데이터는 유료인듯
+    - AOS published version paper 뒤쪽에 Acknowledgements에 데이터 사용허가 받았다고 함
+  - TrajAir
+    - https://theairlab.org/trajair/#additional-info
+    - https://kilthub.cmu.edu/articles/dataset/TrajAir_A_General_Aviation_Trajectory_Dataset/14866251
+    - 근데 관측 범위가 너무 좁은듯...
+  - Kaggle 데이터
+    - https://www.kaggle.com/open-flights/flight-route-database
+    - 시간별 데이터가 아닌듯...
+  - OpenSky Network
+    - 데이터 받을 수 있긴 한데, 변수 설명이 잘 안되어있음
+    - https://opensky-network.org/datasets/
+    - https://opensky-network.org/datasets/flights_data5_develop_sample/
+  - `traffic` library in Python
+    - https://traffic-viz.github.io/index.html
+    - OpenSky Network에서 받은 데이터를 사용할 수 있도록 정리해둔 파이썬 라이브러리
+    - 근데 라이브러리 설치가 안됨...
+  - Aircraft Localization Competition
+    - 데이터 다운 : https://www.aicrowd.com/challenges/cyd-campus-aircraft-localization-competition
+    - 데이터가 OpenSky Network 기반이라고 함
+    - 근데 여기서 timeAtServer 변수가 비행중 시간이 아닌 것 같음...
+    
+## Bird migration data
+  - `MigConnectivity` R package
+  - https://methodsblog.com/2017/11/09/migratory-connectivity/
+  - 근데 이건 시간별 관측이 아니라, 시작점이랑 끝점만 있는듯
+  
+## 태풍 경로 데이터
+  - https://www.ncei.noaa.gov/products/international-best-track-archive?name=gisSLD
+  - 태풍 경로로 clustering한 paper들이 꽤 있어서 읽어보면 좋을듯
+
+
+\newpage
+
+## Aircraft trajectory data example (Aircraft Localization Competition)
+```{r}
+#####################################################################
+### Aircraft Localization Competition
+### - https://www.aicrowd.com/challenges/cyd-campus-aircraft-localization-competition
+### - https://github.com/radoslawkrolikowski/adsb-flight-localization
+#####################################################################
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+### Load data
+# ### 1.3GB - 56 secs
+# system.time({
+#     data <- read.csv("/Users/hyunsung/Desktop/round2/round2_training1.csv", header = T)
+# })
+
+### 1.3GB - 4 secs
+flight <- data.table::fread("/Users/hyunsung/Desktop/round2/round2_training1.csv")
+flight <- as.data.frame(flight)
+# dim(flight)   # 6535444 9
+# head(flight)
+
+flight <- flight[, -9]   # remove 9th columns
+flight$aircraft <- factor(flight$aircraft)
+
+flight_id <- unique(flight$aircraft)   # unique id
+# length(flight_id)   # 2888
+
+# range(flight$timeAtServer)
+
+
+### Trajectories
+df <- flight %>% 
+    filter(aircraft %in% flight_id[1:200])
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+map_bg <- ggplot(data = world) +
+    geom_sf() +
+    coord_sf(xlim = range(df$longitude) + c(-5, 5), 
+             ylim = range(df$latitude) + c(-5, 5), 
+             expand = FALSE)
+
+map_bg +
+    geom_path(data = df, aes(x = longitude, 
+                             y = latitude, 
+                             col = aircraft)) +
+    theme_bw() +
+    theme(legend.position = "none")
+```
+
+
+## Typhoon trajectory data example (2020~2021)
+
+```{r}
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+### Load data while skipping 2nd row
+all_content <- readLines("/Users/hyunsung/Desktop/ibtracs.WP.list.v04r00.csv")
+skip_second <- all_content[-2]
+typhoon <- read.csv(textConnection(skip_second), header = TRUE)
+# dim(typhoon)   # 240690 163
+# head(typhoon)
+
+typhoon <- typhoon[, -c(11:161)]   # remove unnecessary variables
+typhoon$STORM_SPEED <- typhoon$STORM_SPEED * 0.5144   # knot -> m/s
+# head(typhoon)
+
+### Typhoon trajectories
+df <- typhoon[typhoon$SEASON %in% 2020:2021, ]   # select years
+df$SID <- factor(df$SID)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+map_bg <- ggplot(data = world) +
+    geom_sf() +
+    coord_sf(xlim = range(df$LON) + c(-10, 10),
+             ylim = range(df$LAT) + c(-10, 10), 
+             expand = FALSE)
+# df <- df %>% 
+#     arrange(order(as.POSIXlt(df$ISO_TIME)))
+map_bg + 
+    geom_path(data = df, 
+              aes(x = LON, y = LAT, color = STORM_SPEED)) +
+    theme_bw()
+```
+
+
+# 해결해야할 점..?
+- 시뮬레이션 세팅 수정
+  - Case 1과 Case 2에서 spike 튀는 경우가 적게 나오도록 수정이 필요해보임
+  - 현재 Case 3에서 model-based clustering인 `funclust`가 매우 좋기 때문에, 이 방법이 잘 working하지 않는 세팅을 찾아봐야할 듯
+- Real data
+  - OpenSky Network에서 받을 수 있는 방법이 있는 것 같음
+  - Compositional data와 같이 sphere가 아닌 데이터에 적용해봐도 좋을듯
+
+
+
