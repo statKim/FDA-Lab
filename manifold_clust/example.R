@@ -4,7 +4,7 @@ library(mclust)   # clustering measure
 source("functions.R")
 
 ### Parameters for simulation
-seed <- 27
+seed <- 4
 set.seed(seed)
 n <- 100  # number of curves
 m <- 20   # number of different time points
@@ -12,7 +12,7 @@ K <- 20   # number of components
 k <- 2    # number of clusters
 n_k <- c(rep(round(n/k), k-1),
          n - (round(n/k) * (k-1)))   # number of curves for each cluster
-sim.type <- 3   # type of generated data
+sim.type <- 1   # type of generated data
 
 ### Generate curves for each cluster
 Lt <- list()

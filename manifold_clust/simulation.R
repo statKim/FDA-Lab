@@ -4,6 +4,7 @@ library(RFPCA)    # RFPCA and MFPCA
 library(mclust)   # clustering measure
 library(Funclustering)   # funclust (Currently, it is not supported by cran.)
 library(funHDDC)   # funHDDC
+library(gmfd)   # gmfd
 library(tidyverse)
 source("functions.R")
 
@@ -190,6 +191,18 @@ for (seed in 1:num.sim) {
                            init = "kmeans",
                            threshold = 0.2)
     # fit.funHDDC$class
+    
+    
+    # ### gmfd
+    # # A k-means procedure based on a Mahalanobis type distance for clustering multivariate functional data
+    # # https://link.springer.com/content/pdf/10.1007/s10260-018-00446-6.pdf
+    # FD <- funData(Lt[[1]], list(
+    #     t( sapply(Ly, function(y){ y[1, ] }) ),
+    #     t( sapply(Ly, function(y){ y[2, ] }) ),
+    #     t( sapply(Ly, function(y){ y[3, ] }) )
+    # ))
+    # fit.gmfd <- gmfd_kmeans(FD, n.cl = 2, metric = "mahalanobis", p = 10^5)
+    # fit.gmfd$cluster
     
     
     # CCR (correct classification rate) and aRand (adjusted Rand index)

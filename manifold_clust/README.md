@@ -89,3 +89,15 @@
 
 
 ### 2022.02.07(월)
+
+- OpenSky Network 리얼 데이터 찾아보기
+  - 가입하고 https://opensky-network.org/data/apply 에서 access application 제출해야됨
+  - 근데 abstract 같은 것 300글자 이상 쓰라고 해서 일단 안함
+- 태풍 데이터로 clustering 결과 뽑아보기
+  - kCFC(M)은 제외해도 될듯 (어차피 proposed도 아니고 기존에 있던 방법도 아님)
+- Multivariate functional clustering 최근 방법론 찾아보기
+- 방법론 한 번 쭉 정리하기 (kCFC 책 참고)
+  - notation이랑 metric 쭉 정리하고, Thm 1을 manifold 버전으로 수정해보기!!
+- 시뮬레이션 세팅은 나중에 리얼데이터의 meanfunction 형태를 보고 이와 비슷하게 generate해도 좋을듯
+  - spike 튀는 경우 해결할 수 있으면 해볼것!!
+    - m = 51, K = 5로 조절해봐도 크게 다르지 않음...

@@ -50,14 +50,6 @@ map_bg +
 
 
 
-### sensors data
-sensors <- read.csv("/Users/hyunsung/Desktop/round2/round2_sensors.csv", header = T)
-dim(sensors)
-head(sensors)
-
-
-
-
 
 
 
@@ -82,3 +74,42 @@ as.Date("1567296000", format='%m%d%Y')
 date("1567296000")
 
 
+
+
+
+
+
+
+
+
+
+
+# devtools::install_github("espinielli/osn")
+library(logger)
+log_threshold(TRACE, namespace = 'osn')
+
+library(osn)
+
+session <- osn_connect("statkim")
+
+# EDDF
+state_vector(
+    session,
+    icao24 = c("3c6589", "3c6757"),
+    wef = "2019-01-01 09:00:00",
+    til = "2019-01-01 10:00:00",
+    bbox = c(xmin = 7.553013, ymin = 49.378819,  xmax = 9.585482, ymax = 50.688044)
+)
+
+
+
+# # Install the development version from GitHub:
+# # install.packages("devtools")
+# # devtools::install_github("luisgasco/openskyr")
+# 
+# library(openskyr)
+# state_vectors_df <- get_state_vectors()
+# dim(state_vectors_df)
+# 
+# data_flight_track <- get_track_data(username="statKim",password="gustjd1021",
+#                                     icao24="494103",time=1587126600)
