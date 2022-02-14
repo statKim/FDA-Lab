@@ -207,7 +207,7 @@ for (sim.type in 1:3) {
             t( sapply(Ly, function(y){ y[2, ] }) ),
             t( sapply(Ly, function(y){ y[3, ] }) )
         ))
-        fit.gmfd <- gmfd_kmeans(FD, n.cl = 2, metric = "mahalanobis", p = 10^5)
+        fit.gmfd <- gmfd_kmeans(FD, n.cl = k, metric = "mahalanobis", p = 10^5)
         graphics.off()   # remove plot panel
         # fit.gmfd$cluster
         

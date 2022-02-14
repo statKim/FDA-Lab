@@ -92,10 +92,15 @@
 
 - OpenSky Network 리얼 데이터 찾아보기
   - 가입하고 https://opensky-network.org/data/apply 에서 access application 제출해야됨
-  - 근데 abstract 같은 것 300글자 이상 쓰라고 해서 일단 안함
+  - 근데 abstract 같은 것 300 단어 이상 쓰라고 해서 일단 안함
 - 태풍 데이터로 clustering 결과 뽑아보기
   - kCFC(M)은 제외해도 될듯 (어차피 proposed도 아니고 기존에 있던 방법도 아님)
+  - 사실상 위치 데이터만을 가지고 clustering하는 거라서, 전체적인 trajectory의 코스가 비슷한 것들끼리 묶여야할 것 같음
+    - 이 관점에서 kCFC(R)의 결과가 별로임... 오히려 initial clustering이 더 좋아보임
+    - iteration 과정이 오히려 결과를 나쁘게 하는 것 같기도...
 - Multivariate functional clustering 최근 방법론 찾아보기
+  - gmfd 결과 추가
+  - Martino, A., Ghiglietti, A., Ieva, F., & Paganoni, A. M. (2019). A k-means procedure based on a Mahalanobis type distance for clustering multivariate functional data. *Statistical Methods & Applications*, 28(2), 301-322.
 - 방법론 한 번 쭉 정리하기 (kCFC 책 참고)
   - notation이랑 metric 쭉 정리하고, Thm 1을 manifold 버전으로 수정해보기!!
 - 시뮬레이션 세팅은 나중에 리얼데이터의 meanfunction 형태를 보고 이와 비슷하게 generate해도 좋을듯
