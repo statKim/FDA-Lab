@@ -1,0 +1,4 @@
+RData/
+*.RData
+*.eps
+.DS_Store

@@ -22,12 +22,12 @@ typhoon_raw <- read.csv(textConnection(skip_second), header = TRUE)
 dim(typhoon_raw)   # 240690 163
 head(typhoon_raw)
 
-### Data preprocessing (2000 ~ 2021)
+### Data preprocessing (2000 ~ 2017)
 typhoon <- typhoon_raw[, -c(11:161)]   # remove unnecessary variables
 typhoon <- typhoon %>% 
     filter(
         NAME != "NOT_NAMED",    # remove "NOT_NAMED" storm
-        SEASON >= 2015          # after 2000
+        SEASON >= 2000 & SEASON <= 2017
     ) %>%
     group_by(SID) %>% 
     mutate(
@@ -38,8 +38,8 @@ typhoon <- typhoon %>%
     )
 dim(typhoon)   # 39388    15
 head(typhoon)
-unique(typhoon$NAME)
-length(unique(typhoon$NAME))   # 199
+unique(typhoon$NAME)   # there are duplicated name
+length(unique(typhoon$SID))   # 442
 
 
 ### Typhoon trajectories example
@@ -98,13 +98,6 @@ Ly <- lapply(1:n, function(i) {
 Lt <- rep(list(seq(0, 1, length.out = 51)), n)
 
 
-
-### Transform longitude and latitude into 3D axes
-Ly <- lapply(Ly, function(y) {
-    geo_axis2sph_axis(y, radius = 1)
-})
-apply(Ly[[1]], 2, function(x){ sum(x^2) })   # check that it is the unit sphere
-
 ### 다시 체크해보기!!
 y <- Ly[[3]]
 y2 <- geo_axis2sph_axis(y, radius = 1)
@@ -112,42 +105,12 @@ sph_axis2geo_axis( t(y2) ) %>% head
 y %>% head
 
 
-### Convert Geographic coordinate system into Spherical coordinate system
-### https://stackoverflow.com/questions/36369734/how-to-map-latitude-and-longitude-to-a-3d-sphere
-geo_axis2sph_axis <- function(lonlat, radius = 1) {
-    lon <- as.numeric(lonlat[, 1])
-    lat <- as.numeric(lonlat[, 2])
-    
-    phi <- (90 - lat) * (pi / 180)
-    theta <- (lon + 180) * (pi / 180)
+### Transform longitude and latitude into 3D axes
+Ly <- lapply(Ly, function(y) {
+    geo_axis2sph_axis(y, radius = 1)
+})
+apply(Ly[[1]], 2, function(x){ sum(x^2) })   # check that it is the unit sphere
 
-    x <- radius * sin(phi) * cos(theta)
-    y <- radius * sin(phi) * sin(theta)
-    z <- radius * cos(phi)
-    
-    # x <- radius * sin(lat) * cos(lon)
-    # y <- radius * sin(lat) * sin(lon)
-    # z <- radius * cos(lat)
-    return( rbind(x, y, z) )
-}
-
-### Convert Spherical coordinate system into Geographic coordinate system
-### https://stackoverflow.com/questions/5674149/3d-coordinates-on-a-sphere-to-latitude-and-longitude
-sph_axis2geo_axis <- function(xyz) {
-    x <- xyz[, 1]
-    y <- xyz[, 2]
-    z <- xyz[, 3]
-    r <- sqrt(x^2 + y^2 + z^2)
-    
-    # # lat <- atan2(z, sqrt(x^2 + y^2))
-    # lat <- acos(z / r)
-    # lon <- atan2(y, x)
-    lat <- 90 - acos(z / r) * 180 / pi
-    lon <- (atan2(y, x) * 180 / pi) %% 360 - 180
-    
-    return( cbind(lon = lon,
-                  lat = lat) )
-}
 
 
 ### Plot trajectories on sphere
@@ -175,13 +138,13 @@ library(gmfd)   # gmfd
 source("functions.R")
 
 ### Model parameters
-seed <- 100
+seed <- 1000
 k <- 3    # number of clusters
 num.pc.method <- "FVE"   # using FVE thresholds
 # num.pc.method <- 2     # fixed number
 if (num.pc.method == "FVE") {
     FVEthresholdSW <- 0.90
-    FVEthresholdCS <- 0.70
+    FVEthresholdCS <- 0.90
     maxK <- Inf
 } else if (as.integer(num.pc.method)) {
     FVEthresholdSW <- 1
@@ -211,6 +174,7 @@ clust.kCFC.Riemann <- fit.kCFC.Riemann$cluster   # clustering index
 clust.kmeans.Riemann <- fit.kCFC.Riemann$clustConf0   # initial cluster
 # fit.kCFC.Riemann$clustConf0   # initial clustering index from k-means
 
+
 ### kCFC with Euclidean metric (multivariate FPCA)
 fit.kCFC.L2 <- kCRFC(y = Ly, 
                      t = Lt, 
@@ -233,113 +197,210 @@ clust.kCFC.L2 <- fit.kCFC.L2$cluster   # clustering index
 clust.kmeans.L2 <- fit.kCFC.L2$clustConf0   # initial cluster
 
 
+### funclust - set.seed does not working!!
+set.seed(seed)
+CWtime <- Lt[[1]]
+CWfd <- lapply(1:3, function(mdim){
+    data <- sapply(Ly, function(y){ y[mdim, ] })
+    fda::smooth.basisPar(CWtime, data, lambda = 1e-2)$fd   # B-spline basis
+})
+# set.seed(seed)
+fit.funclust <- funclust(CWfd, K = k, increaseDimension = T)
+clust.funclust <- fit.funclust$cls
+
+
+### funHDDC
+set.seed(seed)
+fit.funHDDC <- funHDDC(CWfd, 
+                       K = k,
+                       model = "AkjBQkDk",
+                       init = "kmeans",
+                       threshold = 0.2)
+clust.funHDDC <- fit.funHDDC$class
+
+
+### gmfd
+set.seed(seed)
+FD <- funData(Lt[[1]], list(
+    t( sapply(Ly, function(y){ y[1, ] }) ),
+    t( sapply(Ly, function(y){ y[2, ] }) ),
+    t( sapply(Ly, function(y){ y[3, ] }) )
+))
+fit.gmfd <- gmfd_kmeans(FD, n.cl = k, metric = "mahalanobis", p = 10^5)
+graphics.off()   # remove plot panel
+clust.gmfd <- fit.gmfd$cluster
+
+
+
 table(clust.kCFC.Riemann, clust.kCFC.L2)
 table(clust.kCFC.Riemann, clust.kmeans.L2)
 table(clust.kCFC.Riemann, clust.kmeans.Riemann)
+table(clust.kCFC.Riemann, clust.funclust)
+table(clust.kCFC.Riemann, clust.funHDDC)
 
 
-
-### Plot with different cluster
-# kCFC (R)
-clust_df <- data.frame(SID = id,
-                       clust = clust.kCFC.Riemann)
-df <- typhoon %>% 
-    left_join(clust_df, by = "SID")
-p.kCFC.Riemann <- list()
-for (i in 1:k) {
-    p.kCFC.Riemann[[i]] <- map_bg + 
+### Plot clustering result
+method_list <- c("kCFC.Riemann","kCFC.L2","kmeans.Riemann","funclust","funHDDC","gmfd")
+fig_list <- list()
+fig_list_group <- list()
+for (method in method_list) {
+    # merge cluster index
+    clust_df <- data.frame(
+        SID = id,
+        clust = factor( get( paste0("clust.", method) ) )
+    )
+    df <- typhoon %>% 
+        left_join(clust_df, by = "SID")
+    
+    # rename the title on figure
+    if (method == "kCFC.Riemann") {
+        method <- "kCFC (R)"
+    } else if (method == "kCFC.L2") {
+        method <- "kCFC (M)"
+    } else if (method == "kmeans.Riemann") {
+        method <- "k-means (R)"
+    }
+    
+    # each cluster on sperated frame
+    fig <- list()
+    for (i in 1:k) {
+        fig[[i]] <- map_bg + 
+            geom_path(
+                data = df[df$clust == i, ], 
+                aes(
+                    x = LON, 
+                    y = LAT, 
+                    group = SID, 
+                    color = SID
+                ),
+                size = 0.2
+            ) +
+            labs(x = "", y = "", title = paste(method, "- Cluster", i)) +
+            theme_bw() +
+            theme(legend.position = "none",
+                  plot.title = element_text(hjust = 0.5))
+    }
+    fig_list <- c(fig_list, fig)
+    
+    # all cluster on one frame
+    fig_group <- map_bg +
         geom_path(
-            data = df[df$clust == i, ], 
+            data = df,
             aes(
-                x = LON, 
-                y = LAT, 
-                group = SID, 
-                color = SID
-            )
+                x = LON,
+                y = LAT,
+                group = SID,
+                color = clust
+            ),
+            size = 0.2
         ) +
-        ggtitle(paste("kCFC (R) - Cluster", i)) +
+        labs(x = "", y = "", title = method) +
         theme_bw() +
         theme(legend.position = "none",
               plot.title = element_text(hjust = 0.5))
+    fig_list_group <- c(fig_list_group, list(fig_group))
 }
-# p.kCFC.Riemann <- map_bg + 
-#     geom_path(
-#         data = df, 
-#         aes(
-#             x = LON, 
-#             y = LAT, 
-#             group = SID, 
-#             color = clust
-#         )
-#     ) +
-#     ggtitle("kCFC (R)") +
-#     theme_bw() +
-#     theme(legend.position = "none")
 
-# kCFC (M)
-clust_df <- data.frame(SID = id,
-                       clust = clust.kCFC.L2)
-df <- typhoon %>% 
-    left_join(clust_df, by = "SID")
-p.kCFC.L2 <- list()
-for (i in 1:k) {
-    p.kCFC.L2[[i]] <- map_bg + 
-        geom_path(
-            data = df[df$clust == i, ], 
-            aes(
-                x = LON, 
-                y = LAT, 
-                group = SID, 
-                color = SID
-            )
-        ) +
-        ggtitle(paste("kCFC (M) - Cluster", i)) +
-        theme_bw() +
-        theme(legend.position = "none",
-              plot.title = element_text(hjust = 0.5))
-}
-# p.kCFC.L2 <- map_bg + 
-#     geom_path(
-#         data = df, 
-#         aes(
-#             x = LON, 
-#             y = LAT, 
-#             group = SID, 
-#             color = clust
-#         )
-#     ) +
-#     ggtitle("kCFC (M)") +
-#     theme_bw() +
-#     theme(legend.position = "none")
-
-# k-means (R)
-clust_df <- data.frame(SID = id,
-                       clust = clust.kmeans.Riemann)
-df <- typhoon %>% 
-    left_join(clust_df, by = "SID")
-p.kmeans.Riemann <- list()
-for (i in 1:k) {
-    p.kmeans.Riemann[[i]] <- map_bg + 
-        geom_path(
-            data = df[df$clust == i, ], 
-            aes(
-                x = LON, 
-                y = LAT, 
-                group = SID, 
-                color = SID
-            )
-        ) +
-        ggtitle(paste("kmeans (R) - Cluster", i)) +
-        theme_bw() +
-        theme(legend.position = "none",
-              plot.title = element_text(hjust = 0.5))
-}
 
 library(gridExtra)
-# grid.arrange(p.kCFC.Riemann, p.kCFC.L2,
-#              nrow = 1)
-grid.arrange(grobs = c(p.kCFC.Riemann, 
-                       p.kCFC.L2,
-                       p.kmeans.Riemann),
-             ncol = k)
+fig <- grid.arrange(grobs = fig_list,
+                    ncol = k)
 
+dir_name <- "/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215"
+ggsave(fig, file = paste0(dir_name, "/clust-", k, ".pdf"),
+       width = 6*k, height = 18)
+
+fig_group <- grid.arrange(grobs = fig_list_group,
+                          ncol = 2)
+ggsave(fig_group, file = paste0(dir_name, "/clust-group-", k, ".pdf"),
+       width = 12, height = 10)
+
+
+### Plot trajectories on sphere per each cluster
+library(rgl)
+clear3d()   # remove graph
+mfrow3d(2, 3)   # par(mfrow = c(2, 1))
+for (method in method_list) {
+    cluster <- as.numeric( get( paste0("clust.", method) ) )
+    for (i in 1:n) {
+        x1 <- t(Ly[[i]])
+        col_curve <- cluster[i]
+        plot3d(x1, type = "l", col = col_curve, lwd = 1, add = T)
+    }
+    rgl.spheres(0, 0, 0, radius = 0.99, col = 'gray', alpha = 0.6, back = 'lines')
+    
+    Sys.sleep(1)
+}
+rgl.close()
+
+
+
+
+### Plot clustering result per start or end point
+method_list <- c("kCFC.Riemann","kCFC.L2","kmeans.Riemann","funclust","funHDDC","gmfd")
+fig_list <- list()
+fig_list_group <- list()
+for (method in method_list) {
+    # merge cluster index
+    clust_df <- data.frame(
+        SID = id,
+        clust = factor( get( paste0("clust.", method) ) )
+    )
+    df <- typhoon %>% 
+        left_join(clust_df, by = "SID") %>% 
+        # filter(time == 0)   # start point
+        filter(time == 1)   # end point
+    
+    # rename the title on figure
+    if (method == "kCFC.Riemann") {
+        method <- "kCFC (R)"
+    } else if (method == "kCFC.L2") {
+        method <- "kCFC (M)"
+    } else if (method == "kmeans.Riemann") {
+        method <- "k-means (R)"
+    }
+    
+    # each cluster on sperated frame
+    fig <- list()
+    for (i in 1:k) {
+        fig[[i]] <- map_bg + 
+            geom_point(
+                data = df[df$clust == i, ], 
+                aes(
+                    x = LON, 
+                    y = LAT, 
+                    group = SID, 
+                    color = SID
+                ),
+                size = 0.8
+            ) +
+            labs(x = "", y = "", title = paste(method, "- Cluster", i)) +
+            theme_bw() +
+            theme(legend.position = "none",
+                  plot.title = element_text(hjust = 0.5))
+    }
+    fig_list <- c(fig_list, fig)
+    
+    # all cluster on one frame
+    fig_group <- map_bg +
+        geom_point(
+            data = df,
+            aes(
+                x = LON,
+                y = LAT,
+                # group = SID,
+                color = clust
+            ),
+            size = 0.8
+        ) +
+        labs(x = "", y = "", title = method) +
+        theme_bw() +
+        theme(legend.position = "none",
+              plot.title = element_text(hjust = 0.5))
+    fig_list_group <- c(fig_list_group, list(fig_group))
+}
+library(gridExtra)
+# fig <- grid.arrange(grobs = fig_list,
+#                     ncol = k)
+fig_group <- grid.arrange(grobs = fig_list_group,
+                          ncol = 2)

@@ -1,0 +1,114 @@
+---
+title: "k-Centres Riemannian Functional Clustering"
+# author: "Hyunsung Kim"
+date: '2022-02-15'
+output: 
+  pdf_document:
+    toc: false
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  # fig.width = 12, fig.height = 6,
+  # out.width = "80%",
+  fig.align = "center"
+)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+
+
+# 1. 시뮬레이션 결과 (100번 반복)
+
+- 비교방법론 추가 (multivariate functional clustering methods)
+  - funclust
+    - Jacques, J., & Preda, C. (2014). Model-based clustering for multivariate functional data. *Computational Statistics & Data Analysis*, *71*, 92-106.
+    - `Funclustering` 패키지
+    
+  - funHDDC
+    - Schmutz, A., Jacques, J., Bouveyron, C., Cheze, L., & Martin, P. (2020). Clustering multivariate functional data in group-specific functional subspaces. *Computational Statistics*, 1-31.
+    - `funHDDC` 패키지
+    
+  - gmfd
+    - Martino, A., Ghiglietti, A., Ieva, F., & Paganoni, A. M. (2019). A k-means procedure based on a Mahalanobis type distance for clustering multivariate functional data. *Statistical Methods & Applications*, 28(2), 301-322.
+    - `gmfd_kmeans()` in `gmfd` 패키지
+
+-  FVE 기준으로 PC 개수 선택 (initial = 0.9, iteration = 0.7)
+
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rcccccc}
+  \hline
+  & \multicolumn{2}{c}{Case 1} & \multicolumn{2}{c}{Case 2} & \multicolumn{2}{c}{Case 3} \\
+  \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+  Method & CCR & aRand & CCR & aRand & CCR & aRand \\ 
+  \hline
+  kCFC(R) & {\bf 0.898 (0.098)} & {\bf 0.671 (0.261)} & {\bf 0.874 (0.149)} & {\bf 0.645 (0.352)} & 0.806 (0.164) & 0.477 (0.371) \\ 
+  kCFC(M) & 0.885 (0.076) & 0.612 (0.210) & 0.689 (0.118) & 0.191 (0.223) & 0.618 (0.086) & 0.076 (0.122) \\ 
+  K-means(R) & 0.823 (0.052) & 0.423 (0.132) & 0.662 (0.071) & 0.116 (0.100) & 0.622 (0.072) & 0.071 (0.088) \\ 
+  K-means(M) & 0.825 (0.055) & 0.428 (0.141) & 0.663 (0.074) & 0.120 (0.106) & 0.613 (0.072) & 0.062 (0.084) \\ 
+  funclust & 0.836 (0.137) & 0.521 (0.352) & 0.680 (0.130) & 0.189 (0.277) & {\bf 0.911 (0.118)} & {\bf 0.729 (0.316)} \\ 
+  funHDDC & 0.797 (0.056) & 0.359 (0.128) & 0.590 (0.058) & 0.036 (0.059) & 0.567 (0.054) & 0.020 (0.040) \\ 
+  gmfd & 0.543 (0.032) & 0.002 (0.015) & 0.746 (0.077) & 0.260 (0.148) & 0.625 (0.086) & 0.083 (0.115) \\ 
+  \hline
+\end{tabular}
+\end{table}
+
+
+
+
+\newpage
+
+# 2. Real data
+
+## Airline trajectory data
+  - OpenSky Network에 가입하고 https://opensky-network.org/data/apply 에서 access application 제출하면 DB 접속해서 사용 가능
+  - 하지만 사용 목적 등의 Description을 300 단어 이상으로 작성해야해서 일단 보류...
+  
+## 태풍 경로 데이터
+  - https://www.ncei.noaa.gov/products/international-best-track-archive?name=gisSLD
+  - 2000~2017년 442개 태풍에 대한 위경도 데이터
+    - (참고논문) Misumi, T., Matsui, H., & Konishi, S. (2019). Multivariate functional clustering and its application to typhoon data. *Behaviormetrika*, 46(1), 163-175.
+    - 위경도만을 가지고 multivariate functional clustering(nonlinear mixed effects model + Self-orgainzing map)을 하였고, 다음의 Fig 1은 2개의 cluster를 가정한 결과
+  - Timepoint의 경우는 태풍 생성시점을 0, 소멸시점을 1로 두고, 51개의 equal grid를 가지도록 위도와 경도에 각각 kernel smoothing 적용
+  - pre-smoothed 위경도 데이터(2개 변수)를 unit sphere(3개 변수)로 변환한 이후 functional clustering 적용
+  - kCFC의 경우, FVE 기준으로 PC 개수 선택 (initial = 0.9, iteration = 0.9)
+  
+
+```{r, out.width="100%"}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/reference-fig.png")
+```
+
+## Clustering results
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/clust-group-2.pdf")
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/clust-group-3.pdf")
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/clust-group-4.pdf")
+```
+
+### 결과요약
+- 사실상 위치정보만을 가지고 한 clustering이기 때문에 위치나 curve의 형태별로 구분되기를 기대했으나, kCFC(R)의 결과는 이 관점에서 좋지 않아보임
+  - 예를 들어 cluster 개수가 3인 경우에, 1) 중국 본토로 가는 경우, 2) 한반도와 일본쪽으로 가는 경우, 3) 먼 태평양에서 일본쪽으로 가는 경우로 클러스터링 될 것이라 예상
+- 오히려 iteration을 하지 않은 경우(k-means(R))가 더 잘 구분된 것으로 보임
+- 기존의 kCFC의 iteration step에서 $L_2$ norm $\int_\mathcal{T} \lVert y(t) - \tilde y^{(c)}(t) \rVert^2 dt$을 minimize하는 대신 다음의 integrated squared geodesic distance로 바꿔서 하고 있으나 real data에서는 잘 working하지 않음
+$$ c^*(y) = \underset{c\in \{1,\dots,G\}}{\arg\min}  \int_\mathcal{T} d_\mathcal{M}^2 \left( y(t), \tilde y^{(c)}(t) \right) dt $$
+
+
+# Appendix
+
+## Clustering results per each cluster
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/clust-2.pdf")
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/clust-3.pdf")
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215/clust-4.pdf")
+```
