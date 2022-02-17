@@ -110,3 +110,22 @@
 - 시뮬레이션 세팅은 나중에 리얼데이터의 meanfunction 형태를 보고 이와 비슷하게 generate해도 좋을듯
   - spike 튀는 경우 해결할 수 있으면 해볼것!!
     - m = 51, K = 5로 조절해봐도 크게 다르지 않음...
+
+### 2022.02.25(금)
+
+- Opensky Network 데이터 사용해보기
+  - https://opensky-network.org/data/impala
+  - 데이터 파악
+    - callsign 앞의 3개 문자로 항공사 알 수 있음
+      - https://en.wikipedia.org/wiki/List_of_airline_codes
+    - 데이터가 너무 크기 때문에 hour 변수로 조건을 줘야하는듯 (1시간 단위라고 함)
+      - time이 초단위 관측이고, hour가 시간별임
+      - 또한 반드시 hour를 where문에 넣어주어야함!!! (time만 조건 걸면 오래 걸린다고 함)
+  - 데이터 가져오기
+    - 필요한 DB : flights_data4, state_vectors_data4
+    - 우선 flights_data4 에서 도착지에 대한 icao24 리스트 쭉 뽑기 (예를 들어, 서울 -> LA)
+      - hour 변수로 기간 조절 (근데 이 table에는 hour 변수가 없음...)
+        - 대신 day 변수가 있긴 함
+      - callsign 변수로 항공사 지정
+      - estdepartureairport, estarrivalairport 로 출발지랑 도착지 설정
+    - 해당 icao24 리스트에 대한 비행기록을 state_vectors_data4 에서 가져오기
