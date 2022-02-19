@@ -122,10 +122,18 @@
       - time이 초단위 관측이고, hour가 시간별임
       - 또한 반드시 hour를 where문에 넣어주어야함!!! (time만 조건 걸면 오래 걸린다고 함)
   - 데이터 가져오기
+    - ICAO-24
+      - 인천공항 : RKSI
     - 필요한 DB : flights_data4, state_vectors_data4
-    - 우선 flights_data4 에서 도착지에 대한 icao24 리스트 쭉 뽑기 (예를 들어, 서울 -> LA)
+    - `flights_data4`
+      - 우선 flights_data4 에서 도착지에 대한 icao24 리스트 쭉 뽑기 (예를 들어, 인천 -> LA)
       - hour 변수로 기간 조절 (근데 이 table에는 hour 변수가 없음...)
         - 대신 day 변수가 있긴 함
       - callsign 변수로 항공사 지정
       - estdepartureairport, estarrivalairport 로 출발지랑 도착지 설정
-    - 해당 icao24 리스트에 대한 비행기록을 state_vectors_data4 에서 가져오기
+      - 근데 2019년1월~3월말까지 비행기록이 없음... (3월 말에 5일정도만 데이터 존재)
+        - 2019-03-01 ~ 2019-06-30
+    - `state_vectors_data4`
+      - 해당 icao24 리스트에 대한 비행기록을 state_vectors_data4 에서 가져오기
+      - 지금보다 조건을 더 걸어야 할듯.... 매우 느림
+      - onground 변수는 좀 불확실한듯... 사용 안하는게 좋아보임
