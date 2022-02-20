@@ -266,10 +266,13 @@ map_bg +
 ### Get trajectories from "state_vectors_data4"
 #####################################################################
 
+### Access to Impala shell
+session <- osn_connect("statKim")
+
 ### Get all data - 50 icao24
 start_period <- date2unixtime("2019-03-01 00:00:00")
 end_period <- date2unixtime("2019-07-01 00:00:00")
-for (i in 1:length(flight_id$icao24)) {
+for (i in 20:length(flight_id$icao24)) {
     print(i)
     
     query <- paste0(
@@ -292,7 +295,7 @@ AND NONNULLVALUE(callsign);"
     t1 <- Sys.time()
     data <- impala_query(session, query)    
     t2 <- Sys.time()
-    print(paste(flight_id$icao24[i], ":", round(t2 - t1, 2), "secs"))
+    print(paste(flight_id$icao24[i], ":", round(t2 - t1, 2), "mins"))
     # user   system  elapsed 
     # 35.223    8.214 1433.202 
     
