@@ -272,7 +272,7 @@ session <- osn_connect("statKim")
 ### Get all data - 50 icao24
 start_period <- date2unixtime("2019-03-01 00:00:00")
 end_period <- date2unixtime("2019-07-01 00:00:00")
-for (i in 20:length(flight_id$icao24)) {
+for (i in 1:length(flight_id$icao24)) {
     print(i)
     
     query <- paste0(
@@ -309,23 +309,10 @@ AND NONNULLVALUE(callsign);"
     save(flight, flight_state, file = "RData/flight.RData")
 }
 
-
-
-
-
-
-
-
-
-
-
 ### Terminate the connection
 osn_disconnect(session)
 
 
 
 
-for (i in 1:3) {
-    system.time(1:3)
-}
 

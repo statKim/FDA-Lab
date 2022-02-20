@@ -124,6 +124,8 @@
   - 데이터 가져오기
     - ICAO-24
       - 인천공항 : RKSI
+    - `인천 -> LA` 는 너무 위도가 비슷해서 curve 형태가 잘 안보임
+      - 위도가 크게 바뀌는 직항노선을 고려하자 (런던, 시드니)
     - 필요한 DB : flights_data4, state_vectors_data4
     - `flights_data4`
       - 우선 flights_data4 에서 도착지에 대한 icao24 리스트 쭉 뽑기 (예를 들어, 인천 -> LA)
