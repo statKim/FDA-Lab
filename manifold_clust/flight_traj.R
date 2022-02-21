@@ -517,6 +517,7 @@ flight_df <- takeoff_landing %>%
     filter(time >= takeoff & time <= landing) %>% 
     select(flight_id, time, icao24, airline, callsign, lat, lon, takeoff, landing, duration)
 flight_df   # 43326  10
+save(flight_df, file = "RData/flight_Incheon2LA.RData")
 
 
 ### Draw trajectories again
