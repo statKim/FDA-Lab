@@ -124,6 +124,8 @@
   - 데이터 가져오기
     - ICAO-24
       - 인천공항 : RKSI
+      - LA : KLAX
+      - 런던 : EGLL
     - `인천 -> LA` 는 너무 위도가 비슷해서 curve 형태가 잘 안보임
       - 위도가 크게 바뀌는 직항노선을 고려하자 (런던, 시드니)
     - 필요한 DB : flights_data4, state_vectors_data4
@@ -135,9 +137,16 @@
       - estdepartureairport, estarrivalairport 로 출발지랑 도착지 설정
       - 근데 2019년1월~3월말까지 비행기록이 없음... (3월 말에 5일정도만 데이터 존재)
         - 2019-03-01 ~ 2019-06-30
+      - firstseen이 출발, lastseen이 도착시간인듯!!!
     - `state_vectors_data4`
       - 해당 icao24 리스트에 대한 비행기록을 state_vectors_data4 에서 가져오기
       - 지금보다 조건을 더 걸어야 할듯.... 매우 느림
       - onground 변수는 좀 불확실한듯... 사용 안하는게 좋아보임
     - 출발, 도착 시간을 어떻게 정하지??
-      - 코드로 정리해둠!! (총 항공기 590편)
+      - firstseen이 출발, lastseen이 도착시간인듯!!! 
+    - 도착지를 LA 말고 다른 곳으로 하자
+      - 대서양 넘어가는 루트가 중간에 관측이 안되는 것 같음
+      - 근데 원래 태평양 지나가는 루트인데 왜 관측이 안되지??
+  - Flightaware 데이터 사용방법
+  - OpenSky Network 데이터에서 적당히 길면서 그룹 잘 나뉜 루트 찾아보기
+    - 런던 -> 싱가폴

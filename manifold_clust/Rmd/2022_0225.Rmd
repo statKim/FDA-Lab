@@ -1,0 +1,95 @@
+---
+title: "k-Centres Riemannian Functional Clustering"
+# author: "Hyunsung Kim"
+date: '2022-02-25'
+output: 
+  pdf_document:
+    toc: false
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  # fig.width = 12, fig.height = 6,
+  # out.width = "80%",
+  fig.align = "center"
+)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+
+
+# Airline trajectory data
+
+## 문제점
+- 장거리 노선의 경우, 비행 중간의 데이터가 없음
+  - 다음의 그림과 같이 중간지점의 데이터가 관측되지 않음
+  - 이는 관측 기간을 바꾸더라도 동일한 현상이 발생
+- 위의 그림이 인천 -> LA 노선
+- 아래 그림이 인천 -> 런던 노선
+
+
+### 인천 -> LA 노선
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/incheon2LA.pdf")
+# knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/incheon2London.pdf")
+```
+
+
+### 인천 -> 런던 노선
+```{r}
+# knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/incheon2LA.pdf")
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/incheon2London.pdf")
+```
+
+
+## 런던 -> 이스라엘 노선
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/EGLL2LLBS.pdf")
+```
+
+
+\newpage
+
+## 런던 -> 싱가포르 노선
+
+### 실제 관측 지점
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/london2singapore_point.pdf")
+```
+
+### 선으로 이은 경우
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/london2singapore.pdf")
+```
+
+## 런던 -> 싱가포르 노선 + kernel smoothing
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0225/london2singapore_smooth.pdf")
+```
+
+
+### 클러스터링 결과
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrrrrr}
+  \hline
+ & kCFC (R) & k-means (R) & kCFC (M) & k-means (M) & funclust & funHDDC & gmfd \\ 
+  \hline
+CCR & 0.663 & 0.663 & 0.663 & 0.663 & 0.576 & 0.663 & 0.674 \\ 
+  aRand & -0.004 & -0.004 & -0.004 & -0.004 & -0.006 & -0.004 & -0.015 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
