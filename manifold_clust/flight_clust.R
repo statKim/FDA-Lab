@@ -341,8 +341,29 @@ table(cluster)
 table(clust.kCFC.Riemann)
 
 
-
-
+### Plot of clustering result
+df_clust <- df %>% 
+    left_join(data.frame(flight_id = unique(df$flight_id),
+                         clust = clust.kCFC.Riemann),
+              by = "flight_id")
+world <- ne_countries(scale = "medium", returnclass = "sf")
+map_bg <- ggplot(data = world) +
+    geom_sf() +
+    coord_sf(xlim = range(df_clust$lon) + c(-10, 10),
+             ylim = range(df_clust$lat) + c(-5, 5), 
+             expand = FALSE)
+map_bg + 
+    geom_path(
+        data = df_clust, 
+        aes(
+            x = lon, 
+            y = lat, 
+            group = flight_id,
+            color = clust
+        ),
+        size = 0.3
+    ) +
+    theme_bw()
 
 
 

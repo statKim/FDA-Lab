@@ -77,7 +77,7 @@ impala_query <- function(session, query) {
 #'   host = "localhost"
 #' )
 #' }
-osn_connect <- function(usr, passwd = askpass,
+osn_connect <- function(usr, passwd = askpass::askpass,
                         host = "data.opensky-network.org", port = 2230,
                         verbose = FALSE) {
     fullhost <- stringr::str_glue("{usr}@{host}:{port}")
