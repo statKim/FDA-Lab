@@ -16,20 +16,18 @@ library(tidyverse)
 library(sf)
 library(rnaturalearth)
 library(rnaturalearthdata)
+source("functions.R")
 
-normalize <- function(x){
-    return((x-min(x)) / (max(x)-min(x)))
-}
 
 ### Make time between 0 and 1 using normalizing
 flight_df_2 <- flight_df %>% 
     mutate(time = as.numeric(time)) %>% 
     group_by(flight_id) %>% 
-    mutate(time = normalize(time)) %>% 
+    mutate(time = (time - min(time)) / (max(time) - min(time))) %>%    # normalize
     # mutate(time_ord = order(as.POSIXlt(time)),    # order of timepoints for each curve
     #        time = (time_ord - 1) / (n() - 1)) %>% 
     ungroup() %>% 
-    dplyr::select(flight_id, time, airline, lat, lon)
+    dplyr::select(flight_id, time, airline, lat, lon, icao24)
 flight_df_2
 tail(flight_df_2)   # 590 trajectories
 
@@ -72,28 +70,41 @@ airline <- flight_df_2 %>%
     as.numeric()
 
 
-### Pre-smoothing for regular grids using local linear smoother
+### Interpolation with 51 regular grids
 n <- length(id)
 Ly <- lapply(1:n, function(i) {
     y <- Ly[[i]]
     t <- Lt[[i]]
-    bw <- max(diff(t))   # very small bandwidth
     
-    # kernel smoothing with 51 regular grids
+    # Interpolation with 51 regular grids for each longitude and latitude
     apply(y, 2, function(col) {
-        # smoothng longitude and latitude, each
-        stats::ksmooth(x = t, 
-                       y = col, 
-                       kernel = "normal", 
-                       bandwidth = bw,
-                       n.points = 51)$y
-        # KernSmooth::locpoly(x = t, 
-        #                     y = col,
-        #                     bandwidth = bw,
-        #                     gridsize = 51)$y
+        approx(t, col, method = "linear", n = 51)$y
     })
 })
 Lt <- rep(list(seq(0, 1, length.out = 51)), n)
+
+# ### Pre-smoothing for regular grids using local linear smoother
+# n <- length(id)
+# Ly <- lapply(1:n, function(i) {
+#     y <- Ly[[i]]
+#     t <- Lt[[i]]
+#     bw <- max(diff(t))   # very small bandwidth
+#     
+#     # kernel smoothing with 51 regular grids
+#     apply(y, 2, function(col) {
+#         # smoothng longitude and latitude, each
+#         stats::ksmooth(x = t, 
+#                        y = col, 
+#                        kernel = "normal", 
+#                        bandwidth = bw,
+#                        n.points = 51)$y
+#         # KernSmooth::locpoly(x = t, 
+#         #                     y = col,
+#         #                     bandwidth = bw,
+#         #                     gridsize = 51)$y
+#     })
+# })
+# Lt <- rep(list(seq(0, 1, length.out = 51)), n)
 
 
 ### 다시 체크해보기!!
@@ -196,7 +207,7 @@ source("functions.R")
 
 ### Model parameters
 seed <- 1000
-k <- 2    # number of clusters (the number of airlines)
+k <- 3    # number of clusters (the number of airlines)
 num.pc.method <- "FVE"   # using FVE thresholds
 # num.pc.method <- 2     # fixed number
 if (num.pc.method == "FVE") {
@@ -339,6 +350,21 @@ round(res, 3)
 
 table(cluster)
 table(clust.kCFC.Riemann)
+
+
+plot(fit.kCFC.Riemann$fpcaLis[[1]]$xi, col = 1,
+     xlim = range(rbind(
+         fit.kCFC.Riemann$fpcaLis[[1]]$xi[, 1:2],
+         fit.kCFC.Riemann$fpcaLis[[2]]$xi[, 1:2],
+         fit.kCFC.Riemann$fpcaLis[[3]]$xi[, 1:2]
+     )[, 1]), 
+     ylim = range(rbind(
+         fit.kCFC.Riemann$fpcaLis[[1]]$xi[, 1:2],
+         fit.kCFC.Riemann$fpcaLis[[2]]$xi[, 1:2],
+         fit.kCFC.Riemann$fpcaLis[[3]]$xi[, 1:2]
+     )[, 2]))
+points(fit.kCFC.Riemann$fpcaLis[[2]]$xi, col = 2)
+points(fit.kCFC.Riemann$fpcaLis[[3]]$xi, col = 3)
 
 
 ### Plot of clustering result

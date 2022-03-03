@@ -65,10 +65,10 @@ kCRFC <- function(y,
   }
   clustConf0 <- as.factor(initialClustering$cluster)
   indClustIds <- lapply(levels(clustConf0), function(u) which(clustConf0 == u) )
-  if( any( min( sapply( indClustIds, length)) <= c(3)) ){
-    stop(paste0("kCFC stopped during the initial k-means step. The smallest cluster has three (or less) curves. " ,
-                "Consider using a smaller number of clusters (k) or a different random seed (kSeed)."))
-  }
+  # if( any( min( sapply( indClustIds, length)) <= c(3)) ){
+  #   stop(paste0("kCFC stopped during the initial k-means step. The smallest cluster has three (or less) curves. " ,
+  #               "Consider using a smaller number of clusters (k) or a different random seed (kSeed)."))
+  # }
   listOfFPCAobjs <- lapply(indClustIds, function(u){
     RFPCA(Ly = y[u], 
           Lt = t[u],

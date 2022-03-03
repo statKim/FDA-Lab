@@ -1,61 +1,94 @@
-#############################################
-### Test!!!
-#############################################
+#####################################################################
+### Aircraft trajectory data from OpenSky Network
+### - We use the historical database using impala shell.
+### - To access the database, you need to log-in and 
+###   submit the "Historical Data Access Application".
+### - https://opensky-network.org/data/apply
+### - The useful frameworks exists to access the database :
+###     - https://opensky-network.org/data/data-tools
+### - We use the SQL query to get data.
+#####################################################################
 library(tidyverse)
-# library(osn)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
 source("OpenSkyNetwork/connect_impala_shell.R")
 
 ### Access to Impala shell
 session <- osn_connect("statKim")
 
 ### 2019-03-01 ~ 2019-06-30
-start_period <- date2unixtime("2019-01-01 00:00:00")
-end_period <- date2unixtime("2019-12-31 00:00:00")
-query <- paste0(
-    "SELECT
-icao24, firstseen, estdepartureairport, lastseen, estarrivalairport, callsign, day
-FROM flights_data4
-WHERE day >= ", start_period, " and day <= ", end_period, "
-and nonnullvalue(callsign)",
-"and nonnullvalue(estarrivalairport)",
-"and nonnullvalue(estdepartureairport)",
-"and estarrivalairport = 'EGLL'",
-# "and estarrivalairport = 'RKSI'",
-# "and estdepartureairport = 'EGLL'",
-# "and estdepartureairport = 'WSSS'",
-";"
-)
-query <- gsub("\n", " ", query)   # remove "\n"
-query
+start_period <- date2unixtime("2019-07-01 00:00:00")
+end_period <- date2unixtime("2019-12-31 23:59:59")
+arrival <- "EGLL"   # arrival airport icao24
 
-### Get data from database
-system.time({
-    flight <- impala_query(session, query)    
-})
-flight
-
-# query <- "SELECT * FROM state_vectors_data4 LIMIT 5;"
-# df <- impala_query(session, query)    
-# df$time %>% unixtime2date()
-
-flight %>% 
-    filter(!(substr(estdepartureairport, 1, 1) %in% c("E","L"))) %>%
-    dplyr::select(estdepartureairport) %>% 
-    # dplyr::select(estarrivalairport) %>% 
-    table() %>% 
-    sort()
-
-# LLBG: 이스라엘, WSSS: 싱가포르
-ind <- which(flight$estdepartureairport == "OERK")
-ind <- sample(ind, 30)
-i <- ind[1]
-flight[i, ]
+# ### Throw query to Impalla DB
+# query <- paste0(
+#     "SELECT
+# icao24, firstseen, estdepartureairport, lastseen, estarrivalairport, callsign, day
+# FROM flights_data4
+# WHERE day >= ", start_period, " and day <= ", end_period, "
+# and nonnullvalue(callsign)",
+# "and nonnullvalue(estarrivalairport)",
+# "and nonnullvalue(estdepartureairport)",
+# "and estarrivalairport = '", arrival, "'",
+# # "and estarrivalairport = 'EGLL'",
+# # "and estarrivalairport = 'RKSI'",
+# # "and estdepartureairport = 'EGLL'",
+# # "and estdepartureairport = 'WSSS'",
+# ";"
+# )
+# query <- gsub("\n", " ", query)   # remove "\n"
+# query
+# 
+# ### Get data from database
+# system.time({
+#     flight <- impala_query(session, query)    
+# })
+# flight
+# 
+# ### Check the number of flight per departure airport
+# flight %>% 
+#     filter(!(substr(estdepartureairport, 1, 1) %in% c("E","L","K"))) %>%
+#     dplyr::select(estdepartureairport) %>% 
+#     # dplyr::select(estarrivalairport) %>% 
+#     table() %>% 
+#     sort()
 
 
-# plot(1, type = "n",
-#      xlim = c(-10, 110), ylim = c(-10, 60))
-for (i in ind[1:3]) {
-    print(i)
+### Select specefic departure airport
+# LLBG: 이스라엘, WSSS: 싱가포르, LD, LG
+departure <- "KJFK"   # departure airport icao24
+# ind <- which(flight$estdepartureairport == departure)
+flight %>%
+    mutate(id = row_number()) %>%
+    filter(estdepartureairport == departure) %>%
+    mutate(takeoff = unixtime2date(firstseen),
+           landing = unixtime2date(lastseen),
+           airline = substr(callsign, 1, 3)) %>%
+    arrange(takeoff) %>%
+    filter(takeoff >= as.POSIXct("2019-10-01") & takeoff <= as.POSIXct("2019-10-31")) %>%
+    dplyr::select(airline) %>%
+    table
+ind <- flight %>%
+    mutate(id = row_number()) %>%
+    filter(estdepartureairport == departure) %>%
+    mutate(takeoff = unixtime2date(firstseen),
+           landing = unixtime2date(lastseen),
+           airline = substr(callsign, 1, 3)) %>%
+    arrange(takeoff) %>%
+    filter(airline %in% c("AAL","DAL","JBU")) %>%
+    filter(takeoff >= as.POSIXct("2019-10-01") & takeoff <= as.POSIXct("2019-10-05")) %>%
+    dplyr::select(id) %>%
+    unlist() %>%
+    as.numeric()
+
+
+### Total 667 flights
+for (j in 1:length(ind)) {
+    print(j)
+    i <- ind[j]
+    
     query <- paste0(
         "SELECT *
 FROM state_vectors_data4
@@ -74,7 +107,7 @@ WHERE icao24 = '", flight$icao24[i], "'",
     t1 <- Sys.time()
     data <- impala_query(session, query)    
     t2 <- Sys.time()
-    print(paste(flight_id$icao24[i], ":", round(t2 - t1, 2), "mins"))
+    print(paste(flight$icao24[i], ":", round(t2 - t1, 2)))
     
     # data %>% 
     #     filter(callsign == flight$callsign[i])
@@ -101,13 +134,13 @@ WHERE icao24 = '", flight$icao24[i], "'",
         ungroup()
     df
     
-    if (i == ind[1]) {
+    if (j == 1) {
         flight_df <- df
-        plot(df$lon, df$lat, col = i)
+        # plot(df$lon, df$lat, col = i)
     } else {
         flight_df <- rbind(flight_df,
                            df)
-        points(df$lon, df$lat, col = i)
+        # points(df$lon, df$lat, col = i)
     }
     
     
@@ -130,32 +163,34 @@ WHERE icao24 = '", flight$icao24[i], "'",
     #     theme_bw()
 }
 
-flight_df <- flight_df %>% 
-    mutate(airline = substr(callsign, 1, 3)) %>% 
-    filter(airline %in% c("BAW","SIA"))
+flight_df <- flight_df %>%
+    mutate(airline = substr(callsign, 1, 3))
 
-flight_df %>% 
-    group_by(flight_id) %>% 
-    filter(row_number() == 1) %>% 
-    ungroup() %>% 
-    group_by(airline) %>% 
+flight_df %>%
+    group_by(flight_id) %>%
+    filter(row_number() == 1) %>%
+    ungroup() %>%
+    group_by(airline) %>%
     summarise(n = n())
 
-world <- ne_countries(scale = "medium", returnclass = "sf")
-map_bg <- ggplot(data = world) +
-    geom_sf() +
-    coord_sf(xlim = range(flight_df$lon) + c(-10, 10),
-             ylim = range(flight_df$lat) + c(-10, 10), 
-             expand = FALSE)
-map_bg + 
-    geom_point(
-        data = flight_df, 
-        aes(
-            x = lon, 
-            y = lat, 
-            group = flight_id,
-            color = airline,
-        ),
-        size = 0.3
-    ) +
-    theme_bw()
+save(flight_df, file = paste0("RData/", departure, "_to_", arrival, ".RData"))
+
+
+# world <- ne_countries(scale = "medium", returnclass = "sf")
+# map_bg <- ggplot(data = world) +
+#     geom_sf() +
+#     coord_sf(xlim = range(flight_df$lon) + c(-10, 10),
+#              ylim = range(flight_df$lat) + c(-10, 10), 
+#              expand = FALSE)
+# map_bg + 
+#     geom_point(
+#         data = flight_df, 
+#         aes(
+#             x = lon, 
+#             y = lat, 
+#             group = flight_id,
+#             color = airline,
+#         ),
+#         size = 0.3
+#     ) +
+#     theme_bw()
