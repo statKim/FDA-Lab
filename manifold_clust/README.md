@@ -170,7 +170,8 @@
       - 근데 이 결과도 그닥 좋지 않음...
     - clustering이다보니 가까운 것들끼리 묶이는데, 노선들이 골고루 섞여있어서 구분이 쉽지 않음
   - 초파리 데이터
-  - compositional data
+    - compositional data를 square root 취해서 sphere-valued data로 바꿔서 함
+    - FFPCA, MFPCA가 거의 비슷
 
 
 
