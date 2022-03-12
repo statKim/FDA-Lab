@@ -154,24 +154,47 @@
   - OpenSky Network 데이터에서 적당히 길면서 그룹 잘 나뉜 루트 찾아보기
 
     - 중간중간 끊긴 데이터는 interpolation해서 사용해도 괜찮을듯!!
-  - 런던 -> LGAV(아테네)
+    - 런던 -> LGAV(아테네)
     
-    - 여기도 여전히 중간에 missing인 경우가 있음
+      - 여기도 여전히 중간에 missing인 경우가 있음
     - LA(KLAX) -> 뉴욕(KJFK)
-  - 런던 -> WSSS(싱가포르), OBBI(바레인), VIDP(델리), OMDB(두바이), SBGR(상파울루), YSSY(시드니), OTHH(도하, 카타르), LLBG(이스라엘), VHHH(홍콩)
+    - 런던 -> WSSS(싱가포르), OBBI(바레인), VIDP(델리), OMDB(두바이), SBGR(상파울루), YSSY(시드니), OTHH(도하, 카타르), LLBG(이스라엘), VHHH(홍콩)
     
-    - 싱가포르는 중간에 끊기는 구간이 너무 길다...
+      - 싱가포르는 중간에 끊기는 구간이 너무 길다...
       - 델리도 별로.....
-    - 시드니는 애초에 출발점에서의 관측치도 잘 없음
+      - 시드니는 애초에 출발점에서의 관측치도 잘 없음
       - 상파울루도 너무 missing 구간이 길다
       - 홍콩도 아시아대륙 부근에서 관측이 안됨...
     - Dai and Muller 페이퍼에서는 총 969개 항공경로 사용함
     - 싱가포르 -> 런던 667개 돌고 있음!!
       - 근데 이 결과도 그닥 좋지 않음...
-    - clustering이다보니 가까운 것들끼리 묶이는데, 노선들이 골고루 섞여있어서 구분이 쉽지 않음
-  - 초파리 데이터
-    - compositional data를 square root 취해서 sphere-valued data로 바꿔서 함
-    - FFPCA, MFPCA가 거의 비슷
+      - clustering이다보니 가까운 것들끼리 묶이는데, 노선들이 골고루 섞여있어서 구분이 쉽지 않음
 
+### 다른 리얼데이터
 
+- 초파리 데이터
+
+  - 데이터
+    - Chiou and Muller (2014), Linear manifold modelling of multivariate functional data
+  - compositional data를 square root 취해서 sphere-valued data로 바꿔서 함
+  - FFPCA, MFPCA가 거의 비슷
+- Bird migration 데이터
+    - Movebank
+      - https://www.movebank.org/cms/webapp?gwt_fragment=page=studies,path=study9651291
+    - Reference paper
+      - https://doi.org/10.1007/s10531-018-1538-6
+    - 봄, 가을로 구분되는 것 같은데, 정확한 기준을 찾아보자
+    - 이동할 때 연도 바뀌는 경우가 있을 수도 있음
+      - 예를 들어, 11월부터 이동 시작해서 2월까지 이동하는 경우
+- DTI(Diffusion Tensor Imaging) data
+
+    - refund 패키지에 DTI라는 데이터가 있긴 함
+    - 근데 raw DTI data를 preprocessing해서 correlation matrix로 만들어주고, 얘를 SPD matrix로 간주하여 모델링
+    - HCP 900 subjects release
+      - 
+    - ADNI
+      - 근데 이건 dense는 아니고 sparse인듯
+      - 만약 이 데이터 사용할 경우, 반드시 라이센스 다시 읽어보기!!!
+
+        - draft도 먼저 보내줘야하고, 사사문구도 적어주어야 함
 
