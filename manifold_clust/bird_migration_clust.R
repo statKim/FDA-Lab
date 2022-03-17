@@ -30,27 +30,7 @@ data$timestamp %>% substr(6, 7) %>% table
 data$timestamp %>% substr(1, 4) %>% table
 
 
-id <- data$`individual-local-identifier` %>% unique
-s <- c()
-for (i in 1:length(id)) {
-    data %>% 
-        filter(`individual-local-identifier` == id[i]) %>% 
-        arrange(timestamp) %>% 
-        # dplyr::select(`event-id`, timestamp, `location-long`, `location-lat`)
-        select(timestamp) %>%
-        unlist() %>% 
-        as.numeric() %>% 
-        diff -> d
-    s[i] <- (d / 3600 / 24) %>% max
-}
-s
-
-### 이 2개 패키지로 출발, 도착 정확히 구분하기
-# devtools::install_github("dbspitz/migrateR/migrateR")
-# library(sp)
-library(adehabitatLT)
-library(migrateR)
-
+### Draw trajectories
 df <- data %>% 
     mutate(id = `individual-local-identifier`,
            time =  timestamp, 
@@ -58,130 +38,202 @@ df <- data %>%
            lon = `location-long`) %>% 
     dplyr::select(id, time, lat, lon) %>% 
     na.omit() %>% 
-    arrange(id, time) %>% 
-    mutate(day = substr(time, 1, 10)) %>% 
-    group_by(id, day) %>% 
-    filter(row_number() == 1) %>% 
-    ungroup() %>% 
-    as.data.frame()
-head(df)
-
-df.ltraj <- as.ltraj(xy = df[, c("lat","lon")], 
-                     date = df$time, 
-                     id = df$id)
-df.ltraj
-
-
-as.POSIXct(unixtime, origin = "1970-01-01")
-
-
-### Remove un-neccesary variables
-df <- data %>% 
-    mutate(id = `individual-local-identifier`,
-           time = timestamp, 
-           lat = `location-lat`, 
-           lon = `location-long`) %>% 
-    dplyr::select(id, time, lat, lon) %>% 
-    mutate(year = as.numeric(substr(time, 1, 4)),
-           season = ifelse(as.numeric(substr(time, 6, 7)) >= 5 & as.numeric(substr(time, 6, 7)) <= 10, 
-                           "Summer", "Winter")) %>% 
-    # filter(year >= 2012 & year <= 2015) %>% 
-    na.omit() %>% 
-    arrange(id, time) %>% 
-    mutate(day = substr(time, 1, 10)) %>% 
-    group_by(id, day) %>% 
-    filter(row_number() == 1) %>% 
-    ungroup() %>% 
-    mutate(id = (paste0(id, "-", year, "-", season) %>% 
-                     factor() %>% 
-                     as.numeric()))
+    arrange(id, time)
 df
 
-# id_incorrect <- df %>% 
-#     filter(!(lon > 30 & lon < 55 & lat > -5 & lat < 50)) %>% 
-#     dplyr::select(id) %>% 
-#     distinct() %>% 
-#     unlist()
-# df <- df %>% 
-#     filter(!(df$id %in% id_incorrect))
-# df
+world <- ne_countries(scale = "medium", returnclass = "sf")
+map_bg <- ggplot(data = world) +
+    geom_sf() +
+    coord_sf(xlim = range(df$lon) + c(-10, 10),
+             ylim = range(df$lat) + c(-10, 10),
+             expand = FALSE)
+map_bg +
+    geom_path(
+        data = df,
+        aes(
+            x = lon,
+            y = lat,
+            # group = id,
+            color = id
+        ),
+        size = 0.3
+    ) +
+    theme_bw() +
+    theme(legend.position = "none")
 
-# tail(df)
-# 
-# 
-# df %>% 
-#     group_by(year) %>% 
-#     summarise(n = n())
-# 
-# df %>% 
-#     filter(year == "2012") %>% 
-#     tail
-# 
-# 
-# df %>% 
-#     # filter(year == "2012") %>% 
-#     ggplot(aes(x = lon,
-#                y = lat,
-#                color = year)) +
-#     geom_path()
-# 
-# 
-# df <- df %>% 
-#     mutate(id_year = paste0(id, year)) %>% 
-#     filter(lon > 30 & lon < 55 & lat > 0 & lat < 45)
 
-# world <- ne_countries(scale = "medium", returnclass = "sf")
-# map_bg <- ggplot(data = world) +
-#     geom_sf() +
-#     coord_sf(xlim = range(df$lon) + c(-10, 10),
-#              ylim = range(df$lat) + c(-10, 10),
-#              expand = FALSE)
-# map_bg +
-#     geom_path(
-#         data = df,
-#         aes(
-#             x = lon,
-#             y = lat,
-#             group = id,
-#             color = season
-#         ),
-#         size = 0.3
-#     ) +
-#     theme_bw() +
-#     theme(legend.position = "none")
-# 
-# df$id %>% 
-#     unique()
-# 
-# df %>% 
-#     group_by(id) %>% 
-#     filter(n() > 10) %>% 
-#     dplyr::select(id) %>% 
-#     distinct()
-# 
-# df %>% 
-#     group_by(id) %>% 
-#     summarise(n = n()) %>% 
-#     arrange(n)
-
-### Set time between 0 and 1
-df <- df %>% 
-    mutate(time = as.numeric(time)) %>% 
+### Get daily data and remove id's having very short migration
+df <- data %>% 
+    mutate(id = `individual-local-identifier`,
+           time =  timestamp, 
+           lat = `location-lat`, 
+           lon = `location-long`) %>% 
+    filter(!(id %in% c("Arpacay","Djibouti","Mille"))) %>%   # remove very short migration
+    dplyr::select(id, time, lat, lon) %>% 
     na.omit() %>% 
+    arrange(id, time) %>% 
+    mutate(day = substr(time, 1, 10)) %>% 
+    group_by(id, day) %>% 
+    filter(row_number() == 1) %>% 
+    ungroup() 
+df
+
+id_list <- df$id %>% unique   # unique id's
+id_list
+
+
+### Extract migration periods manually
+# "Agri"     : 2013-09-11 ~ 2013-09-28 ; 2014-03-21 ~ 2014-04-08
+# "Aras"     : 2012-09-04 ~ 2012-09-24 ; 
+# "Ardahan"  : 2013-08-22 ~ 2013-09-16 ; 2014-04-03 ~ 2014-04-30 ;
+#              2014-09-05 ~ 2014-09-18
+# "Armenia2" : 2015-08-31 ~ 2015-09-16 ;
+# "Armenia3" : 2015-09-20 ~ 2015-10-09 ;
+# "Cabuk"    : 2014-09-08 ~ 2014-09-22 ; 2015-05-28 ~ 2015-07-09 ;
+#              2015-10-06 ~ 2015-10-29 ;
+# "Haydi"    : 2014-09-19 ~ 2014-10-25 ; 2015-04-11 ~ 2015-05-13 ; 
+#              2015-09-20 ~ 2015-10-16
+# "Igdir"    : 2012-09-19 ~ 2012-10-12 ; 2013-03-16 ~ 2013-04-04 ; 
+#              2013-09-25 ~ 2013-10-14 ; 2014-03-03 ~ 2014-03-23 ; 
+#              2014-10-06 ~ 2014-11-04 ; 
+# "Iste"     : 2014-09-19 ~ 2014-10-04 ; 2015-04-14 ~ 2015-04-30 ; 
+#              2015-09-17 ~ 2015-09-30 ; 2016-03-22 ~ 2016-04-10 ; 
+#              2016-09-25 ~ 2016-10-09 ; 2017-03-13 ~ 2017-03-31 ;
+#              2017-09-24 ~ 2017-10-09 ; 2018-03-16 ~ 2018-04-02 ; 
+#              2018-09-16 ~ 2018-09-30 ; 2019-03-20 ~ 2019-04-06 ; 
+#              2019-09-20 ~ 2019-10-05 ; 2020-03-21 ~ 2020-04-07 (2020-04-01은 outlier니까 제거하기)
+# "Logiya"   : 2014-05-19 ~ 2014-06-16 ; 2014-08-21 ~ 2014-09-10 ; 
+#              2015-04-17 ~ 2015-05-26 ; 2015-09-07 ~ 2015-09-24 ; 
+#              2016-04-16 ~ 2016-05-09 ; 2016-09-14 ~ 2016-09-28 ;
+#              2017-04-06 ~ 2017-04-29 ; 2017-09-15 ~ 2017-09-28 ;
+#              2018-03-22 ~ 2018-04-10 ; 2018-09-06 ~ 2018-09-21 ;
+#              2019-03-11 ~ 2019-03-30 ; 2019-09-11 ~ 2019-09-26 ;
+#              2020-03-24 ~ 2020-04-13 ; 2020-09-16 ~ 2020-09-27 ;
+#              2021-03-22 ~ 2021-04-06 ; 2021-09-13 ~ 2021-09-25 ;
+# "Orada"    : 2015-08-28 ~ 2015-09-23 ; 2016-05-12 ~ 2016-06-04 ;
+#              2016-09-15 ~ 2016-10-02 ; 
+# "Serhat"   : 2014-09-21 ~ 2014-10-08
+# "Tuzluca"  : 2013-08-23 ~ 2013-10-11 ; 2014-04-07 ~ 2014-04-30 ;
+#              2014-09-06 ~ 2014-10-03 ; 2015-03-15 ~ 2015-04-05 ;
+#              2015-09-08 ~ 2015-10-02 ; 2016-03-14 ~ 2016-04-10 ;
+df2 <- df %>% 
+    filter(id == id_list[13]) %>% 
+    mutate(diff = round(abs(c(0, diff(lat))) + abs(c(0, diff(lon))),
+                        1),
+           start_end = ifelse(diff <= 0.3, 1, 0)) %>% 
+    arrange(time) %>% 
+    as.data.frame()
+df2
+df2[1:200, ]
+df2[1000:2000, ]
+df2[2000:nrow(df2), ]
+
+
+### Start and end date for 
+bird_period <- data.frame(
+    id = c(
+        rep("Agri", 2), "Agri", rep("Ardahan", 3), "Armenia2", "Armenia3",
+        rep("Cabuk", 3), rep("Haydi", 3), rep("Igdir", 5), rep("Iste", 12),
+        rep("Logiya", 16), rep("Orada", 3), "Serhat", rep("Tuzluca", 6)
+    ),
+    start_date = c(
+        "2013-09-11","2014-03-21",
+        "2012-09-04",
+        "2013-08-22","2014-04-03","2014-09-05",
+        "2015-08-31",
+        "2015-09-20",
+        "2014-09-08","2015-05-28","2015-10-06",
+        "2014-09-19","2015-04-11","2015-09-20",
+        "2012-09-19","2013-03-16","2013-09-25","2014-03-03","2014-10-06",
+        "2014-09-19","2015-04-14","2015-09-17","2016-03-22","2016-09-25",
+        "2017-03-13","2017-09-24","2018-03-16","2018-09-16","2019-03-20",
+        "2019-09-20","2020-03-21",
+        "2014-05-19","2014-08-21","2015-04-17","2015-09-07","2016-04-16",
+        "2016-09-14","2017-04-06","2017-09-15","2018-03-22","2018-09-06",
+        "2019-03-11","2019-09-11","2020-03-24","2020-09-16","2021-03-22",
+        "2021-09-13",
+        "2015-08-28","2016-05-12","2016-09-15",
+        "2014-09-21",
+        "2013-08-23","2014-04-07","2014-09-06","2015-03-15","2015-09-08",
+        "2016-03-14"
+    ),
+    end_date = c(
+        "2013-09-28","2014-04-08",
+        "2012-09-24",
+        "2013-09-16","2014-04-30","2014-09-18",
+        "2015-09-16",
+        "2015-10-09",
+        "2014-09-22","2015-07-09","2015-10-29",
+        "2014-10-25","2015-05-13","2015-10-16",
+        "2012-10-12","2013-04-04","2013-10-14","2014-03-23","2014-11-04",
+        "2014-10-04","2015-04-30","2015-09-30","2016-04-10","2016-10-09",
+        "2017-03-31","2017-10-09","2018-04-02","2018-09-30","2019-04-06",
+        "2019-10-05","2020-04-07",
+        "2014-06-16","2014-09-10","2015-05-26","2015-09-24","2016-05-09",
+        "2016-09-28","2017-04-29","2017-09-28","2018-04-10","2018-09-21",
+        "2019-03-30","2019-09-26","2020-04-13","2020-09-27","2021-04-06",
+        "2021-09-25",
+        "2015-09-23","2016-06-04","2016-10-02",
+        "2014-10-08",
+        "2013-10-11","2014-04-30","2014-10-03","2015-04-05","2015-10-02",
+        "2016-04-10"
+    )
+)
+
+### Season of migration start
+bird_period <- bird_period %>% 
+    mutate(curve_id = 1:n(),
+           start_date = as.POSIXct(paste(start_date, "00:00:00"), tz = "UTC"),
+           end_date = as.POSIXct(paste(end_date, "23:59:59"), tz = "UTC"),
+           season = ifelse(as.integer(substr(start_date, 6, 7)) <= 6, 
+                           "Spring", "Fall"))
+bird_period
+
+
+### Preprocessed bird migration data
+bird <- df %>% 
+    left_join(bird_period, by = "id") %>% 
+    filter(time >= start_date & time <= end_date) %>% 
+    filter(!(id == "Iste" & day == "2020-04-01")) %>%    # remove outlying observation
+    mutate(id = curve_id,
+           time = as.numeric(time)) %>% 
     group_by(id) %>% 
-    filter(n() > 100) %>%   # remove individual which have very small observations
-    mutate(time = (time - min(time)) / (max(time) - min(time))) %>%     # normalize
-    ungroup()
+    mutate(time = (time - min(time)) / (max(time) - min(time))) %>% 
+    ungroup() %>% 
+    dplyr::select(id, time, lat, lon, season)
+bird
+# save(bird, file = "/Users/hyunsung/GoogleDrive/Lab/KHS/manifold_clust/real_data/bird_migrate.RData")
+
+
+### Migration trajectories
+world <- ne_countries(scale = "medium", returnclass = "sf")
+map_bg <- ggplot(data = world) +
+    geom_sf() +
+    coord_sf(xlim = range(bird$lon) + c(-5, 5),
+             ylim = range(bird$lat) + c(-5, 5),
+             expand = FALSE)
+map_bg +
+    geom_path(
+        data = bird,
+        aes(
+            x = lon,
+            y = lat,
+            group = id,
+            color = season
+        ),
+        size = 0.3
+    ) +
+    theme_bw()
 
 
     
 ### Make data to input format
-id <- unique(df$id)
+id <- unique(bird$id)
 Ly <- lapply(id, function(i) {
-    as.matrix( df[df$id == i, c("lon","lat")] )
+    as.matrix( bird[bird$id == i, c("lon","lat")] )
 })
 Lt <- lapply(id, function(i) {
-    as.numeric( unlist( df[df$id == i, "time"] ) )
+    as.numeric( unlist( bird[bird$id == i, "time"] ) )
 })
 
 
@@ -205,22 +257,6 @@ Ly <- lapply(1:n, function(i) {
 Lt <- rep(list(seq(0, 1, length.out = 151)), n)
 
 
-# ### 다시 체크해보기!!
-# y <- Ly[[3]]
-# y2 <- geo_axis2sph_axis(y, radius = 1)
-# sph_axis2geo_axis( t(y2) ) %>% head
-# y %>% head
-# all.equal(sph_axis2geo_axis( t(y2) ), y)
-# 
-# well_transform <- c()
-# for (i in 1:n) {
-#     y <- Ly[[i]]
-#     y2 <- geo_axis2sph_axis(y, radius = 1)
-#     well_transform[i] <- all.equal(sph_axis2geo_axis( t(y2) ), y)
-# }
-# sum(well_transform)
-
-
 ### Transform longitude and latitude into 3D axes
 Ly <- lapply(Ly, function(y) {
     geo_axis2sph_axis(y, radius = 1)
@@ -240,7 +276,7 @@ apply(Ly[[1]], 2, function(x){ sum(x^2) })   # check that it is the unit sphere
 
 
 ### Check smoothed trajectories
-id <- as.numeric(unique(df$id))
+id <- as.numeric(unique(bird$id))
 for (i in 1:n) {
     y <- sph_axis2geo_axis( t(Ly[[i]]) )
     
@@ -254,7 +290,7 @@ for (i in 1:n) {
 df2 <- as_tibble(df2)
 colnames(df2) <- c("id","lon","lat")
 df2 <- df2 %>% 
-    left_join((df %>% 
+    left_join((bird %>% 
                    dplyr::select(id, season) %>% 
                    mutate(id = as.numeric(id)) %>% 
                    distinct()),
@@ -264,12 +300,12 @@ df2 <- df2 %>%
 world <- ne_countries(scale = "medium", returnclass = "sf")
 map_bg <- ggplot(data = world) +
     geom_sf() +
-    coord_sf(xlim = range(df$lon) + c(-10, 10),
-             ylim = range(df$lat) + c(-10, 10),
+    coord_sf(xlim = range(df$lon) + c(-5, 5),
+             ylim = range(df$lat) + c(-5, 5),
              expand = FALSE)
 p1 <- map_bg +
     geom_path(
-        data = df,
+        data = bird,
         aes(
             x = lon,
             y = lat,
@@ -280,8 +316,7 @@ p1 <- map_bg +
     ) +
     labs(x = "Longitude", y = "Latitude", title = "Raw trajectories") +
     theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5),
-          legend.position = "none")
+    theme(plot.title = element_text(hjust = 0.5))
 
 ### Smoothed trajectories
 p2 <- map_bg + 
