@@ -1,0 +1,101 @@
+---
+title: "k-Centres Riemannian Functional Clustering"
+# author: "Hyunsung Kim"
+date: '2022-03-18'
+output: 
+  pdf_document:
+    toc: false
+    includes:
+      in_header: ./preamble.tex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  # fig.width = 12, fig.height = 6,
+  # out.width = "80%",
+  fig.align = "center"
+)
+# Set working directory
+knitr::opts_knit$set(root.dir = "../")
+```
+
+
+# 1. Medfly behavior data
+
+- `flying`, `feeding`, `walking`, `resting` 변수들로 이루어진 compositional data
+- 62 trajectories
+- Raw 데이터가 각 row-wise sum이 1이 되는 형태를, square root를 적용하여 $S^3$ data로 변환
+- 각 cuve별 관측 끝나는 지점이 달라서, 적당히 day <= 37 로 잘라서 사용
+- 아래 그림은 랜덤하게 고른 2개의 curve에 대해 RFPCA와 MFPCA로 reconstruction한 결과
+  - 누적 FVE의 경우에도 $K=1,\dots, 5$에 대해 
+    - RFPCA : 0.442, 0.602, 0.680, 0.752, 0.799
+    - MFPCA : 0.427, 0.583, 0.663, 0.735, 0.781
+    
+    로 Dai(2018) 논문에서와 비슷한 양상을 보임
+- Kernel smoothing으로 pre-smoothing을 해줌
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0318/medfly_comp.pdf")
+```
+
+\newpage
+
+## 클러스터링 결과
+
+- 2개 cluster 가정
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0318/medfly_clust.pdf")
+```
+
+
+### 서로 다르게 clustering된 curve
+- 2개 curve가 kCFC(R)과 kCFC(M)에서 다르게 클러스터링 됨
+- 아래 그림은 이에 해당되는 curve로서, kCFC(R)로 구분된 경우를 그림
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0318/medfly_clust_diff.pdf")
+```
+
+
+
+
+\newpage
+# 2. Bird migration data
+
+- 2012 ~ 2022년 사이의 Egyptian vultures in the Middle East and East Africa 연구의 데이터
+- manual하게 migration 시작과 종료 시점 지정
+- 장거리 이동을 하지 않은 경우는 제외하여 총 56 trajectories를 사용
+- Kernel smoothing으로 pre-smoothing을 해줌
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0318/bird_smooth.pdf")
+```
+
+\newpage
+
+## 클러스터링 결과
+
+- Season에 대한 clustering 결과
+
+```{r}
+knitr::include_graphics("/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0318/bird_clust.pdf")
+```
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrrrrr}
+  \hline
+ & kCFC (R) & k-means (R) & kCFC (M) & k-means (M) & funclust & funHDDC & gmfd \\ 
+  \hline
+CCR & 1.00 & 1.00 & 1.00 & 1.00 & 0.66 & 1.00 & 1.00 \\ 
+  aRand & 1.00 & 1.00 & 1.00 & 1.00 & 0.09 & 1.00 & 1.00 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+

@@ -177,6 +177,8 @@
   - 데이터
     - Chiou and Muller (2014), Linear manifold modelling of multivariate functional data
   - compositional data를 square root 취해서 sphere-valued data로 바꿔서 함
+  - 62개 trajectories
+  - 각 cuve별 관측 끝나는 지점이 달라서, 적당히 day <= 37 로 잘라서 사용
   - FFPCA, MFPCA가 거의 비슷
 - Bird migration 데이터
     - Movebank
@@ -185,7 +187,10 @@
       - https://doi.org/10.1007/s10531-018-1538-6
     - 봄, 가을로 구분되는 것 같은데, 정확한 기준을 찾아보자
     - 이동할 때 연도 바뀌는 경우가 있을 수도 있음
+      - GPS 데이터이다 보니, 매달 관측됨 (위치가 크게 달라지지 않더라도 센서를 통해 관측됨)
       - 예를 들어, 11월부터 이동 시작해서 2월까지 이동하는 경우
+      - 그냥, 매뉴얼하게 하는게 빠를듯...ㅠㅠ
+        - 매뉴얼하게 하니까 56개 trajectories
 - DTI(Diffusion Tensor Imaging) data
 
     - refund 패키지에 DTI라는 데이터가 있긴 함

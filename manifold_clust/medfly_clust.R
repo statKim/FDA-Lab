@@ -1,4 +1,10 @@
+#####################################################################
+### Medfly data in Chiou and Muller (2014)
+### - Refer paper : Chiou and Muller (2014), 
+###                 Linear manifold modelling of multivariate functional data
+#####################################################################
 
+### Load data
 data <- read.table("/Users/hyunsung/GoogleDrive/Lab/KHS/manifold_clust/real_data/fly_log_130521.txt", header = T)
 head(data)
 
@@ -123,31 +129,42 @@ plot(mfpca.obj$xi[, 1:2], main = "MFPCA")
 
 
 ### Estimated trajectories
-par(mfrow = c(1, 2))
-i <- 3
-matplot(t(Ly[[i]]), type = "l", lty = 1, lwd = 2, main = "RFPCA")
-pred <- predict(object = rfpca.obj,
-                newLt = Lt[i],
-                newLy = Ly[i],
-                K = 10,
-                xiMethod = "IN",
-                type = "traj")[1, , ]
-matlines(t(pred), lty = 2, lwd = 2)
-
-matplot(t(Ly[[i]]), type = "l", lty = 1, lwd = 2, main = "MFPCA")
-pred <- predict(object = mfpca.obj,
-                newLt = Lt[i],
-                newLy = Ly[i],
-                K = 10,
-                xiMethod = "IN",
-                type = "traj")[1, , ]
-matlines(t(pred), lty = 2, lwd = 2)
+par(mfrow = c(2, 2))
+for (i in c(12, 3)) {
+    # RFPCA
+    matplot(t(Ly[[i]]), type = "l", lty = 1, lwd = 2, 
+            main = paste0("RFPCA - ", i, "th medfly"), xlab = "t")
+    pred <- predict(object = rfpca.obj,
+                    newLt = Lt[i],
+                    newLy = Ly[i],
+                    K = 10,
+                    xiMethod = "IN",
+                    type = "traj")[1, , ]
+    matlines(t(pred), lty = 2, lwd = 2)
+    grid()
+    if (i == 12) {
+        legend("right", 
+               c("flying","feeding","walking","resting"), 
+               lty = 1, col = 1:4)
+    }
+    
+    # MFPCA
+    matplot(t(Ly[[i]]), type = "l", lty = 1, lwd = 2, 
+            main = paste0("MFPCA - ", i, "th medfly"), xlab = "t")
+    pred <- predict(object = mfpca.obj,
+                    newLt = Lt[i],
+                    newLy = Ly[i],
+                    K = 10,
+                    xiMethod = "IN",
+                    type = "traj")[1, , ]
+    matlines(t(pred), lty = 2, lwd = 2)
+    grid()
+}
 
 
 
 ######################################################
-### Clustering for Airlines
-### - AAR, GTI, KAL
+### Clustering
 ######################################################
 
 # devtools::install_github('CrossD/RFPCA')
@@ -275,9 +292,61 @@ table(clust.kCFC.Riemann, clust.funclust)
 table(clust.kCFC.Riemann, clust.funHDDC)
 
 
+
+
+### Plot for each variable
+par(mfrow = c(2, 4))
+y_name <- c("flying","feeding","walking","resting")
+# RFPCA
+for (j in 1:4) {
+    plot("n",
+         xlab = "Days", ylab = y_name[j], main = paste0("kCFC(R) - ", y_name[j]),
+         xlim = c(0, 37), ylim = c(0, 1))
+    for (i in 1:n) {
+        # l_col <- ifelse(clust.kCFC.Riemann[i] == 1, "gray", "black")
+        # lines(Lt[[i]], Ly[[i]][j, ], col = l_col)
+        lines(Lt[[i]], Ly[[i]][j, ], col = clust.kCFC.Riemann[i])
+    }
+}
+# MFPCA
+for (j in 1:4) {
+    plot("n",
+         xlab = "Days", ylab = y_name[j], main = paste0("kCFC(M) - ", y_name[j]),
+         xlim = c(0, 37), ylim = c(0, 1))
+    # match cluster
+    if (length( mclust::classError(clust.kCFC.Riemann, clust.kCFC.L2)$misclassified ) < n/3) {
+        clust <- clust.kCFC.L2
+    } else {
+        clust <- ifelse(clust.kCFC.L2 == 1, 2, 1)
+    }
+    for (i in 1:n) {
+        lines(Lt[[i]], Ly[[i]][j, ], col = clust[i])
+    }
+}
+
+### Curves of different cluster result
+par(mfrow = c(1, 4))
+y_name <- c("flying","feeding","walking","resting")
+# match cluster
+if (length( mclust::classError(clust.kCFC.Riemann, clust.kCFC.L2)$misclassified ) < n/3) {
+    clust <- clust.kCFC.L2
+} else {
+    clust <- ifelse(clust.kCFC.L2 == 1, 2, 1)
+}
+ind <- which(clust.kCFC.Riemann != clust)   # different cluster result
+for (j in 1:4) {
+    plot("n",
+         xlab = "Days", ylab = y_name[j], main = paste0("kCFC(R) - ", y_name[j]),
+         xlim = c(0, 37), ylim = c(0, 1))
+    for (i in ind) {
+        lines(Lt[[i]], Ly[[i]][j, ], col = clust.kCFC.Riemann[i])
+    }
+}
+
+
 ### Scatter plot
 par(mfrow = c(2, 2))
 plot(rfpca.obj$xi[, 1:2], main = "kCFC(R)", col = clust.kCFC.Riemann)
 plot(rfpca.obj$xi[, 1:2], main = "kmeans(R)", col = clust.kmeans.Riemann)
 plot(mfpca.obj$xi[, 1:2], main = "kCFC(M)", col = clust.kCFC.L2)
-plot(mfpca.obj$xi[, 1:2], main = "kmenas(M)", col = clust.kmeans.L2)
+plot(mfpca.obj$xi[, 1:2], main = "kmeans(M)", col = clust.kmeans.L2)
