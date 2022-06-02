@@ -424,12 +424,42 @@ while (num.sim < num_sim) {
     
     # Eigne angle
     mse_eigen2[num.sim + 1, ] <- c(
-      subspace(pca.yao.obj$eig.fun, eig.true),
-      subspace(pca.kraus.obj$eig.fun, eig.true),
-      subspace(pca.Mkraus.obj$eig.fun, eig.true),
-      subspace(pca.boente.obj$eig.fun, eig.true),
-      subspace(pca.ogk.obj$eig.fun, eig.true),
-      subspace(pca.ogk.sm.obj$eig.fun, eig.true)
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.yao.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.kraus.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.Mkraus.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.boente.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.ogk.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.ogk.sm.obj$eig.fun[, i], eig.true[, i])
+        })
+      )
+      # subspace(pca.yao.obj$eig.fun, eig.true),
+      # subspace(pca.kraus.obj$eig.fun, eig.true),
+      # subspace(pca.Mkraus.obj$eig.fun, eig.true),
+      # subspace(pca.boente.obj$eig.fun, eig.true),
+      # subspace(pca.ogk.obj$eig.fun, eig.true),
+      # subspace(pca.ogk.sm.obj$eig.fun, eig.true)
     )
     
   }

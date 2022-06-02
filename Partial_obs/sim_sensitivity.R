@@ -288,9 +288,24 @@ while (num.sim < num_sim) {
     
     # Eigne angle
     mse_eigen2[num.sim + 1, ] <- c(
-      subspace(pca.huber.obj$eig.fun, eig.true),
-      subspace(pca.bisquare.obj$eig.fun, eig.true),
-      subspace(pca.tdist.obj$eig.fun, eig.true)
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.huber.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.bisquare.obj$eig.fun[, i], eig.true[, i])
+        })
+      ),
+      mean(
+        sapply(1:K, function(i){
+          subspace(pca.tdist.obj$eig.fun[, i], eig.true[, i])
+        })
+      )
+      # subspace(pca.huber.obj$eig.fun, eig.true),
+      # subspace(pca.bisquare.obj$eig.fun, eig.true),
+      # subspace(pca.tdist.obj$eig.fun, eig.true)
     )
     
   }
