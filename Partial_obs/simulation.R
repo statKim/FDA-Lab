@@ -32,16 +32,23 @@ source("sim_utills/Boente_cov.R")
 ### Simulation Model setting
 ### - Model 1 : "Delaigle"
 ### - Model 2 : "Kraus"
+### - Model 3 : "Corr"
 #####################################
 
 ### Model 1
 setting <- "Delaigle"
 K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
-bw_cand <- seq(0.01, 0.3, length.out = 10)
+bw_cand <- seq(0.3, 0.4, length.out = 10)
 
-### Model 2
-setting <- "Kraus"
+# ### Model 2
+# setting <- "Kraus"
+# K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
+# pve <- 0.95   # Not used if K is given
+# bw_cand <- seq(0.01, 0.1, length.out = 10)
+
+### Model 3
+setting <- "Corr"
 K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
 bw_cand <- seq(0.01, 0.1, length.out = 10)
@@ -85,7 +92,6 @@ if (dist_type == "tdist") {
            "-prop", out_prop*10, ".RData")
   )
 }
-
 
 
 #####################################
@@ -145,6 +151,14 @@ while (num.sim < num_sim) {
                         out.prop = out_prop, 
                         out.type = out_type, 
                         dist = dist_type) 
+  } else if (setting == 'Corr') {
+    # n <- 403
+    x.2 <- sim_corr(n = n,
+                    type = data_type,
+                    out.prop = out_prop,
+                    out.type = out_type,
+                    dist = dist_type,
+                    dist.mat = dist.mat[1:n, 1:n])
   }
   
   x <- list2matrix(x.2)
@@ -187,6 +201,22 @@ while (num.sim < num_sim) {
   start_time <- Sys.time()
   registerDoRNG(seed)
   tryCatch({
+    # x0 <- expand.grid(work.grid, work.grid)
+    # y0 <- as.numeric(cov.ogk)
+    # 
+    # system.time({
+    #   bw_LL <- np::npregbw(xdat = x0,
+    #                        ydat = y0,
+    #                        regtype = "ll")
+    #   fit_LL <- np::npreg(bws = bw_LL,
+    #                       exdat = x0)
+    # })
+    # 
+    # cov.ogk.sm <- matrix(fit_LL$mean,
+    #                      nrow = n.grid,
+    #                      ncol = n.grid)
+    # cov.ogk.sm <- (cov.ogk.sm + t(cov.ogk.sm)) / 2
+    
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
                                 bw_cand = bw_cand,
@@ -375,8 +405,8 @@ while (num.sim < num_sim) {
                         PVE = pve_kraus,
                         mu = mu.kraus,
                         cov = cov.kraus,
-                        lambda = eig.kraus$lambda,
-                        eig.fun = eig.kraus$phi)
+                        lambda = eig.kraus$lambda[1:K_kraus],
+                        eig.fun = eig.kraus$phi[, 1:K_kraus])
   # Robust Kraus
   eig.Mkraus <- get_eigen(cov.Mest, work.grid)
   if (!is_null(K)) {
@@ -386,12 +416,12 @@ while (num.sim < num_sim) {
     K_Mkraus <- which(eig.Mkraus$PVE > pve)[1]
     pve_Mkraus <- eig.Mkraus$PVE[K_Mkraus]
   }
-  pca.kraus.obj <- list(K = K_Mkraus,
-                        PVE = pve_Mkraus,
-                        mu = mu.Mest,
-                        cov = cov.Mest,
-                        lambda = eig.Mkraus$lambda,
-                        eig.fun = eig.Mkraus$phi)
+  pca.Mkraus.obj <- list(K = K_Mkraus,
+                         PVE = pve_Mkraus,
+                         mu = mu.Mest,
+                         cov = cov.Mest,
+                         lambda = eig.Mkraus$lambda[1:K_Mkraus],
+                         eig.fun = eig.Mkraus$phi[, 1:K_Mkraus])
   # OGK
   pca.ogk.obj <- funPCA(x.2$Lt, x.2$Ly, 
                         mu.ogk, cov.ogk, sig2 = 0,
@@ -409,6 +439,8 @@ while (num.sim < num_sim) {
       eig.true <- get_delaigle_eigen(work.grid, model = 2) 
     } else if (setting == 'Kraus') {
       eig.true <- get_kraus_eigen(work.grid) 
+    } else if (setting == 'Corr') {
+      eig.true <- get_corr_eigen(work.grid)
     }
     
     # Eigen MISE
@@ -576,8 +608,8 @@ while (num.sim < num_sim) {
     file_name <- paste0("RData/", setting, "-", dist_type, 
                         "-prop", out_prop*10, ".RData")
   }
-  save(pca.est, mse_eigen, mse_eigen2, 
-       mse_reconstr, mse_completion, 
+  save(pca.est, mse_eigen, mse_eigen2,
+       mse_reconstr, mse_completion,
        K_res, pve_res, time_d,
        file = file_name)
 }
@@ -592,6 +624,10 @@ while (num.sim < num_sim) {
 # load("RData/Kraus-tdist.RData")
 # load("RData/Kraus-normal-prop1.RData")
 # load("RData/Kraus-normal-prop2.RData")
+# load("RData/Corr-normal-prop0.RData")
+# load("RData/Corr-tdist.RData")
+# load("RData/Corr-normal-prop1.RData")
+# load("RData/Corr-normal-prop2.RData")
 
 
 ### Summary results
@@ -648,7 +684,7 @@ res <- data.frame(Method = c("Yao","Kraus","R-Kraus","Boente",
       ")"
     )
   ), by = "Method")
-res
+print(res)
 
 # Make results to LaTeX code
 library(xtable)

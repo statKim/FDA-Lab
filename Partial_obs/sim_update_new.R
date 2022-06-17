@@ -1,6 +1,8 @@
-###################################################
-### Sensitivity analysis for Simulations
-###################################################
+##############################################################
+### Update simulation RData of the modified proposed method
+### - It perform the only proposed method which is modified.
+##############################################################
+
 ### Download required packages
 # devtools::install_github("statKim/robfpca")
 # devtools::install_github("statKim/mcfda.rob")
@@ -26,11 +28,13 @@ source("sim_utills/robust_Kraus.R")
 library(sparseFPCA)   # Boente (2021) 
 source("sim_utills/Boente_cov.R")
 
+# source("test.R")
 
 #####################################
 ### Simulation Model setting
 ### - Model 1 : "Delaigle"
 ### - Model 2 : "Kraus"
+### - Model 3 : "Corr"
 #####################################
 
 ### Model 1
@@ -45,6 +49,12 @@ K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
 bw_cand <- seq(0.01, 0.1, length.out = 10)
 
+# ### Model 3
+# setting <- "Corr"
+# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+# pve <- 0.95   # Not used if K is given
+# bw_cand <- seq(0.01, 0.1, length.out = 10)
+
 
 
 #####################################
@@ -55,35 +65,46 @@ bw_cand <- seq(0.01, 0.1, length.out = 10)
 ### - Case 4 : 20% contamination
 #####################################
 
-MM <- TRUE   # method of moments
-
-# ### Case 1
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0   # proportion of outliers
+### Case 1
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0   # proportion of outliers
 
 ### Case 2
 dist_type <- "tdist"
 out_prop <- 0   # proportion of outliers
 
-# ### Case 3
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.1   # proportion of outliers
+### Case 3
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.1   # proportion of outliers
 
-# ### Case 4
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.2   # proportion of outliers
+### Case 4
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.2   # proportion of outliers
+
+if (dist_type == "tdist") {
+  print(
+    paste0("RData/", setting, "-", dist_type, ".RData")
+  )
+} else {
+  print(
+    paste0("RData/", setting, "-", dist_type, 
+           "-prop", out_prop*10, ".RData")
+  )
+}
 
 
 if (dist_type == "tdist") {
-  file_name <- paste0("RData/", setting, "-sens-", dist_type, ".RData")
+  file_name <- paste0("RData/", setting, "-", dist_type, ".RData")
 } else {
-  file_name <- paste0("RData/", setting, "-sens-", dist_type, 
+  file_name <- paste0("RData/", setting, "-", dist_type, 
                       "-prop", out_prop*10, ".RData")
 }
 file_name
+load(file_name)
+
 
 
 #####################################
@@ -98,29 +119,22 @@ n_cores <- 12   # number of threads for parallel computing
 #####################################
 ### Simulation
 #####################################
-mse_eigen <- matrix(NA, num_sim, 3)
-mse_eigen2 <- matrix(NA, num_sim, 3)
-mse_reconstr <- matrix(NA, num_sim, 3)
-mse_completion <- matrix(NA, num_sim, 3)
-pve_res <- matrix(NA, num_sim, 3)
-K_res <- matrix(NA, num_sim, 3)
-time_d <- matrix(NA, num_sim, 3) 
-
-colnames(mse_eigen) <- c("Huber","Bisquare","t(3)-MLE")
-colnames(mse_eigen2) <- colnames(mse_eigen)
-colnames(mse_reconstr) <- colnames(mse_eigen)
-colnames(mse_completion) <- colnames(mse_eigen)
-colnames(pve_res) <- colnames(mse_eigen)
-colnames(time_d) <- colnames(mse_eigen)
+mse_eigen <- mse_eigen[, 1:6]
+mse_eigen2 <- mse_eigen2[, 1:6]
+mse_reconstr <- mse_reconstr[, 1:6]
+mse_completion <- mse_completion[, 1:6]
+pve_res <- pve_res[, 1:6]
+K_res <- K_res[, 1:6]
+time_d <- time_d[, 1:6]
 
 
 ### Simulation
-pca.est <- list()   # pca objects
 num.sim <- 0   # number of simulations
 seed <- 0   # current seed
 sim.seed <- rep(NA, num_sim)   # collection of seed with no error occurs
-while (num.sim < num_sim) {
-  seed <- seed + 1
+seed_cand <- sapply(pca.est, function(x){ x$seed })
+for (num.sim in 0:99) {
+  seed <- seed_cand[num.sim + 1]
   set.seed(seed)
   print(paste0("Seed: ", seed))
   
@@ -142,6 +156,14 @@ while (num.sim < num_sim) {
                         out.prop = out_prop, 
                         out.type = out_type, 
                         dist = dist_type) 
+  } else if (setting == 'Corr') {
+    # n <- 403
+    x.2 <- sim_corr(n = n, 
+                    type = data_type,  
+                    out.prop = out_prop, 
+                    out.type = out_type, 
+                    dist = dist_type,
+                    dist.mat = dist.mat[1:n, 1:n])
   }
   
   x <- list2matrix(x.2)
@@ -154,26 +176,25 @@ while (num.sim < num_sim) {
   skip_sim <- FALSE   # if skip_sim == TRUE, pass this seed
   work.grid <- seq(0, 1, length.out = n.grid)
   
-  
-  ### Huber
+  ### OGK-sm
   start_time <- Sys.time()
   registerDoRNG(seed)
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
-                                MM = MM,
                                 bw_cand = bw_cand,
+                                MM = TRUE,
                                 type = 'huber')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "huber",
-                       MM = MM,
+                       MM = TRUE,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
-    mu.huber <- cov.obj$mean
-    cov.huber <- cov.obj$cov
+    mu.ogk.sm <- cov.obj$mean
+    cov.ogk.sm <- cov.obj$cov
   }, error = function(e) { 
-    print("Huber cov error")
+    print("OGK-sm cov error")
     print(e)
     skip_sim <<- TRUE
   })
@@ -181,137 +202,50 @@ while (num.sim < num_sim) {
     next
   }
   end_time <- Sys.time()
-  time_d[num.sim + 1, 1] <- round(difftime(end_time, 
+  time_d[num.sim + 1, 6] <- round(difftime(end_time, 
                                            start_time, 
                                            units = "secs"), 3)
-  print(paste0("Huber : ", 
-               time_d[num.sim + 1, 1],
+  print(paste0("OGK-sm : ", 
+               time_d[num.sim + 1, 6],
                " secs"))
   
-  
-  ### Bisquare
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    cov.sm.obj.cv <- cv.cov_ogk(x,  
-                                K = 5, 
-                                MM = MM,
-                                bw_cand = bw_cand,
-                                type = 'bisquare')
-    print(cov.sm.obj.cv$selected_bw)
-    cov.obj <- cov_ogk(x,   
-                       type = "bisquare",
-                       MM = MM,
-                       smooth = T, 
-                       bw = cov.sm.obj.cv$selected_bw)
-    mu.bisquare <- cov.obj$mean
-    cov.bisquare <- cov.obj$cov
-  }, error = function(e) { 
-    print("Bisquare cov error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  time_d[num.sim + 1, 2] <- round(difftime(end_time, 
-                                           start_time, 
-                                           units = "secs"), 3)
-  print(paste0("Bisquare : ", 
-               time_d[num.sim + 1, 2],
-               " secs"))
-  
-  
-  ### t(3) MLE
-  start_time <- Sys.time()
-  registerDoRNG(seed)
-  tryCatch({
-    cov.sm.obj.cv <- cv.cov_ogk(x,  
-                                K = 5, 
-                                MM = MM,
-                                bw_cand = bw_cand,
-                                type = 'tdist')
-    print(cov.sm.obj.cv$selected_bw)
-    cov.obj <- cov_ogk(x,   
-                       type = "tdist",
-                       MM = MM,
-                       smooth = T, 
-                       bw = cov.sm.obj.cv$selected_bw)
-    mu.tdist <- cov.obj$mean
-    cov.tdist <- cov.obj$cov
-  }, error = function(e) { 
-    print("t(3) MLE cov error")
-    print(e)
-    skip_sim <<- TRUE
-  })
-  if (skip_sim == TRUE) {
-    next
-  }
-  end_time <- Sys.time()
-  time_d[num.sim + 1, 3] <- round(difftime(end_time, 
-                                           start_time, 
-                                           units = "secs"), 3)
-  print(paste0("t(3) MLE : ", 
-               time_d[num.sim + 1, 3],
-               " secs"))
-  
-  
-  
-  
-  ### Principal component analysis
-  pca.huber.obj <- funPCA(x.2$Lt, x.2$Ly, 
-                          mu.huber, cov.huber, 
-                          sig2 = 0,
-                          work.grid, PVE = pve, K = K)
-  pca.bisquare.obj <- funPCA(x.2$Lt, x.2$Ly,
-                             mu.bisquare, cov.bisquare, 
-                             sig2 = 0,
-                             work.grid, PVE = pve, K = K)
-  pca.tdist.obj <- funPCA(x.2$Lt, x.2$Ly, 
-                          mu.tdist, cov.tdist, 
-                          sig2 = 0,
-                          work.grid, PVE = pve, K = K)
+  # OGK
+  pca.ogk.sm.obj <- funPCA(x.2$Lt, x.2$Ly,
+                           mu.ogk.sm, cov.ogk.sm, sig2 = 0,
+                           work.grid, PVE = pve, K = K)
   
   
   ### Eigen function - Compute for fixed K
   if (is.null(K)) {
-    mse_eigen[num.sim + 1, ] <- rep(NA, 3)
+    mse_eigen[num.sim + 1, ] <- rep(NA, 6)
   } else {
     if (setting == 'Delaigle') {
       eig.true <- get_delaigle_eigen(work.grid, model = 2) 
     } else if (setting == 'Kraus') {
       eig.true <- get_kraus_eigen(work.grid) 
+    } else if (setting == 'Corr') {
+      eig.true <- get_corr_eigen(work.grid)
     }
     
     # Eigen MISE
-    mse_eigen[num.sim + 1, ] <- c(
-      mean((check_eigen_sign(pca.huber.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.bisquare.obj$eig.fun, eig.true) - eig.true)^2),
-      mean((check_eigen_sign(pca.tdist.obj$eig.fun, eig.true) - eig.true)^2)
+    mse_eigen[num.sim + 1, 6] <- c(
+      mean((check_eigen_sign(pca.ogk.sm.obj$eig.fun, eig.true) - eig.true)^2)
     )
     
     
     # Eigne angle
-    mse_eigen2[num.sim + 1, ] <- c(
+    mse_eigen2[num.sim + 1, 6] <- c(
       mean(
         sapply(1:K, function(i){
-          subspace(pca.huber.obj$eig.fun[, i], eig.true[, i])
-        })
-      ),
-      mean(
-        sapply(1:K, function(i){
-          subspace(pca.bisquare.obj$eig.fun[, i], eig.true[, i])
-        })
-      ),
-      mean(
-        sapply(1:K, function(i){
-          subspace(pca.tdist.obj$eig.fun[, i], eig.true[, i])
+          subspace(pca.ogk.sm.obj$eig.fun[, i], eig.true[, i])
         })
       )
-      # subspace(pca.huber.obj$eig.fun, eig.true),
-      # subspace(pca.bisquare.obj$eig.fun, eig.true),
-      # subspace(pca.tdist.obj$eig.fun, eig.true)
+      # subspace(pca.yao.obj$eig.fun, eig.true),
+      # subspace(pca.kraus.obj$eig.fun, eig.true),
+      # subspace(pca.Mkraus.obj$eig.fun, eig.true),
+      # subspace(pca.boente.obj$eig.fun, eig.true),
+      # subspace(pca.ogk.obj$eig.fun, eig.true),
+      # subspace(pca.ogk.sm.obj$eig.fun, eig.true)
     )
     
   }
@@ -320,9 +254,12 @@ while (num.sim < num_sim) {
   ### Curve reconstruction via PCA
   # reconstructed curves
   pred_reconstr <- list(
-    predict(pca.huber.obj, K = K),
-    predict(pca.bisquare.obj, K = K),
-    predict(pca.tdist.obj, K = K)
+    NA,
+    NA,   # Kraus does not do reconstruction
+    NA,   # R-Kraus does not do reconstruction
+    NA,
+    NA,
+    predict(pca.ogk.sm.obj, K = K)
   )
   
   # MISE of reconstruction
@@ -342,16 +279,15 @@ while (num.sim < num_sim) {
   )
   
   # sse_reconstr <- matrix(NA, length(cand), 6)
-  sse_completion <- matrix(NA, length(cand), 3)
+  sse_completion <- matrix(NA, length(cand), 6)
   
   for (i in 1:length(cand)) {
     ind <- cand[i]
     
     # prediction for missing parts
     pred_comp <- list(
-      pred_reconstr[[1]][ind, ],
-      pred_reconstr[[2]][ind, ],
-      pred_reconstr[[3]][ind, ]
+      0,0,0,0,0,
+      pred_reconstr[[6]][ind, ]
     )
     
     
@@ -371,25 +307,20 @@ while (num.sim < num_sim) {
     })
   }
   
-  
   # Update number of simulations and save seed which does not occur errors
   num.sim <- num.sim + 1
   sim.seed[num.sim] <- seed
   print(paste0("Total # of simulations: ", num.sim))
   
-  mse_reconstr[num.sim, ] <- sse_reconstr
-  mse_completion[num.sim, ] <- colMeans(sse_completion)
+  mse_reconstr[num.sim, 6] <- sse_reconstr[6]
+  mse_completion[num.sim, 6] <- colMeans(sse_completion)[6]
   
-  pve_res[num.sim, ] <- c(
-    pca.huber.obj$PVE,
-    pca.bisquare.obj$PVE,
-    pca.tdist.obj$PVE
+  pve_res[num.sim, 6] <- c(
+    pca.ogk.sm.obj$PVE
   )
   
-  K_res[num.sim, ] <- c(
-    pca.huber.obj$K,
-    pca.bisquare.obj$K,
-    pca.tdist.obj$K
+  K_res[num.sim, 6] <- c(
+    pca.ogk.sm.obj$K
   )
   
   # print(colMeans(mse_eigen, na.rm = T))
@@ -397,22 +328,29 @@ while (num.sim < num_sim) {
   print(colMeans(mse_completion, na.rm = T))
   
   
-  ### Save the objects
-  pca.est[[num.sim]] <- list(seed = seed,
-                             x.2 = x.2,
-                             work.grid = work.grid,
-                             pca.obj = list(pca.huber.obj = pca.huber.obj,
-                                            pca.bisquare.obj = pca.bisquare.obj,
-                                            pca.tdist.obj = pca.tdist.obj))
+  # 이건 이번만 사용하기 지울것
+  pca.est[[num.sim]]$pca.obj$pca.ogk.sm.MM.obj <- NULL
+  
+  pca.est[[num.sim]]$pca.obj$pca.ogk.sm.obj <- pca.ogk.sm.obj
 }
-save(pca.est, mse_eigen, mse_eigen2,
-     mse_reconstr, mse_completion,
-     K_res, pve_res, time_d,
-     file = file_name)
 
 
-# load("RData/Delaigle-sens-tdist.RData")
-# load("RData/Kraus-sens-tdist.RData")
+# ### Re-save result
+# save(pca.est, mse_eigen, mse_eigen2,
+#      mse_reconstr, mse_completion,
+#      K_res, pve_res, time_d,
+#      file = file_name)
+
+
+# load("RData/Delaigle-normal-prop0.RData")
+# load("RData/Delaigle-tdist.RData")
+# load("RData/Delaigle-normal-prop1.RData")
+# load("RData/Delaigle-normal-prop2.RData")
+# load("RData/Kraus-normal-prop0.RData")
+# load("RData/Kraus-tdist.RData")
+# load("RData/Kraus-normal-prop1.RData")
+# load("RData/Kraus-normal-prop2.RData")
+
 
 ### Summary results
 if (is.null(K)) {
@@ -421,7 +359,8 @@ if (is.null(K)) {
   PVE_K <- pve_res
 }
 
-res <- data.frame(Method = c("Huber","Bisquare","t(3)-MLE")) %>% 
+res <- data.frame(Method = c("Yao","Kraus","R-Kraus","Boente",
+                             "OGK(non-smooth)","OGK(smooth)")) %>% 
   # PVE
   left_join(data.frame(
     Method = colnames(PVE_K),
@@ -467,10 +406,7 @@ res <- data.frame(Method = c("Huber","Bisquare","t(3)-MLE")) %>%
       ")"
     )
   ), by = "Method")
-print(res)
 
-# Make results to LaTeX code
-library(xtable)
-xtable(res[, -(1:2)])
+print(res)
 
 
