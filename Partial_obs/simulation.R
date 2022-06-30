@@ -35,17 +35,17 @@ source("sim_utills/Boente_cov.R")
 ### - Model 3 : "Corr"
 #####################################
 
-# ### Model 1
-# setting <- "Delaigle"
-# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
-# pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.3, 0.4, length.out = 10)
+### Model 1
+setting <- "Delaigle"
+K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+pve <- 0.95   # Not used if K is given
+bw_cand <- seq(0.3, 0.4, length.out = 10)
 
-# ### Model 2
-# setting <- "Kraus"
-# K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
-# pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.01, 0.1, length.out = 10)
+### Model 2
+setting <- "Kraus"
+K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
+pve <- 0.95   # Not used if K is given
+bw_cand <- seq(0.01, 0.1, length.out = 10)
 
 ### Model 3
 setting <- "Corr"
@@ -71,15 +71,15 @@ out_prop <- 0   # proportion of outliers
 dist_type <- "tdist"
 out_prop <- 0   # proportion of outliers
 
-# ### Case 3
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.1   # proportion of outliers
-# 
-# ### Case 4
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.2   # proportion of outliers
+### Case 3
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.1   # proportion of outliers
+
+### Case 4
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.2   # proportion of outliers
 
 if (dist_type == "tdist") {
   print(
@@ -122,9 +122,6 @@ colnames(pve_res) <- colnames(mse_eigen)
 colnames(time_d) <- colnames(mse_eigen)
 
 
-source("distmat_from_PM10.R")
-
-
 ### Simulation
 pca.est <- list()   # pca objects
 num.sim <- 0   # number of simulations
@@ -161,7 +158,7 @@ while (num.sim < num_sim) {
                     out.prop = out_prop,
                     out.type = out_type,
                     dist = dist_type,
-                    dist.mat = dist.mat[loc_ind, loc_ind]/100,
+                    dist.mat = dist.mat[loc_ind, loc_ind],
                     r.par = r.par)
   }
   
@@ -205,22 +202,6 @@ while (num.sim < num_sim) {
   start_time <- Sys.time()
   registerDoRNG(seed)
   tryCatch({
-    # x0 <- expand.grid(work.grid, work.grid)
-    # y0 <- as.numeric(cov.ogk)
-    # 
-    # system.time({
-    #   bw_LL <- np::npregbw(xdat = x0,
-    #                        ydat = y0,
-    #                        regtype = "ll")
-    #   fit_LL <- np::npreg(bws = bw_LL,
-    #                       exdat = x0)
-    # })
-    # 
-    # cov.ogk.sm <- matrix(fit_LL$mean,
-    #                      nrow = n.grid,
-    #                      ncol = n.grid)
-    # cov.ogk.sm <- (cov.ogk.sm + t(cov.ogk.sm)) / 2
-    
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
                                 bw_cand = bw_cand,
@@ -608,8 +589,7 @@ while (num.sim < num_sim) {
                                             pca.ogk.obj = pca.ogk.obj,
                                             pca.ogk.sm.obj = pca.ogk.sm.obj))
   if (dist_type == "tdist") {
-    # file_name <- paste0("RData/", setting, "-", dist_type, ".RData")
-    file_name <- paste0("RData/", setting, "-", dist_type, "_zeta", r.par, ".RData")
+    file_name <- paste0("RData/", setting, "-", dist_type, ".RData")
   } else {
     file_name <- paste0("RData/", setting, "-", dist_type, 
                         "-prop", out_prop*10, ".RData")
