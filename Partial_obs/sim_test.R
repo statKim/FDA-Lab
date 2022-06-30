@@ -48,11 +48,11 @@ K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
 bw_cand <- seq(0.01, 0.1, length.out = 10)
 
-# ### Model 3
-# setting <- "Corr"
-# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
-# pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.01, 0.1, length.out = 10)
+### Model 3
+setting <- "Corr"
+K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+pve <- 0.95   # Not used if K is given
+bw_cand <- seq(0.01, 0.1, length.out = 10)
 
 
 

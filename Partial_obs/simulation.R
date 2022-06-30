@@ -35,11 +35,11 @@ source("sim_utills/Boente_cov.R")
 ### - Model 3 : "Corr"
 #####################################
 
-### Model 1
-setting <- "Delaigle"
-K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
-pve <- 0.95   # Not used if K is given
-bw_cand <- seq(0.3, 0.4, length.out = 10)
+# ### Model 1
+# setting <- "Delaigle"
+# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+# pve <- 0.95   # Not used if K is given
+# bw_cand <- seq(0.3, 0.4, length.out = 10)
 
 # ### Model 2
 # setting <- "Kraus"
@@ -52,7 +52,6 @@ setting <- "Corr"
 K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
 pve <- 0.95   # Not used if K is given
 bw_cand <- seq(0.01, 0.1, length.out = 10)
-
 
 
 #####################################
@@ -72,15 +71,15 @@ out_prop <- 0   # proportion of outliers
 dist_type <- "tdist"
 out_prop <- 0   # proportion of outliers
 
-### Case 3
-dist_type <- "normal"
-out_type <- 1   # type of outliers (fixed; Do not change)
-out_prop <- 0.1   # proportion of outliers
-
-### Case 4
-dist_type <- "normal"
-out_type <- 1   # type of outliers (fixed; Do not change)
-out_prop <- 0.2   # proportion of outliers
+# ### Case 3
+# dist_type <- "normal"
+# out_type <- 1   # type of outliers (fixed; Do not change)
+# out_prop <- 0.1   # proportion of outliers
+# 
+# ### Case 4
+# dist_type <- "normal"
+# out_type <- 1   # type of outliers (fixed; Do not change)
+# out_prop <- 0.2   # proportion of outliers
 
 if (dist_type == "tdist") {
   print(
@@ -123,6 +122,9 @@ colnames(pve_res) <- colnames(mse_eigen)
 colnames(time_d) <- colnames(mse_eigen)
 
 
+source("distmat_from_PM10.R")
+
+
 ### Simulation
 pca.est <- list()   # pca objects
 num.sim <- 0   # number of simulations
@@ -152,13 +154,15 @@ while (num.sim < num_sim) {
                         out.type = out_type, 
                         dist = dist_type) 
   } else if (setting == 'Corr') {
-    # n <- 403
+    r.par <- 150
+    loc_ind <- sample(1:ncol(dist.mat), n)
     x.2 <- sim_corr(n = n,
                     type = data_type,
                     out.prop = out_prop,
                     out.type = out_type,
                     dist = dist_type,
-                    dist.mat = dist.mat[1:n, 1:n])
+                    dist.mat = dist.mat[loc_ind, loc_ind]/100,
+                    r.par = r.par)
   }
   
   x <- list2matrix(x.2)
@@ -254,7 +258,8 @@ while (num.sim < num_sim) {
   kern <- ifelse(kernel == "epanechnikov", "epan", kernel)
   optns <- list(methodXi = "CE", dataType = "Sparse", kernel = kern, verbose = FALSE,
                 # userBwMu = bw, userBwCov = bw)
-                kFoldMuCov = 5, methodBwMu = "CV", methodBwCov = "CV", useBinnedCov = FALSE, error=FALSE)
+                kFoldMuCov = 5, methodBwMu = "CV", methodBwCov = "CV", 
+                useBinnedCov = FALSE, error = FALSE)
   tryCatch({
     mu.yao.obj <- GetMeanCurve(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
     cov.yao.obj <- GetCovSurface(Ly = x.2$Ly, Lt = x.2$Lt, optns = optns)
@@ -603,7 +608,8 @@ while (num.sim < num_sim) {
                                             pca.ogk.obj = pca.ogk.obj,
                                             pca.ogk.sm.obj = pca.ogk.sm.obj))
   if (dist_type == "tdist") {
-    file_name <- paste0("RData/", setting, "-", dist_type, ".RData")
+    # file_name <- paste0("RData/", setting, "-", dist_type, ".RData")
+    file_name <- paste0("RData/", setting, "-", dist_type, "_zeta", r.par, ".RData")
   } else {
     file_name <- paste0("RData/", setting, "-", dist_type, 
                         "-prop", out_prop*10, ".RData")
@@ -688,5 +694,5 @@ print(res)
 
 # Make results to LaTeX code
 library(xtable)
-xtable(res[-5, -(1:2)])
+print( xtable(res[-5, -(1:2)]) )
 
