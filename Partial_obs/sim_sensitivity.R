@@ -55,8 +55,6 @@ bw_cand <- seq(0.01, 0.1, length.out = 10)
 ### - Case 4 : 20% contamination
 #####################################
 
-MM <- TRUE   # method of moments
-
 # ### Case 1
 # dist_type <- "normal"
 # out_type <- 1   # type of outliers (fixed; Do not change)
@@ -161,13 +159,13 @@ while (num.sim < num_sim) {
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
-                                MM = MM,
+                                MM = TRUE,
                                 bw_cand = bw_cand,
                                 type = 'huber')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "huber",
-                       MM = MM,
+                       MM = TRUE,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.huber <- cov.obj$mean
@@ -195,13 +193,13 @@ while (num.sim < num_sim) {
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
-                                MM = MM,
+                                MM = TRUE,
                                 bw_cand = bw_cand,
                                 type = 'bisquare')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "bisquare",
-                       MM = MM,
+                       MM = TRUE,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.bisquare <- cov.obj$mean
@@ -229,13 +227,13 @@ while (num.sim < num_sim) {
   tryCatch({
     cov.sm.obj.cv <- cv.cov_ogk(x,  
                                 K = 5, 
-                                MM = MM,
+                                MM = TRUE,
                                 bw_cand = bw_cand,
                                 type = 'tdist')
     print(cov.sm.obj.cv$selected_bw)
     cov.obj <- cov_ogk(x,   
                        type = "tdist",
-                       MM = MM,
+                       MM = TRUE,
                        smooth = T, 
                        bw = cov.sm.obj.cv$selected_bw)
     mu.tdist <- cov.obj$mean
@@ -471,6 +469,6 @@ print(res)
 
 # Make results to LaTeX code
 library(xtable)
-xtable(res[, -(1:2)])
+print( xtable(res[, -(1:2)]) )
 
 

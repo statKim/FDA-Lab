@@ -21,7 +21,7 @@ data
 # mat
 
 library(geosphere)
-dist.mat <- distm(data[, -1])
+dist.mat <- distm(data[, -1]) / 100
 dim(dist.mat)
 dist.mat[1:5, 1:5]
 

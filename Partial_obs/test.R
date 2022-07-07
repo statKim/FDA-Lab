@@ -15,7 +15,7 @@ data
 # mat
 
 library(geosphere)
-dist.mat <- distm(data[, -1])
+dist.mat <- distm(data[, -1]) / 100
 dim(dist.mat)
 dist.mat[1:5, 1:5]
 
@@ -68,7 +68,8 @@ sim_corr <- function(n = 403,
                      dist.mat = dist.mat,
                      d = 1.4,
                      f = 0.2,
-                     r.par = 200) {
+                     r.par = 200,
+                     nu = 1) {
   
   gr <- seq(0, 1, length.out = 51)   # equispaced points
   t <- gr
@@ -76,17 +77,20 @@ sim_corr <- function(n = 403,
   
   # PC functions
   phi <- cbind(
-    sqrt(2)*cos(2*pi*t),
-    sqrt(2)*cos(4*pi*t),
+    -sqrt(2)*cos(2*pi*t),
+    sqrt(2)*sin(4*pi*t),
     sqrt(2)*cos(6*pi*t)
-    # sqrt(2)*sin(2*pi*t),
-    # sqrt(2)*cos(4*pi*t)
+    # sqrt(2)*cos(2*pi*t),
+    # sqrt(2)*cos(4*pi*t),
+    # sqrt(2)*cos(6*pi*t)
+    # # sqrt(2)*sin(2*pi*t),
+    # # sqrt(2)*cos(4*pi*t)
   )
   
   # r.par <- 200
   cor.sim <- matrix(fields::Matern(as.vector(dist.mat),
                                    range = r.par,
-                                   smoothness = 1),
+                                   smoothness = nu),
                     nrow = n.loc)
   
   # FPC scores
@@ -255,11 +259,14 @@ make_outlier <- function(x, out.type = 1) {
 get_corr_eigen <- function(grid) {
   t <- grid
   eig_ftn <- cbind(
-    sqrt(2)*cos(2*pi*t),
-    sqrt(2)*cos(4*pi*t),
+    -sqrt(2)*cos(2*pi*t),
+    sqrt(2)*sin(4*pi*t),
     sqrt(2)*cos(6*pi*t)
-    # sqrt(2)*sin(2*pi*t),
-    # sqrt(2)*cos(4*pi*t)
+    # sqrt(2)*cos(2*pi*t),
+    # sqrt(2)*cos(4*pi*t),
+    # sqrt(2)*cos(6*pi*t)
+    # # sqrt(2)*sin(2*pi*t),
+    # # sqrt(2)*cos(4*pi*t)
   )
   
   for (j in 1:3){
