@@ -1,6 +1,113 @@
+### 1st Revision (위에서 아래로)
+
+- equation (1) 계산시간 재보기
+
+  - sensitivity analysis 부분 돌리면서 시간 재보기
+
+    - 다른 방법 computation time 아님!! (생각해보니, Boente가 CV까지 하면 굉장히 오래 걸렸었음)
+
+    - time_d 라는 변수로 저장해놓은 것 같음!!
+
+      - 단위는 sec
+
+      ```
+       Huber          Bisquare 				t(3)-MLE 
+       5.085 (0.197)  5.072 (0.198)   6.174 (0.150)
+      ```
+
+  - 이 질문 관련해서 optimization 방법 appendix에 넣을까?? 알고리즘이랑 같이?
+
+- 시뮬 돌리면서 missing 비율 계산
+
+  - Kraus setting에서 d=1.4, f=0.2로 두고 했는데, missing 비율이 바뀌면서 결과가 나빠지는지 알고 싶음
+
+- gaussian case에서 eigen angle은 여전히 안좋은데, 이거 다시 확인해보기
+
+  - 기존에 pracma::subspace 사용했었는데, 이게 제대로 angle 계산하는 건지 확인이 필요
+
+  - 함수 자체는 이상이 없는 것 같음
+
+  - 근데 K개 eigen 전체의 subspace의 angle을 계산하면 오히려 나빠지는 경향이 있음
+
+  - 그래서 각 eigen axis마다 각각 angle을 계산하고, K개의 angle 값을 평균내는 방식으로 계산하였을 때에는 오히려 좋은 결과를 보여줌
+
+    - 이 방법으로 전체 결과 요약할 것
+
+  - 아래 캡처한 표는 draft의 Table 1 - (i) Gaussian process 에 해당하는 결과임
+
+    ```
+          Method   PVE    Eigen.MISE Eigen.angle.subspace. Eigen.angle.axis.
+    1        Yao 0.998 0.060 (0.039)         0.080 (0.027)     0.216 (0.027) 
+    2      Kraus 0.990 0.067 (0.047)         0.096 (0.031)     0.227 (0.031) 
+    3    R-Kraus 0.950 0.122 (0.087)         0.167 (0.048)     0.308 (0.048) 
+    4     Boente 0.998 0.132 (0.041)         0.556 (0.063)     0.309 (0.063) 
+    5 OGK(sm)-MM 1.000 0.030 (0.012)         0.207 (0.010)     0.156 (0.010) 
+    ```
+
+- 리얼데이터가 위치에 correlated되어 있어서, 시물레이션에서도 correlated된 경우도 해볼것??
+
+  - 박연주 교수님이 이에 대한 코드가 있다고 하는 거 같음
+  - 드라이브에 있는 코드를 수정된 draft에 맞게 PC 개수 4개에서 3개로 줄임
+  - sample size에 결과가 depend??
+
+    - 403개로 하는 경우에는 Kraus가 압도적이고, proposed는 매우 안좋은데, 
+    - 100개로 하는 경우에는 기존 시뮬레이션 결과와 유사하게 proposed가 가장 좋게 나옴
+    - 근데 그렇지도 않은듯...
+  - Kraus 세팅처럼 데이터 generate하는데, Kraus 세팅때와 마찬가지로 OGK(non-smooth)가 proposed보다 좋게 나옴
+
+    - Delaigle 세팅처럼 generate하면서 spatial correlation 넣을 수 있나???
+  - Delaigle에서는 1개 curve를 t-process에서 generate해서 outlier 같은 curve가 종종 생긴 반면, Corr은 score마다 t-process에서 뽑다보니 curve별로 heavy tail을 가지는 경우가 드문 것 같음
+
+    - 세팅 바꾸고 그림 그려가면서, heavy-tail behavior 잘 나오는 경우로 시뮬 돌려야할 듯
+    - 근데 independent가 아니라 correlated case라서 t-dist인 경우에 특정 outlier 안생기는 것은 어쩔 수 없는듯
+  - bandwidth에 매우 크게 depend...
+
+    - 근데 CV로 선택이 잘 안됨....
+    - 이건 코드 수정함!!
+
+- robfpca repository에 simulation 코드 위쪽에다 언급하고 링크 걸기
+
+  - 아예 시뮬레이션 코드만 따로 repository 만드는 것이 더 좋을 것 같기도 함(시뮬 코드 외에 추가적으로 source해야 되는 부분이 있어서...)
+  - Clear!!
+
+- `fields::smooth.2d()`에 대한 5-fold CV 수정한 결과
+
+  - 이 경우는 Delaigle 세팅에서는 별로 안좋지만, Kraus 세팅에서는 더 좋아짐
+    - Delaigle은 over-smoothing된 경우에 결과가 더 잘 나오는 경향이 있음
+    - Corr의 경우 tdist에서 몇 개 경우에서 100개 중 1개가 엄청 크게 튐 ㅡㅡ
+
+- missing 비율 바꿔가면서 그림 그려보기
+
+  - case1, case2에 대해서 그리고, Delaigle, Kraus에 대해서 그려보기
+  - missing 비율 커질수록 나빠지기를 기대 (lower bound가 어느정도인지 numerical하게 알고 싶기 때문)
+
+    - lower bound를 알고 싶기 때문에, 어느정도 일정하다가 커지기 시작하는 지점을 파악해야함
+
+- Spatially correlated인 경우 (Model 3)
+
+  - Corr case에서 dist.mat을 PM10 데이터로부터 계산해서 한 결과 (근데 이건 사실상 indep 케이스임)
+    - 그래서 다시 시도함
+  - Corr에서 zeta = 200을 좀 조절해서 tdist에서 좋아지는 체크
+    - dist / 100 을 해주고 zeta 조절함
+  - 바로 위의 세팅과 같으나, eigen만 Kraus로 바꾼 결과
+  - 이전 세팅과 같으나, location도 random하게 뽑도록 수정
+  - zeta = 800이 적당히 correaltion도 있고 괜찮아보임
+
+- 리얼 데이터 코드에서 Proposed method 잘못 돌아가있음
+
+  - 코드 한 번 쭉 정리하고 결과 새로 정리할 것
+  - 완료!!
+
+- robfpca 패키지에 proposed method 돌리는 function 만들기
+
+  - cov_ogk + funPCA => robfpca()
+    - 완료!!
+  - funPCA object에 scree plot이라도 그리는 함수 만들까?
+  - README 수정하거나 vignettes 만드는 것이 더 나을듯 (cran에 올릴 때 필요)
 
 
-### Robust covariance estimation for partially observed functional data
+
+### Robust covariance estimation for partially observed functional data (아래서 위로)
 - 시뮬레이션 코드 패키지에 정리하고 README 정리하기
   
 - hampel로 한 결과 요약하기
