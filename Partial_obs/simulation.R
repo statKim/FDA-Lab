@@ -35,17 +35,17 @@ source("sim_utills/Boente_cov.R")
 ### - Model 3 : "Corr"
 #####################################
 
-# ### Model 1
-# setting <- "Delaigle"
-# K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
-# pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.3, 0.4, length.out = 10)
+### Model 1
+setting <- "Delaigle"
+K <- 4   # fixed number of PCs (If NULL, it is selected by PVE)
+pve <- 0.95   # Not used if K is given
+bw_cand <- seq(0.3, 0.4, length.out = 10)
 
-# ### Model 2
-# setting <- "Kraus"
-# K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
-# pve <- 0.95   # Not used if K is given
-# bw_cand <- seq(0.01, 0.1, length.out = 10)
+### Model 2
+setting <- "Kraus"
+K <- 3   # fixed number of PCs (If NULL, it is selected by PVE)
+pve <- 0.95   # Not used if K is given
+bw_cand <- seq(0.01, 0.1, length.out = 10)
 
 ### Model 3
 setting <- "Corr"
@@ -71,15 +71,15 @@ out_prop <- 0   # proportion of outliers
 dist_type <- "tdist"
 out_prop <- 0   # proportion of outliers
 
-# ### Case 3
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.1   # proportion of outliers
-# 
-# ### Case 4
-# dist_type <- "normal"
-# out_type <- 1   # type of outliers (fixed; Do not change)
-# out_prop <- 0.2   # proportion of outliers
+### Case 3
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.1   # proportion of outliers
+
+### Case 4
+dist_type <- "normal"
+out_type <- 1   # type of outliers (fixed; Do not change)
+out_prop <- 0.2   # proportion of outliers
 
 if (dist_type == "tdist") {
   print(

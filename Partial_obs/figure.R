@@ -213,108 +213,172 @@ par(mfrow = c(1, 1))
 n <- 100
 n.grid <- 51
 gr <- seq(0, 1, length.out = n.grid)
+seed <- 19
 
-par(mfrow = c(2, 3))
+par(mfrow = c(3, 3))
 ### Model 1 - Case 1
-set.seed(1)
+set.seed(seed)
 x.2 <- sim_delaigle(n = n,  
                     type = "partial", 
                     out.prop = 0, 
                     out.type = 1, 
                     dist = "normal") 
 x <- list2matrix(x.2)
-plot(gr, x[1, ],
-     type = 'n', 
-     ylab = 'X(t)', xlab = 't', main = '(a)', 
-     ylim = c(-15, 15))
-for (i in c(1:15)) {
-  lines(gr, x[i, ])
-}
+idx <- 1:15
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(a)", 
+        ylim = c(-15, 15),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
 
 ### Model 1 - Case 2
-set.seed(1)
+# set.seed(seed)
 x.2 <- sim_delaigle(n = n,  
                     type = "partial", 
                     out.prop = 0, 
                     out.type = 1, 
                     dist = "tdist") 
 x <- list2matrix(x.2)
-plot(gr, x[1, ],
-     type = 'n', 
-     ylab = 'X(t)', xlab = 't', main = '(b)', 
-     ylim = c(-15, 15))
-for (i in c(1:5,
-            order(apply(x, 1, max, na.rm = T), 
-                  decreasing = T)[1:10])) {
-  lines(gr, x[i, ])
-}
+idx <- c(1:5,
+         order(apply(x, 1, max, na.rm = T), 
+               decreasing = T)[1:10])
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(b)", 
+        ylim = c(-15, 15),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
 
 ### Model 1 - Case 3
-set.seed(1)
+# set.seed(seed)
 x.2 <- sim_delaigle(n = n,  
                     type = "partial", 
                     out.prop = 0.1, 
                     out.type = 1, 
                     dist = "normal") 
 x <- list2matrix(x.2)
-plot(gr, x[1, ],
-     type = 'n', 
-     ylab = 'X(t)', xlab = 't', main = '(c)', 
-     ylim = range(x, na.rm = T))
-for (i in c(1:5, 96:100)) {
-  lines(gr, x[i, ])
-}
+idx <- c(1:5, 96:100)
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(c)", 
+        ylim = range(x, na.rm = T),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
 
 
 ### Model 2 - Case 1
-set.seed(1)
+# set.seed(seed)
 x.2 <- sim_kraus(n = n,  
                  type = "partial", 
                  out.prop = 0, 
                  out.type = 1, 
                  dist = "normal") 
 x <- list2matrix(x.2)
-plot(gr, x[1, ],
-     type = 'n', 
-     ylab = 'X(t)', xlab = 't', main = '(d)', 
-     ylim = c(-15, 15))
-for (i in c(1:15)) {
-  lines(gr, x[i, ])
-}
+idx <- 1:15
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(d)", 
+        ylim = c(-15, 15),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
 
 ### Model 2 - Case 2
-set.seed(1)
+# set.seed(seed)
 x.2 <- sim_kraus(n = n,  
                  type = "partial", 
                  out.prop = 0, 
                  out.type = 1, 
                  dist = "tdist") 
 x <- list2matrix(x.2)
-plot(gr, x[1, ],
-     type = 'n', 
-     ylab = 'X(t)', xlab = 't', main = '(e)', 
-     ylim = c(-15, 15))
-for (i in c(1:5,
-            order(apply(x, 1, max, na.rm = T), 
-                  decreasing = T)[1:10])) {
-  lines(gr, x[i, ])
-}
+idx <- c(1:5,
+         order(apply(x, 1, max, na.rm = T), 
+               decreasing = T)[1:10])
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(e)", 
+        ylim = c(-15, 15),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
 
 ### Model 2 - Case 3
-set.seed(1)
+# set.seed(seed)
 x.2 <- sim_kraus(n = n,  
                  type = "partial", 
                  out.prop = 0.1, 
                  out.type = 1, 
                  dist = "normal") 
 x <- list2matrix(x.2)
-plot(gr, x[1, ],
-     type = 'n', 
-     ylab = 'X(t)', xlab = 't', main = '(f)', 
-     ylim = range(x, na.rm = T))
-for (i in c(1:5, 96:100)) {
-  lines(gr, x[i, ])
-}
+idx <- c(1:5, 96:100)
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(f)", 
+        ylim = range(x, na.rm = T),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
+
+
+### Model 3 - Case 1
+# set.seed(seed)
+loc_ind <- sample(1:ncol(dist.mat), n)
+x.2 <- sim_corr(n = n,
+                type = "partial",
+                out.prop = 0,
+                out.type = 1,
+                dist = "normal",
+                dist.mat = dist.mat[loc_ind, loc_ind],
+                r.par = 800)
+x <- list2matrix(x.2)
+idx <- 1:15
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(g)", 
+        ylim = c(-15, 15),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
+
+### Model 3 - Case 2
+# set.seed(seed)
+loc_ind <- sample(1:ncol(dist.mat), n)
+x.2 <- sim_corr(n = n,
+                type = "partial",
+                out.prop = 0,
+                out.type = 1,
+                dist = "tdist",
+                dist.mat = dist.mat[loc_ind, loc_ind],
+                r.par = 800)
+x <- list2matrix(x.2)
+idx <- c(1:5,
+         order(apply(x, 1, max, na.rm = T), 
+               decreasing = T)[1:10])
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(h)", 
+        ylim = c(-15, 15),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
+
+
+### Model 3 - Case 3
+# set.seed(seed)
+loc_ind <- sample(1:ncol(dist.mat), n)
+x.2 <- sim_corr(n = n,
+                type = "partial",
+                out.prop = 0.1,
+                out.type = 1,
+                dist = "normal",
+                dist.mat = dist.mat[loc_ind, loc_ind],
+                r.par = 800)
+x <- list2matrix(x.2)
+idx <- c(1:5, 96:100)
+matplot(gr, t(x[idx, ]),
+        type = "l", lty = 1, col = 1,
+        ylab = "X(t)", xlab = "t", main = "(i)", 
+        ylim = range(x, na.rm = T),
+        cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.2)
+
+
+
+
+
+
+
+
+
+
+
 
 
 

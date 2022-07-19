@@ -460,6 +460,60 @@ for (j in setdiff(prop_outlier, Rkraus_outlier)) {
 
 
 
+### Plot of paper
+par(mfrow = c(1, 3))
+plot(com.x[1, ], type = 'n',
+     ylim = c(0, 350), main = 'Proposed FPCA', ylab = 'PM10', xlab = 'Hour', cex.main=1.5, cex.lab=1.2, cex.axis=1.2)
+set.seed(30)
+for (k in c(sample(c(1:nrow(com.x)), 40)) ) {
+  lines(com.x[k, ], col = gray(0.8), lwd = 1.5)
+}
+abline(h = 100, lty = 2)
+for (j in 1:length(prop_outlier)) {
+  lines(com.x[prop_outlier, ][j, ], col = 2, lwd=1.5)
+}
+legend('topright',  c('Observation', 'Detected outliers'), col=c(gray(0.8),2) ,lty=1, lwd=2,cex=1.6)
+
+plot(com.x[1, ], type = 'n', 
+     ylim = c(0, 350), main = 'Sparse FPCA', ylab = 'PM10', xlab = 'Hour', cex.main=1.5, cex.lab=1.2, cex.axis=1.2)
+set.seed(30)
+for (k in c(sample(c(1:nrow(com.x)), 40)) ) {
+  lines(com.x[k, ], col = gray(0.8), lwd = 1.5)
+}
+abline(h = 100, lty = 2)
+for (j in 1:length(yao_outlier)) {
+  lines(com.x[yao_outlier, ][j, ], col = 2, lwd = 1.5)	
+}
+for (k in setdiff(prop_outlier,
+                  intersect(prop_outlier, yao_outlier))) {
+  lines(x[k, ], col = 4, lwd = 3)
+}
+legend('topright',  c('Observation', 'Detected outliers', 'Only by proposed FPCA'), col=c(gray(0.8),2,4) ,lty=1, lwd=2,cex=1.6)
+
+
+plot(com.x[1, ], type = 'n', 
+     ylim = c(0, 350), main = 'Robust Kraus', ylab = 'PM10', xlab = 'Hour', cex.main=1.5, cex.lab=1.2, cex.axis=1.2)
+set.seed(30)
+for (k in c(sample(c(1:nrow(com.x)), 40))) {
+  lines(com.x[k, ], col = gray(0.8), lwd = 1.5)
+}
+abline(h = 100, lty = 2)
+for (j in 1:length(Rkraus_outlier)) {
+  lines(com.x[Rkraus_outlier, ][j, ], col = 2, lwd = 1.5)	
+}
+for (k in setdiff(prop_outlier,
+                  intersect(prop_outlier, Rkraus_outlier))) {
+  lines(x[k, ], col = 4, lwd = 3)
+}
+legend('topright',  c('Observation', 'Detected outliers', 'Only by proposed FPCA'), col=c(gray(0.8),2,4) ,lty=1, lwd=2,cex=1.6)
+
+
+
+
+
+
+
+
 ####################################################
 ### outlier detection에서 이것저것 test
 ####################################################
