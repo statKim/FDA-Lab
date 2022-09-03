@@ -80,6 +80,8 @@ kCRFC <- function(y,
     #           Lt = t[u], Ly = y[u], 
     #           FVEthreshold = optnsCS$FVEthreshold)
   })
+  # length(listOfFPCAobjs)
+  
   
   ## Iterative clustering
   convInfo <- "None"
@@ -91,6 +93,7 @@ kCRFC <- function(y,
     if (isTRUE(fast)) {
       iseCosts <- sapply(listOfFPCAobjs, function(u){ GetISEfromRFPCA_fast(u, y, t) })
     } else {
+      # 8초정도 걸림 (100 curves with 51 timepoints)
       iseCosts <- sapply(1:k, function(u){ GetISEfromRFPCA(u, listOfFPCAobjs[[u]], y, t,
                                                            indClustIds, optnsCS) })
     }
@@ -125,11 +128,14 @@ kCRFC <- function(y,
     warning(paste0("kCFC did not fully converge. It stopped because it 'lost a cluster'. Consider using a smaller number of clusters."))
   }
   
-  kCFCobj <-  list(cluster = clustConf[[j]], fpcaList = listOfFPCAobjs, iterToConv = j-1, prevConf = clustConf, clustConf0 = clustConf0)
+  kCFCobj <-  list(cluster = clustConf[[j]], 
+                   fpcaList = listOfFPCAobjs,
+                   iterToConv = j-1, 
+                   prevConf = clustConf, 
+                   clustConf0 = clustConf0)
   class(kCFCobj) <- 'kCFCobj'
   return( kCFCobj )
 }
-
 
 
 
@@ -155,6 +161,28 @@ GetISEfromRFPCA <- function(cluster, fpcaObj, y, t,
                            xiMethod = "IN",
                            type = "traj")
   }
+  
+  # # Reconstruction for same cluster using parallel computing
+  # # 시뮬레이션에서는 속도 더 느림... (core 세팅하는 시간이 더 소요되는듯)
+  # ncore <- ceiling(parallel::detectCores() * 2/3)
+  # cl <- parallel::makeCluster(ncore)
+  # doParallel::registerDoParallel(cl)
+  # ftns <- c("RFPCA")
+  # pred_par <- foreach::foreach(i=idx, .packages=c("RFPCA")) %dopar% {
+  #   ind <- setdiff(idx, i)   # remove ith curve on cluster
+  #   fpcaObj_ind <- RFPCA(Ly = y[ind], Lt = t[ind], optns = optnsCS)
+  #   predict(object = fpcaObj_ind,
+  #           newLt = t[i],
+  #           newLy = y[i],
+  #           # K = k,
+  #           xiMethod = "IN",
+  #           type = "traj")
+  # }
+  # doParallel::stopImplicitCluster()
+  # for (i in 1:length(idx)) {
+  #   pred[idx[i], , ] <- pred_par[[i]]
+  # }
+  
   
   # Reconstruction using K components
   idx_other_cluster <- unlist(indClustIds[-cluster])
@@ -189,14 +217,37 @@ GetISEfromRFPCA_fast <- function(fpcaObj, y, t) {
                   xiMethod = "IN",
                   type = "traj")
   
+  
   # Calculate integrated squared distance (Refer to Eq (3) in Dai(2018), AOS)
   ise <- sapply(1:n, function(i){
     d_0 <- distance(mfd = mfd,
                     X = y[[i]],
                     Y = pred[i, , ])
-    trapzRcpp(X = obs.grid, 
+    trapzRcpp(X = obs.grid,
               Y = d_0^2)
   })
+  
+  # # Geodesic mahalanobis distance
+  # m <- length(t[[1]])
+  # d <- nrow(Ly[[1]])
+  # ise <- sapply(1:n, function(i){
+  #   d_0 <- sapply(1:m, function(j) {
+  #     cov_inv <- matrix(0, d, d)
+  #     for (k in 1:fpcaObj$K) {
+  #       cov_inv <- cov_inv + tcrossprod(fpcaObj$phi[j, , k]) / fpcaObj$lam[k]
+  #     }
+  #     t(y[[i]][, j] - pred[i, , ][, j]) %*% cov_inv %*% (y[[i]][, j] - pred[i, , ][, j])
+  #   })
+  #   d0 <- sqrt(d_0)
+  #   
+  #   if (mfd == 1) {
+  #     d_0[d_0 > 1] <- 1
+  #     d_0[d_0 < -1] <- -1
+  #     d_0 <- acos(d_0)
+  #   }
+  #   trapzRcpp(X = obs.grid, 
+  #             Y = d_0^2)
+  # })
   
   return(ise)
 }

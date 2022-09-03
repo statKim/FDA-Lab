@@ -6,6 +6,8 @@
 ### Load flight trajectory data
 ### - "flight_df"
 load("RData/flight_Incheon2LA.RData")
+load("RData/WSSS_to_EGLL.RData")   # Singapore -> London
+load("RData/VHHH_to_EGLL.RData")   # Hong Kong -> London
 flight_df
 
 ######################################################
@@ -31,6 +33,11 @@ flight_df_2 <- flight_df %>%
 flight_df_2
 tail(flight_df_2)   # 590 trajectories
 
+table(flight_df_2$airline)
+
+# filtering small number of ailrine
+flight_df_2 <- flight_df_2 %>%
+    filter(airline != "VIR")
 
 ### Flight trajectories
 world <- ne_countries(scale = "medium", returnclass = "sf")
@@ -76,9 +83,18 @@ Ly <- lapply(1:n, function(i) {
     y <- Ly[[i]]
     t <- Lt[[i]]
     
-    # Interpolation with 51 regular grids for each longitude and latitude
+    # # Interpolation with 51 regular grids for each longitude and latitude
+    # apply(y, 2, function(col) {
+    #     approx(t, col, method = "linear", n = 51)$y
+    # })
+    
     apply(y, 2, function(col) {
-        approx(t, col, method = "linear", n = 51)$y
+        y_interp <- approx(t, col, method = "linear", n = length(t)*2)$y
+        stats::ksmooth(x = seq(0, 1, length.out = length(t)*2), 
+                       y = y_interp,
+                       kernel = "normal",
+                       bandwidth = 0.1,
+                       n.points = 51)$y
     })
 })
 Lt <- rep(list(seq(0, 1, length.out = 51)), n)
@@ -207,7 +223,7 @@ source("functions.R")
 
 ### Model parameters
 seed <- 1000
-k <- 3    # number of clusters (the number of airlines)
+k <- 2    # number of clusters (the number of airlines)
 num.pc.method <- "FVE"   # using FVE thresholds
 # num.pc.method <- 2     # fixed number
 if (num.pc.method == "FVE") {

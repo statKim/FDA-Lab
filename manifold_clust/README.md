@@ -179,7 +179,7 @@
   - compositional data를 square root 취해서 sphere-valued data로 바꿔서 함
   - 62개 trajectories
   - 각 cuve별 관측 끝나는 지점이 달라서, 적당히 day <= 37 로 잘라서 사용
-  - FFPCA, MFPCA가 거의 비슷
+  - RFPCA, MFPCA가 거의 비슷
 - Bird migration 데이터
     - Movebank
       - https://www.movebank.org/cms/webapp?gwt_fragment=page=studies,path=study9651291
@@ -202,4 +202,127 @@
       - 만약 이 데이터 사용할 경우, 반드시 라이센스 다시 읽어보기!!!
 
         - draft도 먼저 보내줘야하고, 사사문구도 적어주어야 함
+
+### 2022.03.18(금)
+
+- kCFC 페이퍼의 property를 Riemannian mfd로 확장해보기
+
+### 2022.07
+
+- kCFC 논문의 Theorem 확장은 component의 rate이 필요한데, iRFPCA에서의 rate이 알려진 바가 없음
+  - 이론 전개는 어려울듯...
+- iRFPCA 코드 짜는 것도 시간이 꽤 걸릴듯... (내가 geometry를 이해를 잘 못하고 있다...)
+  - sphere-valued data를 찾아서 하는 것이 좋을 듯
+- 지구 위의 데이터 또는 compositional 데이터 찾아보기
+- kCRFC가 별 차이가 없는 이유?
+  - 잘 생각해보니, true와 estimated의 geodesic distance를 계산해서 비교하는데, sphere 위에서는 두 점 사이의 거리가 매우 짧을 것이기 때문에, geodisic distance나 L2 distance나 거의 차이가 없을 것임
+    - 그래서 iteration step에서 MFPCA나 RFPCA나 차이가 없었던 것 같음
+  - reconstruction 후에 distance 비교 말고 다른 방법 있을까?
+    - 처음에 2개로 initial clustering, 다시 각각 2개씩 총 4개로 clustering, 거기서 prediction error가 reconstruction error보다 작으면 같은 cluster로 묶고, 다시 같은 과정 반복? (similarity measure)
+    - Riemannian CLT 써서 normality 적용한 model based algoritm?? EM algorithm으로 optimize?
+    - Fuzzy c-means clustering하고, probability 애매한 애들만 weighted reclassification?
+      - assign probability < 0.8 인 경우에만 reclassification step 적용 (iteration 1번)
+- 리얼 데이터
+  - CO, NO2, PM10 등 대기오염 종류들 여러개로 index 만들어서 compositional 데이터로 이용?
+    - Air Pollution Index (API)
+    - https://link.springer.com/content/pdf/10.1007/s00477-018-1542-0.pdf
+    - 구성비로 계산하다보니 값의 변화가 거의 없음...(심지어 RFPCA가 안돌아감)
+
+
+
+## Appendix. ADNI data preprocessing
+
+### 0. Preperation
+
+- Install cmake
+
+- dcm2niix : https://github.com/rordenlab/dcm2niix
+- FSL : https://artiiicy.tistory.com/70
+
+```
+# install cmake
+brew install cmake
+
+# install dcm2niix
+cd ~
+git clone https://github.com/rordenlab/dcm2niix.git
+cd dcm2niix
+mkdir build && cd build
+cmake -DZLIB_IMPLEMENTATION=Cloudflare -DUSE_JPEGLS=ON -DUSE_OPENJPEG=ON ..
+make
+
+# make python2
+conda create --name py2 python=2
+source activate py2
+
+# FSL install (fslinstaller.py 먼저 다운)
+python2 ~/tmp/fslinstaller.py
+# Install MRtrix3 (mrcalc, dwinormalise)
+conda install -c omnia eigen3
+conda install -c dsdale24 qt5
+conda install -c mrtrix3 mrtrix3
+
+# intall ANTs
+# https://github.com/ANTsX/ANTs/wiki/Compiling-ANTs-on-Linux-and-Mac-OS
+mkdir ANTs
+cd ANTs
+git clone https://github.com/ANTsX/ANTs.git
+# make a build and install dir
+mkdir build install
+cd build
+ccmake ../ANTs
+위의 링크 순서대로 실행
+# use multicore
+ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
+
+# make python 3.7
+conda deactivate
+conda create --name py37 python=3.7
+source activate py37
+
+# install Scilpy
+git clone https://github.com/scilus/scilpy.git
+pip install -e .
+```
+
+### Preprocessing
+
+```
+cd ~/tmp
+mkdir diffusion/
+mkdir diffusion/dti
+
+~/dcm2niix/build/bin/dcm2niix -o ~/tmp/diffusion ~/tmp/data
+
+# 폴더 내에 nii, bval, bvec 을 하나하나씩 변환해야함!!
+cd ~/tmp/diffusion
+mv *.bval bval
+mv *.bvec bvec
+mv *.nii temp.nii
+rm *.json
+
+
+mrconvert -fslgrad bvec bval temp.nii temp.mif -force
+
+dwidenoise temp.mif temp_denoised.mif -noise temp_noise.mif -force
+
+dwifslpreproc temp_denoised.mif temp_preproc.mif -rpe_none -pe_dir j -nocleanup -force
+
+dwiextract temp_preproc.mif - -bzero | mrmath - mean b0.mif -axis 3
+
+mrconvert temp_preproc.mif data.nii.gz -export_grad_mrtrix temp_grad_table -export_grad_fsl bvecs bvals -force
+
+mrconvert b0.mif b0.nii.gz
+
+bet2 b0.nii.gz b0_bet.nii.gz -f 0.2
+
+dwibiascorrect ants data.nii.gz data_bias_corrected.nii.gz -fslgrad bvecs bvals -mask b0_bet.nii.gz -ants.c [300x150x75x50,1e-6] -force
+# 작은 따옴표로 묶어줘야함!! (zsh: no matches found: [300x150x75x50,1e-6])
+dwibiascorrect ants data.nii.gz data_bias_corrected.nii.gz -fslgrad bvecs bvals -mask b0_bet.nii.gz -ants.c '[300x150x75x50,1e-6]' -force
+
+dwinormalise individual data_bias_corrected.nii.gz b0_bet.nii.gz data_normalized.nii.gz -fslgrad bvecs bvals
+
+dtifit --data=data_normalized.nii.gz --out=dti --mask=b0_bet.nii.gz --bvecs=bvecs --bvals=bvals --save_tensor
+
+```
 

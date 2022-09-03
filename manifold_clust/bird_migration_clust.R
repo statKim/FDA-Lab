@@ -13,7 +13,7 @@ library(rnaturalearthdata)
 source("functions.R")
 
 ### Bird migration trajectory data which is removed outlying observations
-data <- read_csv("/Users/hyunsung/GoogleDrive/Lab/KHS/manifold_clust/real_data/Egyptian vultures in the Middle East and East Africa.csv")
+data <- read_csv("~/GoogleDrive/Lab/KHS/manifold_clust/real_data/Egyptian vultures in the Middle East and East Africa.csv")
 data
 
 # ### Reference data containing "animal-id"
@@ -202,8 +202,11 @@ bird <- df %>%
     ungroup() %>% 
     dplyr::select(id, time, lat, lon, season)
 bird
-# save(bird, file = "/Users/hyunsung/GoogleDrive/Lab/KHS/manifold_clust/real_data/bird_migrate.RData")
+# save(bird, file = "~/GoogleDrive/Lab/KHS/manifold_clust/real_data/bird_migrate.RData")
 
+
+### Load preprcessed bird migration data
+load("~/GoogleDrive/Lab/KHS/manifold_clust/real_data/bird_migrate.RData")
 
 ### Migration trajectories
 world <- ne_countries(scale = "medium", returnclass = "sf")
@@ -239,10 +242,11 @@ Lt <- lapply(id, function(i) {
 
 ### Pre-smoothing for regular grids using local linear smoother
 n <- length(id)
+num_grid <- 101   # number of timepoints
 Ly <- lapply(1:n, function(i) {
     y <- Ly[[i]]
     t <- Lt[[i]]
-    bw <- max(diff(t))   # very small bandwidth
+    bw <- max(diff(t))/2   # very small bandwidth
 
     # kernel smoothing with 51 regular grids
     apply(y, 2, function(col) {
@@ -251,10 +255,10 @@ Ly <- lapply(1:n, function(i) {
                        y = col,
                        kernel = "normal",
                        bandwidth = bw,
-                       n.points = 151)$y
+                       n.points = num_grid)$y
     })
 })
-Lt <- rep(list(seq(0, 1, length.out = 151)), n)
+Lt <- rep(list(seq(0, 1, length.out = num_grid)), n)
 
 
 ### Transform longitude and latitude into 3D axes
@@ -300,8 +304,8 @@ df2 <- df2 %>%
 world <- ne_countries(scale = "medium", returnclass = "sf")
 map_bg <- ggplot(data = world) +
     geom_sf() +
-    coord_sf(xlim = range(df$lon) + c(-5, 5),
-             ylim = range(df$lat) + c(-5, 5),
+    coord_sf(xlim = range(bird$lon) + c(-5, 5),
+             ylim = range(bird$lat) + c(-5, 5),
              expand = FALSE)
 p1 <- map_bg +
     geom_path(
@@ -555,3 +559,23 @@ p2 <- map_bg +
 
 gridExtra::grid.arrange(p1, p2, 
                         nrow = 1)
+
+
+
+### Riemannian FPCA and multivariate FPCA
+rfpca.obj <- RFPCA(Lt = Lt,
+                   Ly = Ly,
+                   optns = list(mfdName = "Sphere",
+                                FVEthreshold = 1,
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV"))
+mfpca.obj <- RFPCA(Lt = Lt,
+                   Ly = Ly,
+                   optns = list(mfdName = "Euclidean",
+                                FVEthreshold = 1,
+                                userBwMu = "GCV", 
+                                userBwCov = "GCV"))
+
+par(mfrow = c(1, 2))
+plot(rfpca.obj$xi[, 1:2], col = ifelse(cluster == "Fall", 1, 2))
+plot(mfpca.obj$xi[, 1:2], col = ifelse(cluster == "Fall", 1, 2))

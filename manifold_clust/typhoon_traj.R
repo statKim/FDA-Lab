@@ -14,6 +14,7 @@ library(tidyverse)
 library(sf)
 library(rnaturalearth)
 library(rnaturalearthdata)
+source("functions.R")
 
 ### Load storm data of Western Pacific region
 all_content <- readLines("/Users/hyunsung/GoogleDrive/Lab/KHS/manifold_clust/real_data/ibtracs.WP.list.v04r00.csv")
@@ -41,6 +42,13 @@ head(typhoon)
 unique(typhoon$NAME)   # there are duplicated name
 length(unique(typhoon$SID))   # 442
 
+# number of observations per SID
+typhoon %>% 
+    group_by(SID) %>% 
+    summarize(n = n()) %>% 
+    arrange(n) %>% 
+    data.frame
+
 
 ### Typhoon trajectories example
 world <- ne_countries(scale = "medium", returnclass = "sf")
@@ -64,6 +72,13 @@ map_bg +
 
 
 ### Make data to input format
+# id <- typhoon %>% 
+#     group_by(SID) %>% 
+#     summarize(n = n()) %>% 
+#     filter(n > 50) %>% 
+#     select(SID) %>% 
+#     unlist() %>% 
+#     as.vector()
 id <- unique(typhoon$SID)
 Ly <- lapply(id, function(i) {
     as.matrix( typhoon[typhoon$SID == i, c("LON","LAT")] )
@@ -139,7 +154,7 @@ source("functions.R")
 
 ### Model parameters
 seed <- 1000
-k <- 3    # number of clusters
+k <- 2    # number of clusters
 num.pc.method <- "FVE"   # using FVE thresholds
 # num.pc.method <- 2     # fixed number
 if (num.pc.method == "FVE") {
@@ -240,7 +255,8 @@ table(clust.kCFC.Riemann, clust.funHDDC)
 
 
 ### Plot clustering result
-method_list <- c("kCFC.Riemann","kCFC.L2","kmeans.Riemann","funclust","funHDDC","gmfd")
+method_list <- c("kCFC.Riemann","kCFC.L2","kmeans.Riemann")
+# method_list <- c("kCFC.Riemann","kCFC.L2","kmeans.Riemann","funclust","funHDDC","gmfd")
 fig_list <- list()
 fig_list_group <- list()
 for (method in method_list) {
@@ -306,14 +322,14 @@ library(gridExtra)
 fig <- grid.arrange(grobs = fig_list,
                     ncol = k)
 
-dir_name <- "/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215"
-ggsave(fig, file = paste0(dir_name, "/clust-", k, ".pdf"),
-       width = 6*k, height = 18)
+# dir_name <- "/Users/hyunsung/Desktop/Rproject/FDA-Lab/manifold_clust/Rmd/figure/2022_0215"
+# ggsave(fig, file = paste0(dir_name, "/clust-", k, ".pdf"),
+#        width = 6*k, height = 18)
 
 fig_group <- grid.arrange(grobs = fig_list_group,
                           ncol = 2)
-ggsave(fig_group, file = paste0(dir_name, "/clust-group-", k, ".pdf"),
-       width = 12, height = 10)
+# ggsave(fig_group, file = paste0(dir_name, "/clust-group-", k, ".pdf"),
+#        width = 12, height = 10)
 
 
 ### Plot trajectories on sphere per each cluster

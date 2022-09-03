@@ -3,9 +3,16 @@
 ### - Refer paper : Chiou and Muller (2014), 
 ###                 Linear manifold modelling of multivariate functional data
 #####################################################################
+library(tidyverse)
+library(RFPCA)    # RFPCA and MFPCA
+library(mclust)   # clustering measure
+library(Funclustering)   # funclust (Currently, it is not supported by cran.)
+library(funHDDC)   # funHDDC
+library(gmfd)   # gmfd
+source("functions.R")
 
 ### Load data
-data <- read.table("/Users/hyunsung/GoogleDrive/Lab/KHS/manifold_clust/real_data/fly_log_130521.txt", header = T)
+data <- read.table("~/GoogleDrive/Lab/KHS/manifold_clust/real_data/fly_log_130521.txt", header = T)
 head(data)
 
 id <- unique(data$id)
@@ -16,8 +23,10 @@ data %>%
     summarise(m = max(day)) %>% 
     as.data.frame()
 
-data <- data %>% 
+# Only use times less than 37 weeks
+data <- data %>%
     filter(day <= 37)
+
 
 Lt <- list()
 Ly <- list()
@@ -36,7 +45,8 @@ data[, -(1:2)] %>%
 ggplot(data,
        aes(x = day, y = resting, group = id, color = factor(id))) +
     geom_line(size = 0.3) +
-    theme_bw()
+    theme_bw() +
+    theme(legend.position = "none")
 
 par(mfrow = c(4, 4))
 Y <- matrix(0, 62, 51)
@@ -52,7 +62,7 @@ for (i in 1:length(id)){
                       n.points = 51, 
                       bandwidth = max(diff(Lt[[i]])))$y
 }
-plot(colMeans(Y), type = "l")
+plot(colMeans(Y), type = "l", main = "Mean function")
 
 
 
@@ -78,14 +88,18 @@ sapply(Ly, class)
 data2[, -(1:2)] %>% 
     rowSums()
 
-
+# # Filter the max of timepoints == 40
+# id <- id[sapply(Lt, max) == 40]
+# Ly <- Ly[sapply(Lt, max) == 40]
+# Lt <- Lt[sapply(Lt, max) == 40]
 
 ### Pre-smoothing for regular grids using local linear smoother
 n <- length(id)
+num_grid <- 101   # number of timepoints
 Ly <- lapply(1:n, function(i) {
     y <- Ly[[i]]
     t <- Lt[[i]]
-    # bw <- max(diff(t))   # very small bandwidth
+    # bw <- max(diff(t))/2   # very small bandwidth
     bw <- 5
 
     # kernel smoothing with 51 regular grids
@@ -94,13 +108,13 @@ Ly <- lapply(1:n, function(i) {
                        y = col,
                        kernel = "normal",
                        bandwidth = bw,
-                       n.points = 51)$y
+                       n.points = num_grid)$y
     })
     
     # make spherical data
     apply(y, 1, function(row){ sqrt(row / sum(row)) })
 })
-Lt <- rep(list(seq(1, 37, length.out = 51)), n)
+Lt <- rep(list(seq(1, 37, length.out = num_grid)), n)
 
 apply(Ly[[1]], 2, function(x){ sum(x^2) })   # check that it is the unit sphere
 
@@ -290,7 +304,7 @@ table(clust.kCFC.Riemann, clust.kmeans.L2)
 table(clust.kCFC.Riemann, clust.kmeans.Riemann)
 table(clust.kCFC.Riemann, clust.funclust)
 table(clust.kCFC.Riemann, clust.funHDDC)
-
+table(clust.kCFC.Riemann, clust.gmfd)
 
 
 
@@ -325,23 +339,82 @@ for (j in 1:4) {
 }
 
 ### Curves of different cluster result
-par(mfrow = c(1, 4))
+par(mfrow = c(4, 4))
 y_name <- c("flying","feeding","walking","resting")
-# match cluster
-if (length( mclust::classError(clust.kCFC.Riemann, clust.kCFC.L2)$misclassified ) < n/3) {
-    clust <- clust.kCFC.L2
-} else {
-    clust <- ifelse(clust.kCFC.L2 == 1, 2, 1)
-}
-ind <- which(clust.kCFC.Riemann != clust)   # different cluster result
-for (j in 1:4) {
-    plot("n",
-         xlab = "Days", ylab = y_name[j], main = paste0("kCFC(R) - ", y_name[j]),
-         xlim = c(0, 37), ylim = c(0, 1))
-    for (i in ind) {
-        lines(Lt[[i]], Ly[[i]][j, ], col = clust.kCFC.Riemann[i])
+m_name <- c("kCFC","funclust","funHDDC","gmfd")
+clust_list <- list(clust.kCFC.L2,
+                   clust.funclust,
+                   clust.funHDDC,
+                   clust.gmfd)
+## kCRFC vs kCFC
+for (i in 1:length(clust_list)) {
+    clust <- clust_list[[i]]
+    # match cluster
+    if (length( mclust::classError(clust.kCFC.Riemann, clust)$misclassified ) > n/3) {
+        clust <- ifelse(clust == 1, 2, 1)
+    }
+    ind <- which(clust.kCFC.Riemann != clust)   # different cluster result
+    for (j in 1:4) {
+        plot("n",
+             xlab = "Days", ylab = y_name[j], main = paste0("kCRFC vs ", m_name[i], " - ", y_name[j]),
+             xlim = c(0, 37), ylim = c(0, 1))
+        for (k in ind) {
+            lines(Lt[[k]], Ly[[k]][j, ], col = clust.kCFC.Riemann[k])
+        }
     }
 }
+# # match cluster
+# if (length( mclust::classError(clust.kCFC.Riemann, clust.kCFC.L2)$misclassified ) < n/3) {
+#     clust <- clust.kCFC.L2
+# } else {
+#     clust <- ifelse(clust.kCFC.L2 == 1, 2, 1)
+# }
+# ind <- which(clust.kCFC.Riemann != clust)   # different cluster result
+# for (j in 1:4) {
+#     plot("n",
+#          xlab = "Days", ylab = y_name[j], main = paste0("kCRFC - ", y_name[j]),
+#          xlim = c(0, 37), ylim = c(0, 1))
+#     for (i in ind) {
+#         lines(Lt[[i]], Ly[[i]][j, ], col = clust.kCFC.Riemann[i])
+#     }
+# }
+
+
+### Mean functions for each methods
+par(mfrow = c(5, 4))
+y_name <- c("flying","feeding","walking","resting")
+m_name <- c("kCRFC","kCFC","funclust","funHDDC","gmfd")
+clust_list <- list(clust.kCFC.Riemann,
+                   clust.kCFC.L2,
+                   clust.funclust,
+                   clust.funHDDC,
+                   clust.gmfd)
+## kCRFC vs kCFC
+for (i in 1:length(clust_list)) {
+    clust <- clust_list[[i]]
+    # match cluster
+    if (length( mclust::classError(clust.kCFC.Riemann, clust)$misclassified ) > n/3) {
+        clust <- ifelse(clust == 1, 2, 1)
+    }
+    
+    mean_ftn <- lapply(1:2, function(cl) {
+        ind <- which(clust == cl)
+        Reduce("+", Ly[ind]) / length(ind)
+    })
+    
+    time_points <- Lt[[1]]
+    
+    for (j in 1:4) {
+        plot("n",
+             xlab = "Days", ylab = y_name[j], main = paste0(m_name[i], " - ", y_name[j]),
+             xlim = c(0, 37), ylim = c(0, 1))
+        for (k in 1:2) {
+            lines(time_points, mean_ftn[[k]][j, ], col = k)
+        }
+    }
+}
+
+
 
 
 ### Scatter plot
