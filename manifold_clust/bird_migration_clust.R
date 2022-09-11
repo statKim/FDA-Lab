@@ -31,6 +31,7 @@ data$timestamp %>% substr(1, 4) %>% table
 
 
 ### Draw trajectories
+### Using full data -> Too slow to plot a figure
 df <- data %>% 
     mutate(id = `individual-local-identifier`,
            time =  timestamp, 
@@ -226,8 +227,10 @@ map_bg +
         ),
         size = 0.3
     ) +
+    labs(x = "Longitude", y = "Latitude", color = "Season") +
     theme_bw()
-
+# If you save to eps format, there are erros to display degree of lon and lat.
+ggsave("./figure/bird_migration.pdf", width = 8, height = 11, dpi = 600)
 
     
 ### Make data to input format
@@ -529,11 +532,12 @@ p1 <- map_bg +
             x = lon, 
             y = lat, 
             group = id,
-            color = season
+            color = factor(season, levels = c("Spring","Fall"))
         ),
         size = 0.3
     ) +
-    labs(x = "Longitude", y = "Latitude", title = "True Season") +
+    labs(x = "Longitude", y = "Latitude", color = "Season", 
+         title = "Migration of Egyption vultures") +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
 
@@ -553,13 +557,15 @@ p2 <- map_bg +
         ),
         size = 0.3
     ) +
-    labs(x = "Longitude", y = "Latitude", title = "Clustering result") +
+    labs(x = "Longitude", y = "Latitude", color = "Cluster", title = "kCRFC") +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
 
-gridExtra::grid.arrange(p1, p2, 
-                        nrow = 1)
-
+p <- gridExtra::grid.arrange(p1, p2, 
+                             nrow = 1)
+# If you save to eps format, there are erros to display degree of lon and lat.
+ggsave("./figure/clust_bird.pdf", p,
+       width = 10, height = 6, dpi = 600)
 
 
 ### Riemannian FPCA and multivariate FPCA
