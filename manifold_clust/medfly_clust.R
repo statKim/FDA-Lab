@@ -121,22 +121,60 @@ apply(Ly[[1]], 2, function(x){ sum(x^2) })   # check that it is the unit sphere
 
 ### Example of data
 y_name <- c("flying","feeding","walking","resting")
-postscript("./figure/medfly.eps", horizontal = F, onefile = F, paper = "special",
-           width = 10, height = 7)
-par(mfrow = c(3, 4))
-# for (i in c(12, 3)) {
+fig_list <- list()
 set.seed(100)
 for (i in sample(1:62, 3)) {
-    for (j in 1:4) {
-        plot(Lt[[i]], Ly[[i]][j, ], 
-             type = "l", lwd = 3, col = j,
-             cex.lab = 1.5, cex.axis = 1.5,
-             xlab = "Days", ylab = y_name[j],
-             xlim = c(0, 37), ylim = c(0, 1))
-        grid()
-    }
+    df <- data.frame(
+        time = Lt[[i]],
+        t(Ly[[i]])
+    ) %>% 
+        gather(var_name, val, -time)
+    # head(df)
+    p <- ggplot(
+        data = df, 
+        aes(
+            x = time,
+            y = val,
+            group = var_name,
+            color = var_name
+        )
+    ) +
+        geom_line() +
+        labs(x = "Days", y = "") +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5),
+              legend.title = element_blank(),
+              legend.text = element_text(size = 12),
+              legend.position = "bottom")
+    # p
+    fig_list <- c(fig_list,
+                  list(p))
 }
-dev.off()
+# fig_list2 <- fig_list[c(1,3,5,7,2,4,6,8)]
+ggpubr::ggarrange(plotlist = fig_list, 
+                  nrow = 1, ncol = 3,
+                  common.legend = TRUE, legend = "bottom")
+ggsave("./figure/medfly.eps", width = 9, height = 3, dpi = 600)
+
+
+# ### Example of data - base R version
+# y_name <- c("flying","feeding","walking","resting")
+# postscript("./figure/medfly.eps", horizontal = F, onefile = F, paper = "special",
+#            width = 10, height = 7)
+# par(mfrow = c(3, 4))
+# # for (i in c(12, 3)) {
+# set.seed(100)
+# for (i in sample(1:62, 3)) {
+#     for (j in 1:4) {
+#         plot(Lt[[i]], Ly[[i]][j, ], 
+#              type = "l", lwd = 3, col = j,
+#              cex.lab = 1.5, cex.axis = 1.5,
+#              xlab = "Days", ylab = y_name[j],
+#              xlim = c(0, 37), ylim = c(0, 1))
+#         grid()
+#     }
+# }
+# dev.off()
 
 
 
@@ -328,7 +366,70 @@ table(clust.kCFC.Riemann, clust.funHDDC)
 table(clust.kCFC.Riemann, clust.gmfd)
 
 
+### Mean functions for each methods
+y_name <- c("Cluster 1", "Cluster 2")
+m_name <- c("kCRFC","funclust","funHDDC","gmfd")
+# m_name <- c("kCRFC","kCFC","funclust","funHDDC","gmfd")
+clust_list <- list(clust.kCFC.Riemann,
+                   # clust.kCFC.L2,
+                   clust.funclust,
+                   clust.funHDDC,
+                   clust.gmfd)
+fig_list <- list()
+for (i in 1:length(clust_list)) {
+    clust <- clust_list[[i]]
+    # # match cluster
+    # if (length( mclust::classError(clust.kCFC.Riemann, clust)$misclassified ) > n/3) {
+    #     clust <- ifelse(clust == 1, 2, 1)
+    # }
+    
+    mean_ftn <- lapply(1:2, function(cl) {
+        ind <- which(clust == cl)
+        Reduce("+", Ly[ind]) / length(ind)
+    })
+    time_points <- Lt[[1]]
+    
+    for (k in 1:2) {
+        df <- data.frame(
+            time = time_points,
+            t(mean_ftn[[k]])
+        ) %>% 
+            gather(var_name, val, -time)
+        # head(df)
+        p <- ggplot(
+            data = df, 
+            aes(
+                x = time,
+                y = val,
+                group = var_name,
+                color = var_name
+            )
+        ) +
+            geom_line() +
+            labs(x = "Days", y = "", title = paste0(m_name[i], " - ", y_name[k])) +
+            theme_bw() +
+            theme(plot.title = element_text(hjust = 0.5),
+                  legend.title = element_blank(),
+                  legend.text = element_text(size = 12),
+                  legend.position = "bottom")
+        # p
+        fig_list <- c(fig_list,
+                      list(p))
+    }
+}
+# fig_list %>% 
+#     length
+fig_list2 <- fig_list[c(1,3,5,7,2,4,6,8)]
+ggpubr::ggarrange(plotlist = fig_list2, 
+                  nrow = 2, ncol = 4,
+                  common.legend = TRUE, legend = "bottom")
+ggsave("./figure/medfly_mean.eps", width = 10, height = 5, dpi = 600)
 
+
+
+##########################
+### Test plot codes
+##########################
 ### Plot for each variable
 par(mfrow = c(2, 4))
 y_name <- c("flying","feeding","walking","resting")
@@ -401,7 +502,7 @@ for (i in 1:length(clust_list)) {
 # }
 
 
-### Mean functions for each methods
+### Mean functions for each methods - base R version
 postscript("./figure/medfly_mean.eps", horizontal = F, onefile = F, paper = "special",
            width = 10, height = 9)
 par(mfrow = c(4, 4))
