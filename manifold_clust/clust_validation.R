@@ -296,10 +296,10 @@ silhouette <- function(Ly, Lt, cluster) {
 }
 
 silhouette(Ly, Lt, clust.kCFC.Riemann)
-# silhouette(Ly, Lt, clust.kCFC.L2)
 silhouette(Ly, Lt, clust.funHDDC)
 silhouette(Ly, Lt, clust.funclust)
 silhouette(Ly, Lt, clust.gmfd)
+# silhouette(Ly, Lt, clust.kCFC.L2)
 
 
 # Other cluster validity measure
@@ -315,11 +315,45 @@ dunn.index <- function(Ly, Lt, cluster) {
     # compute distance matrix
     dist_mat <- dist.matrix.sphere(Ly, Lt)
     
-    # cluster index
-    clust_ind_list <- lapply(clust_uniq, function(cl) {
-        which(cluster == cl)
-    })
+    # Compute Dunn index
+    # https://github.com/cran/clValid/blob/master/R/clValid-functions.R
+    intra_clust <- numeric(num_cl)   # intra-cluster
+    inter_clust <- matrix(NA, num_cl, num_cl)   # inter-cluster
+    for (i in 1:num_cl) {
+        ind_i <- which(cluster == i)
+        for (j in 1:num_cl) {
+            if (j == i) {
+                intra_clust[i] <- max(dist_mat[ind_i, ind_i])
+            } else if (j > i) {
+                ind_j <- which(cluster == j)
+                inter_clust[i, j] <- min(dist_mat[ind_i, ind_j])
+            }
+        }
+    }
+    dunn <- min(inter_clust, na.rm = T) / max(intra_clust)
     
+    # # linkage methods
+    # # https://python-bloggers.com/2022/03/dunn-index-for-k-means-clustering-evaluation/
+    # if (linkage == "average") {
+    #     comb_list <- combn(k, 2)   # obtain 경우의수
+    #     delta <- apply(comb_list, 2, function(comb){
+    #         ind <- unlist(clust_ind_list[comb])
+    #         ind_list <- expand.grid(ind, ind)
+    #         ind_list <- ind_list[which(ind_list$Var1 > ind_list$Var2), ]
+    #         # obatin upper triangular elements
+    #         return( mean(dist_mat[ as.matrix(ind_list) ]) )
+    #     })
+    #     delta <- min(dist_mat)
+    # } else {
+    #     stop("Not supported 'linkage' value!")
+    # }
     
+    return(dunn)
 }
+
+dunn.index(Ly, Lt, clust.kCFC.Riemann)
+dunn.index(Ly, Lt, clust.funHDDC)
+dunn.index(Ly, Lt, clust.funclust)
+dunn.index(Ly, Lt, clust.gmfd)
+# dunn.index(Ly, Lt, clust.kCFC.L2)
 
