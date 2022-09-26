@@ -74,13 +74,10 @@ for (sim.type in 1:3) {
                     lambda <- (i*0.07)^(seq_len(K) / 2)
                     muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
                 } else if (sim.type == 3) {
-                    lambda <- (i*0.07)^(seq_len(K) / 2)
-                    muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
-                    # basisType <- "fourier"
-                    # xiFun <- rcauchy
-                    # muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
-                    # muList[[2]] <- function(x) (cos(x * 5 * pi)) * pi / 2 * 0.6
-                    # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+                    # lambda <- (i*0.07)^(seq_len(K) / 2)
+                    # muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+                    lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+                    muList[[2]] <- function(x) (-sin(x * 2 * pi)) * pi / 2 * 0.6
                 }
             }
             
@@ -307,11 +304,61 @@ for (sim.type in 1:3) {
 }
 res
 # save(res, file = "RData/2022_0127.RData")
-save(clust_list, res, file = "RData/2022_0907_sim_S3.RData")
+save(clust_list, res, file = "RData/2022_0926_sim_S3.RData")
 
 
 length(clust_list)
 length(clust_list[[1]])
 length(clust_list[[1]][[1]])
 
-
+### res 잘못 저장됐다...
+for (sim.type in 1:3) {
+    ### Combine results
+    if (sim.type == 1) {
+        res <- data.frame(Method = method_list) %>% 
+            # CCR
+            left_join(data.frame(
+                Method = colnames(CCR),
+                "CCR" = paste0(
+                    format(round(colMeans(CCR), 3), 3),
+                    " (",
+                    format(round(apply(CCR, 2, sd), 3), 3),
+                    ")"
+                )
+            ), by = "Method") %>% 
+            # aRand
+            left_join(data.frame(
+                Method = colnames(aRand),
+                "aRand" = paste0(
+                    format(round(colMeans(aRand), 3), 3),
+                    " (",
+                    format(round(apply(aRand, 2, sd), 3), 3),
+                    ")"
+                )
+            ), by = "Method")
+    } else if (sim.type > 1) {
+        res2 <- data.frame(Method = method_list) %>% 
+            # CCR
+            left_join(data.frame(
+                Method = colnames(CCR),
+                "CCR" = paste0(
+                    format(round(colMeans(CCR), 3), 3),
+                    " (",
+                    format(round(apply(CCR, 2, sd), 3), 3),
+                    ")"
+                )
+            ), by = "Method") %>% 
+            # aRand
+            left_join(data.frame(
+                Method = colnames(aRand),
+                "aRand" = paste0(
+                    format(round(colMeans(aRand), 3), 3),
+                    " (",
+                    format(round(apply(aRand, 2, sd), 3), 3),
+                    ")"
+                )
+            ), by = "Method")
+        res <- cbind(res, res2[, -1])
+    }
+}
+res

@@ -73,13 +73,10 @@ for (sim.type in 1:3) {
                     lambda <- (i*0.07)^(seq_len(K) / 2)
                     muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
                 } else if (sim.type == 3) {
-                    lambda <- (i*0.07)^(seq_len(K) / 2)
-                    muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
-                    # basisType <- "fourier"
-                    # xiFun <- rcauchy
-                    # muList[[2]] <- function(x) (-sin(x * 1 * pi)) * pi / 2 * 0.6
-                    # muList[[2]] <- function(x) (cos(x * 5 * pi)) * pi / 2 * 0.6
-                    # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+                    # lambda <- (i*0.07)^(seq_len(K) / 2)
+                    # muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+                    lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
+                    muList[[2]] <- function(x) (-sin(x * 2 * pi)) * pi / 2 * 0.6
                 }
             }
             
@@ -306,7 +303,7 @@ for (sim.type in 1:3) {
 }
 res
 # save(res, file = "RData/2022_0127.RData")
-# save(clust_list, res, file = "RData/2022_0214.RData")
+save(clust_list, res, file = "RData/2022_0926.RData")
 
 
 length(clust_list)
