@@ -303,7 +303,7 @@ for (sim.type in 1:3) {
 }
 res
 # save(res, file = "RData/2022_0127.RData")
-save(clust_list, res, file = "RData/2022_0926.RData")
+save(clust_list, res, file = "RData/2022_0926_sim_S2.RData")
 
 
 length(clust_list)
