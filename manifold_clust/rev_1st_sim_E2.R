@@ -81,7 +81,7 @@ for (sim.type in 1:3) {
             }
             
             pts <- seq(0, 1, length.out = m)
-            mfd <- structure(1, class = 'Sphere')
+            mfd <- structure(1, class = 'Euclidean')
             mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
             
             # Generate samples
@@ -109,13 +109,13 @@ for (sim.type in 1:3) {
                                   k = k,
                                   kSeed = seed, 
                                   maxIter = 125, 
-                                  optnsSW = list(mfdName = "Sphere",
+                                  optnsSW = list(mfdName = "Euclidean",
                                                  FVEthreshold = FVEthresholdSW,
                                                  maxK = maxK,
                                                  # error = T,
                                                  userBwMu = "GCV", 
                                                  userBwCov = "GCV"),
-                                  optnsCS = list(mfdName = "Sphere",
+                                  optnsCS = list(mfdName = "Euclidean",
                                                  FVEthreshold = FVEthresholdCS,
                                                  maxK = maxK,
                                                  # error = T,
@@ -302,7 +302,7 @@ for (sim.type in 1:3) {
     }
 }
 res
-save(clust_list, res, file = "RData/2023_0220_rev_sim_S2.RData")
+save(clust_list, res, file = "RData/2023_0220_rev_sim_E2.RData")
 
 
 length(clust_list)

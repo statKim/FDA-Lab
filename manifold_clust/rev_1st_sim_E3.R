@@ -61,6 +61,7 @@ for (sim.type in 1:3) {
             muList <- list(
                 function(x) x * 2,
                 function(x) sin(x * 1 * pi) * pi / 2 * 0.6,
+                function(x) cos(x * 1/2 * pi) * pi / 2 * 0.6,
                 function(x) rep(0, length(x))
             )
             
@@ -73,16 +74,17 @@ for (sim.type in 1:3) {
                     # lambda <- (i*0.07)^(seq_len(K) / 2)
                     muList[[2]] <- function(x) (cos(x * 4 * pi)) * pi / 2 * 0.6
                 } else if (sim.type == 3) {
-                    # # lambda <- (i*0.07)^(seq_len(K) / 2)
-                    # # muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
+                    # lambda <- (i*0.07)^(seq_len(K) / 2)
+                    # muList[[2]] <- function(x) (sin(x * 3 * pi)) * pi / 2 * 0.6
                     # lambda <- ((i+1)*0.07)^(seq_len(K) / 2)
                     muList[[2]] <- function(x) (-sin(x * 2 * pi)) * pi / 2 * 0.6
+                    muList[[3]] <- function(x) cos(x * pi) * pi / 2 * 0.6
                 }
             }
             
             pts <- seq(0, 1, length.out = m)
-            mfd <- structure(1, class = 'Sphere')
-            mu <- Makemu(mfd, muList, c(0, 0, 1), pts)
+            mfd <- structure(1, class = 'Euclidean')
+            mu <- Makemu(mfd, muList, c(0, 0, 0, 1), pts)
             
             # Generate samples
             samp <- MakeMfdProcess(mfd = mfd, 
@@ -109,13 +111,13 @@ for (sim.type in 1:3) {
                                   k = k,
                                   kSeed = seed, 
                                   maxIter = 125, 
-                                  optnsSW = list(mfdName = "Sphere",
+                                  optnsSW = list(mfdName = "Euclidean",
                                                  FVEthreshold = FVEthresholdSW,
                                                  maxK = maxK,
                                                  # error = T,
                                                  userBwMu = "GCV", 
                                                  userBwCov = "GCV"),
-                                  optnsCS = list(mfdName = "Sphere",
+                                  optnsCS = list(mfdName = "Euclidean",
                                                  FVEthreshold = FVEthresholdCS,
                                                  maxK = maxK,
                                                  # error = T,
@@ -302,11 +304,9 @@ for (sim.type in 1:3) {
     }
 }
 res
-save(clust_list, res, file = "RData/2023_0220_rev_sim_S2.RData")
+save(clust_list, res, file = "RData/2023_0220_rev_sim_E3.RData")
 
 
 length(clust_list)
 length(clust_list[[1]])
 length(clust_list[[1]][[1]])
-
-

@@ -133,7 +133,7 @@ df2[2000:nrow(df2), ]
 ### Start and end date for 
 bird_period <- data.frame(
     id = c(
-        rep("Agri", 2), "Agri", rep("Ardahan", 3), "Armenia2", "Armenia3",
+        rep("Agri", 2), "Aras", rep("Ardahan", 3), "Armenia2", "Armenia3",
         rep("Cabuk", 3), rep("Haydi", 3), rep("Igdir", 5), rep("Iste", 12),
         rep("Logiya", 16), rep("Orada", 3), "Serhat", rep("Tuzluca", 6)
     ),
