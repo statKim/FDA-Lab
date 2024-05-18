@@ -1,0 +1,92 @@
+---
+title: "Classificaion fMRI trajectories"
+author: "Hyunsung Kim"
+date: '2024-05-14'
+format: 
+  beamer:
+    # fontsize: "24pt"
+    include-in-header:
+      - text: |
+          \usepackage{kotex}
+      - ./preamble_beamer.tex
+---
+
+## Classification using the High-dimensional Classifiers
+\small
+
+- After B-spline basis expansion for each functional covariate, we consider the high-dimensional classifiers for the stacked basis coefficients matrix.
+
+<br>
+
+- Following 6 classifiers are considered:
+
+  - `sparseLDA`: `sparseLDA` package
+  
+    <!-- > Clemmensen, L., Hastie, T. Witten, D. and Ersboell, K. (2011) "Sparse discriminant analysis", Technometrics. -->
+  
+  - `Dlda`: Diagonal Linear Discriminant Analysis; `HiDimDA` package
+  
+  - `Mlda`: Maximum-uncertainty Linear Discriminant Analysis
+    <!-- > Thomaz, Kitani and Gillies (2006) “A maximum uncertainty LDA-based approach for limited sample size problems - with application to face recognition”, Journal of the Brazilian Computer Society. -->
+    
+  - `Slda`: Shrunken Linear Discriminant Analysis
+    
+    <!-- > Ledoit, O. and Wolf, M. (2004) “A well-conditioned estimator for large-dimensional covariance matrices.”, Journal of Multivariate Analysis. -->
+    
+  - `RFlda`: Factor-model Linear Discriminant Analysis
+    
+    <!-- > Pedro Duarte Silva, A. (2011) “Two Group Classification with High-Dimensional Correlated Data: A Factor Model Approach”, Computational Statistics and Data Analysis. -->
+  
+  - `hdda`: `HDclassif` package
+    <!-- > Berge, L. Bouveyron, C. and Girard, S. (2012) “HDclassif: An R Package for Model-Based Clustering and Discriminant Analysis of High-Dimensional Data”, Journal of Statistical Software. -->
+
+
+## Results using the High-dimensional Classifiers
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{crrrrrr}
+\hline
+  & sparseLDA & Dlda & Mlda & Slda & RFlda & hdda \\ 
+  \hline
+ Accuracy & 0.531 & 0.495 & 0.499 & 0.497 & 0.490 & 0.581  \\ 
+ Sensitivity & 0.242 & 0.242 & 0.242 & 0.242 & 0.242 & 0.242 \\
+ Specificity & 0.714 & 0.714 & 0.714 & 0.714 & 0.714 & 0.714 \\
+  \hline
+\end{tabular}
+\end{table}
+
+
+\vspace{1cm}
+
+### 문제점
+- 각 covariate간 grouped하여 sparse하게 하는 것이 적절하나 이를 무시한 결과임
+
+
+
+## High-dimensional functional LDA
+\small
+
+- Xue, K., Yang, J., & Yao, F. (2023). Optimal linear discriminant analysis for high-dimensional functional data. *Journal of the American Statistical Association*, 1-10.
+
+- 해당 논문에서 `matlab` 코드를 제공하나, 일부 함수들이 포함되어 있지 않아 코드 실행 불가능
+
+<!-- - 논문을 토대로 `R`로 구현하였으나 약간의 차이가 있음 -->
+<!--   \small -->
+<!--   - 예를 들어, $\lVert \hat\nu_j \rVert_2 > 0$이 되는 discriminant set을 정의하기 위한 tolerence rate -->
+
+\vspace{0.2cm}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{crrrr}
+\hline
+  & fMRI & EEG & EEG (5-fold CV) & EEG (Original paper) \\ 
+  \hline
+ Accuracy & 0.514 & 0.683 & 0.740 & 0.787 \\ 
+ Sensitivity & 0.207 & 0.246 & 0.368 & - \\
+ Specificity & 0.739 & 0.943 & 0.957 & - \\
+  \hline
+\end{tabular}
+\end{table}
+

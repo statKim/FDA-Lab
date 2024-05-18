@@ -1,0 +1,121 @@
+---
+title: "Classificaion for fMRI curves with similar mean, different variation"
+# author: "Hyunsung Kim"
+date: '2024-04-30'
+format: 
+  pdf:
+    documentclass: scrartcl
+    include-in-header:
+      - text: |
+          \usepackage{kotex}
+      - ./preamble.tex
+knitr:
+  opts_chunk:
+    out.width: "80%"
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE, 
+  # cache = T,
+  # fig.width = 12, fig.height = 6,
+  # out.width = "80%",
+  fig.align = "center"
+)
+# # Set working directory
+# knitr::opts_knit$set(root.dir = "../")
+```
+
+# Functional GLM with sparse group lasso penalty
+
+다음의 functional GLM에서
+$$
+g(\mu) = \beta_0 + \sum_{j=1}^p\int X_i^j(t)\beta^j(t)dt \approx \beta_0 + \sum_{j=1}^p \sum_{k=1}^{K_j} \xi_{ik}^j \beta_{k}^j
+$$
+아래의 sparse group lasso penalty를 주어 loss를 minimize.
+$$ P(\lambda) = (1-\alpha)\lambda\sum_{j=1}^p \sqrt{K_j} \lVert \beta^j \rVert_2+ \alpha\lambda\lVert \beta \rVert_1 $$
+
+\newpage 
+## 결과
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ccrrrr}
+  && \multicolumn{2}{c|}{FGLM} & \multicolumn{2}{c}{FLasso} \\
+  \hline
+ \# of basis & & B-spline & FPCA & B-spline & FPCA \\ 
+ \hline
+ &&\multicolumn{4}{c}{Train:Test = 80:20} \\
+ \shortstack{FVE = 0.9 \\ \# of knots = 20} & \multirow{7}{*}{Accuracy} & 0.489 & 0.503 & 0.586 & 0.584  \\ 
+ \shortstack{FVE = 0.8 \\ \# of knots = 50} &  & 0.524 & 0.509 & 0.585 & 0.581  \\ 
+ \shortstack{K = 5 \\ \# of knots = 5} &  & 0.501 & 0.512 & 0.587 & 0.583  \\ 
+ \shortstack{K = 3 \\ \# of knots = 3} &  & 0.509 & 0.501 & 0.588 & 0.582  \\ 
+ \shortstack{$\alpha = 0.05$ \\ FVE = 0.7 \\ \# of knots = 40} & & 0.500 & 0.497 & 0.584 & 0.584 \\
+  \hline
+  &&\multicolumn{4}{c}{Train:Test = 70:30} \\
+  \multirow{3}{*}{\shortstack{$\alpha = 0.1$ \\ FVE = 0.7 \\ \# of knots = 30}} & Accuracy & 0.486 & 0.499 & 0.576 & 0.581  \\ 
+  & Sensitivity & 0.479 & 0.483 & 0.025 & 0.014 \\
+  & Specificity & 0.490 & 0.510 & 0.963 & 0.980 \\
+  \hline
+  \multirow{3}{*}{\shortstack{$\alpha = 0.2$ \\ FVE = 0.7 \\ \# of knots = 30}} & Accuracy & 0.486 & 0.499 & 0.576 & 0.580  \\ 
+  & Sensitivity & 0.479 & 0.483 & 0.025 & 0.016 \\
+  & Specificity & 0.490 & 0.510 & 0.962 & 0.977 \\
+  \hline
+\end{tabular}
+\end{table}
+
+
+
+
+## 문제점
+- Group lasso를 준 `FLasso`의 경우, optimal $\lambda$가 큰 값을 가질 때 10-fold CV error가 가장 작은 값을 가지게 됨
+  - 이 때문에 모든 $\beta=0$으로 shrinkage 되어 prediction을 1개 class로만 분류해버림 (control의 비율이 높기 때문에 control로 모두 classify해버림)
+
+
+\newpage
+
+
+```{r}
+# 191 curves from 1st region
+idx <- 75
+file_list <- list.files("./fMRI_Classification/AlignedSubject/")
+for (i in 1:length(file_list)) {
+  df <- read.csv(paste0("./fMRI_Classification/AlignedSubject/", file_list[i]), header = T)
+  df <- df[idx, -1] %>% unlist() %>% as.numeric()
+  
+  if (i == 1) {
+    X <- df
+  } else {
+    X <- rbind(X, df)
+  }
+}
+
+# Class label of 191 subjects
+y <- read.csv("./fMRI_Classification/class_label.csv", header = T)
+y <- y$y
+
+gr <- seq(0, 1, length.out = ncol(X))
+
+plot(gr, colMeans(X[y==0, ]), type = "l", xlab = "t", ylab = "", ylim = range(colMeans(X[y==0, ]), colMeans(X[y==1, ])))
+lines(gr, colMeans(X[y==1, ]), col = 2)
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+GA::persp3D(gr, gr,
+            cov(X[y == 0, ]),
+            theta = -70, phi = 30, expand = 1,
+            zlim = c(-8, 25),
+            xlab = 't', ylab = 's', zlab = '', main = 'Control')
+GA::persp3D(gr, gr,
+            cov(X[y == 1, ]),
+            theta = -70, phi = 30, expand = 1,
+            zlim = c(-8, 25),
+            xlab = 't', ylab = 's', zlab = '', main = 'ADHD')
+```
+

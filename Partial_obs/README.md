@@ -1,3 +1,7 @@
+### 2nd Revision (위에서 아래로)
+
+- 
+
 ### 1st Revision (위에서 아래로)
 
 - equation (1) 계산시간 재보기
