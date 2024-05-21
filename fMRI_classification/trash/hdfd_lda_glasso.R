@@ -1,6 +1,6 @@
 library(CVXR)
 library(foreach)
-source("functions.R")
+source("R/make_basis_mf.R")
 
 #' LDA for High-dimensional functional data
 #' 
@@ -84,14 +84,14 @@ hdfd_lda <- function(X, y,
   penalty_term <- sqrt(omega) * nu
   for (g in 1:length(groups_unique)) {
     if (g == 1) {
-      penalty_term <- p_norm(penalty_term[groups %in% groups_unique[g]], 2)
+      penalty_term2 <- p_norm(penalty_term[groups %in% groups_unique[g]], 2)
     } else {
-      penalty_term <- penalty_term + p_norm(penalty_term[groups %in% groups_unique[g]], 2)
+      penalty_term2 <- penalty_term2 + p_norm(penalty_term[groups %in% groups_unique[g]], 2)
     }
   }
   
   # obj <- sum((z - X_coef_c %*% nu)^2) / (2*(n-2)) + lambda*p_norm(sqrt(omega) * nu, 1)
-  obj <- sum((z - X_coef_c %*% nu)^2) / (2*(n-2)) + lambda*penalty_term
+  obj <- sum((z - X_coef_c %*% nu)^2) / (2*(n-2)) + lambda*penalty_term2
   
   # lambda_n <- lambda*sqrt(omega)
   # obj <- sum((z - X_coef_c %*% nu)^2) / (2*(n-2)) + p_norm(lambda_n*nu, 1)
@@ -120,16 +120,17 @@ hdfd_lda <- function(X, y,
   # sum((nu_hat_13 - nu_hat_14)^2)   # similar results
   
   # Obtain the discrimination vector and discrimination threshold
-  nu_hat_l2norm <- sapply(1:p, function(j){
-    idx <- which(groups == j)
-    sqrt(sum(nu_hat[idx]^2))
-  })
-  discrim_set_idx <- which(nu_hat_l2norm > 0)
+  # nu_hat_l2norm <- sapply(1:p, function(j){
+  #   idx <- which(groups == j)
+  #   sqrt(sum(nu_hat[idx]^2))
+  # })
+  # discrim_set_idx <- which(nu_hat_l2norm > 0)
+  discrim_set_idx <- which(nu_hat > 0)
   if (length(discrim_set_idx) == 0) {
     stop("All zero coefficients are obtained!")
   }
   idx <- which(groups %in% discrim_set_idx)
-  nu_hat[-idx, ] <- 0   # sparse solution
+  # nu_hat[-idx, ] <- 0   # sparse solution
   threshold <- as.numeric( (t(nu_hat[idx, ]) %*% S[idx, idx] %*% nu_hat[idx, ]) * 1/(t(nu_hat[idx]) %*% nu_1[idx]) * log(n1/n2) )
   
   # Obtain training error

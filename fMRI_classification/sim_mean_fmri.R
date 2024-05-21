@@ -79,6 +79,8 @@ table(y)
 sum(is.na(X))
 
 
+save(X, y, file = "fMRI_Classification/fMRI.RData")
+
 # n <- dim(X)[1]   # number of curves
 # m <- dim(X)[2]   # number of timepoints
 # p <- dim(X)[3]  # number of functional variables
