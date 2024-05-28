@@ -8,6 +8,7 @@ source("R/make_basis_mf.R")
 # Inputs:
 #   - X: A n-m-d array (d-variate functional data; each functional data consists of n curves observed from m timepoints)
 #   - y: A integer vector containing class label of X (n x 1 vector)
+#   - X2: n-q matrix (q-variate scalar covariates)
 #   - grid: A vector containing m timepoints
 #   - lambda: penalty parameter for group lasso penalty
 #   - alpha: relative weight for l1-norm (1-alpha for 12-norm)
@@ -17,6 +18,7 @@ source("R/make_basis_mf.R")
 #   - n_knots: the number of knots to choose the number of the B-spline bases
 # Outputs: `fglasso` object
 fglm_sparse <- function(X, y, 
+                        X2 = NULL,
                         grid = NULL, 
                         basis = "bspline",
                         penalty = "grLasso",
@@ -37,6 +39,12 @@ fglm_sparse <- function(X, y,
   
   # Group indicator for each functional covariate
   groups <- basis_obj$groups
+  
+  # Scalar covariates
+  if (!is.null(X2)) {
+    X_coef <- cbind(X_coef, as.matrix(X2))
+    groups <- c(groups, max(groups):(max(groups) + ncol(X2) -1))
+  }
   
   # Sparse group lasso type functional regression
   # lambda_list <- 10^seq(-4, -1.5, length.out = 100)
@@ -88,9 +96,14 @@ fglm_sparse <- function(X, y,
   return(res)
 }
 
-predict.fglm_sparse <- function(obj, newdata) {
+predict.fglm_sparse <- function(obj, newdata, newdata2 = NULL) {
   # Make basis coefficient matrix
   X_coef <- predict.make_basis_mf(obj$basis_obj, newdata)
+  
+  # Scalar covariates
+  if (!is.null(newdata2)) {
+    X_coef <- cbind(X_coef, as.matrix(newdata2))
+  }
   
   cv_fit <- obj$model.obj
   
@@ -138,7 +151,7 @@ gr <- seq(0, 1, length.out = m)
 ### Classification
 ##################################################
 basis <- "bspline"
-n_knots <- 30
+n_knots <- 20
 
 compare_methods <- c("grLasso","grSCAD")
 
@@ -161,6 +174,9 @@ for (sim in 1:num_sim) {
   X_test <- X[-idx_train, , ]
   y_test <- y[-idx_train]
   
+  X2_train <- X2[idx_train, ]
+  X2_test <- X2[-idx_train, ]
+  
   # Proportion of ADHD
   prop1_sim[sim, ] <- c(mean(y_train), mean(y_test))
   print(paste("P(Y_train=1) =", round(mean(y_train), 2), "; P(Y_test=1) =", round(mean(y_test), 2)))
@@ -170,11 +186,18 @@ for (sim in 1:num_sim) {
   
   # Functional lasso with grLasso
   fit_fglm_sparse <- fglm_sparse(X_train, y_train, 
+                                 X2_train,
                                  grid = gr, 
                                  basis = "bspline",
                                  penalty = "grLasso",
                                  n_knots = n_knots)
-  pred <- predict(fit_fglm_sparse, X_test)
+  pred <- predict(fit_fglm_sparse, X_test, X2_test)
+  # fit_fglm_sparse <- fglm_sparse(X_train, y_train, 
+  #                                grid = gr, 
+  #                                basis = "bspline",
+  #                                penalty = "grLasso",
+  #                                n_knots = n_knots)
+  # pred <- predict(fit_fglm_sparse, X_test)
   pred_mat$grLasso <- pred
   beta <- coef(fit_fglm_sparse$model.obj) %>% as.numeric()
   num_nonzero[sim, 1] <- sum(abs(beta) > 0)
@@ -183,11 +206,18 @@ for (sim in 1:num_sim) {
   
   # Functional lasso with grSCAD
   fit_fglm_sparse <- fglm_sparse(X_train, y_train, 
+                                 X2_train,
                                  grid = gr, 
                                  basis = "bspline",
                                  penalty = "grSCAD",
                                  n_knots = n_knots)
-  pred <- predict(fit_fglm_sparse, X_test)
+  pred <- predict(fit_fglm_sparse, X_test, X2_test)
+  # fit_fglm_sparse <- fglm_sparse(X_train, y_train, 
+  #                                grid = gr, 
+  #                                basis = "bspline",
+  #                                penalty = "grSCAD",
+  #                                n_knots = n_knots)
+  # pred <- predict(fit_fglm_sparse, X_test)
   pred_mat$grSCAD <- pred
   beta <- coef(fit_fglm_sparse$model.obj) %>% as.numeric()
   num_nonzero[sim, 2] <- sum(abs(beta) > 0)

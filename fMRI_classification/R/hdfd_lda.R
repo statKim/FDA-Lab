@@ -1,6 +1,5 @@
 library(CVXR)
 library(foreach)
-source("functions.R")
 
 #' LDA for High-dimensional functional data
 #' 

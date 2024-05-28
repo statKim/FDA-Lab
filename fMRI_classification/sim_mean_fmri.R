@@ -1,9 +1,10 @@
 library(tidyverse)
-df <- data.table::fread("/Users/hyunsung/Desktop/Homework/fMRI_Classification/Clean_fMRI_PekingUniversity/sub7.csv")
+df <- data.table::fread("./fMRI_Classification/Clean_fMRI_PekingUniversity/sub7.csv")
 dim(df)
 colnames(df)
 unique(df$Region_ID) %>% sort()
 
+head(df[, 1:17])
 
 
 data <- as.matrix(df[, which(colnames(df) %in% "t1"):which(colnames(df) %in% "t232")])
@@ -53,6 +54,8 @@ f_list <- list.files(dir_name)
 # subject_id[order(subject_id)]
 # strsplit(f_list, "sub" ,".csv")
 
+X2 <- data.frame(Gender = rep(0, n),
+                 Age = rep(0, n))
 y <- rep(0, n)
 for (i in 1:length(f_list)) {
   print(i)
@@ -72,18 +75,28 @@ for (i in 1:length(f_list)) {
   if (df$Phenotype_Diagnosis_L1[1] == "ADHD Diagnosed") {
     y[i] <- 1
   }
+  
+  X2$Gender[i] <- ifelse(df$Phenotype_Gender[1] == "Male", 1, 0)
+  X2$Age[i] <- df$Phenotype_Age[1]
 }
 dim(X)
 table(y)
+head(X2)
 
 sum(is.na(X))
 
 
-save(X, y, file = "fMRI_Classification/fMRI.RData")
+save(X, y, X2, file = "fMRI_Classification/fMRI.RData")
 
 # n <- dim(X)[1]   # number of curves
 # m <- dim(X)[2]   # number of timepoints
 # p <- dim(X)[3]  # number of functional variables
+
+
+df_train <- cbind(y = y_train, 
+                  X2[idx_train, ])
+fit <- glm(y ~ ., df_train, family = "binomial")
+mean(y_test == ifelse(predict(fit, X2[-idx_train, ], type = "response") > 0.5, 1, 0))
 
 
 ##################################################
