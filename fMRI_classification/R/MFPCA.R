@@ -65,18 +65,19 @@ uFPCA <- function(X, grid = NULL, K = NULL, FVE = 0.95, centered = FALSE) {
     # FPC scores
     lambda <- lambda[1:K]
     phi <- matrix(phi[, 1:K], ncol = K)
-    # xi <- matrix(X %*% phi, ncol = K)
-    xi <- sapply(1:K, function(k) {
-        apply(t(X) * phi[, k], 2, function(x_i_phi_k) {
-            fdapace::trapzRcpp(work.grid, x_i_phi_k)
-        })
-    })
-    # xi <- sapply(1:n, function(i){
-    #     apply(phi * X[i, ], 2, function(x_i_phi_k){
+    xi <- get_fpc_scores(X, phi, work.grid)   # C++ function
+    # # xi <- matrix(X %*% phi, ncol = K)
+    # xi <- sapply(1:K, function(k) {
+    #     apply(t(X) * phi[, k], 2, function(x_i_phi_k) {
     #         fdapace::trapzRcpp(work.grid, x_i_phi_k)
     #     })
     # })
-    # xi <- t(xi)
+    # # xi <- sapply(1:n, function(i){
+    # #     apply(phi * X[i, ], 2, function(x_i_phi_k){
+    # #         fdapace::trapzRcpp(work.grid, x_i_phi_k)
+    # #     })
+    # # })
+    # # xi <- t(xi)
 
 
     res <- list(eig.val = lambda,
@@ -103,11 +104,12 @@ predict.uFPCA <- function(obj, newdata, K = NULL, type = "fpc.score") {
   # FPC scores
   lambda <- obj$eig.val[1:K]
   phi <- obj$eig.ftn[, 1:K]
-  xi <- sapply(1:K, function(k) {
-    apply(t(newdata) * phi[, k], 2, function(x_i_phi_k) {
-      fdapace::trapzRcpp(obj$work.grid, x_i_phi_k)
-    })
-  })
+  xi <- get_fpc_scores(newdata, phi, work.grid)   # C++ function
+  # xi <- sapply(1:K, function(k) {
+  #   apply(t(newdata) * phi[, k], 2, function(x_i_phi_k) {
+  #     fdapace::trapzRcpp(obj$work.grid, x_i_phi_k)
+  #   })
+  # })
   
   if (type == "fpc.score") {
     res <- xi

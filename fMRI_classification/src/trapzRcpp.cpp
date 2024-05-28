@@ -41,6 +41,7 @@ double trapzRcpp(const Rcpp::NumericVector X, const Rcpp::NumericVector Y){
   return  std::numeric_limits<double>::quiet_NaN();
 }
 
-/*** R
-trapzRcpp(1:10, 1:10)
-*/
+// 
+// /*** R
+// trapzRcpp(1:10, 1:10)
+// */

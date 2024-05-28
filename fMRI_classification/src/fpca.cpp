@@ -1,100 +1,138 @@
-#include <RcppEigen.h>
 #include <Rcpp.h>
+//[[Rcpp::depends(RcppEigen)]]
+#include <RcppEigen.h>
 #include "trapzRcpp.h"
+
 using namespace Rcpp;
 using namespace Eigen;
 
-// [[Rcpp::depends(RcppEigen)]]
 
 // [[Rcpp::export]]
-List uFPCA_cpp(Eigen::MatrixXd X, Nullable<NumericVector> grid = R_NilValue, Nullable<int> K = R_NilValue, double FVE = 0.95, bool centered = false) {
+// SVD for n x p matrix
+List svd_cpp(Eigen::MatrixXd X) {
+  X = X.transpose();  // p x n matrix
+  Eigen::BDCSVD<Eigen::MatrixXd> svd(X, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::MatrixXd U = svd.matrixU();
+  Eigen::MatrixXd V = svd.matrixV();
+  Eigen::VectorXd S = svd.singularValues();
   
-  int n = X.rows();  // number of curves
-  int m = X.cols();  // number of timepoints
-  
-  // Observed grid points
-  NumericVector grid_r;
-  if (grid.isNull()) {
-    grid_r = seq(0, 1, length.out = m);
-  } else {
-    grid_r = grid;
-  }
-  
-  // Centering the curves
-  Eigen::VectorXd mu;
-  if (!centered) {
-    mu = X.colwise().mean();
-    X = X.rowwise() - mu.transpose();
-  } else {
-    mu = Eigen::VectorXd::Zero(m);
-  }
-  
-  // SVD
-  BDCSVD<MatrixXd> svd(X.transpose() / sqrt(n), ComputeThinU | ComputeThinV);
-  VectorXd d = svd.singularValues();
-  MatrixXd u = svd.matrixU();
-  
-  // Eigen analysis
-  // MatrixXd cov_mat = X * X.transpose() / n;
-  // EigenSolver<MatrixXd> eig(cov_mat);
-  // VectorXd d = eig.eigenvalues().real();
-  // MatrixXd u = eig.eigenvectors().real();
-  
-  std::vector<int> positive_ind;
-  for (int i = 0; i < d.size(); ++i) {
-    if (d(i) > 0) {
-      positive_ind.push_back(i);
-    }
-  }
-  
-  VectorXd lambda = d.segment(positive_ind[0], positive_ind.size()).array().square();
-  MatrixXd phi = u.block(0, positive_ind[0], u.rows(), positive_ind.size());
-  
-  // Normalizing eigenvalues and eigenfunctions
-  double grid_size = grid_r[1] - grid_r[0];
-  NumericVector work_grid = seq(min(grid_r), max(grid_r), m);
-  lambda = lambda * grid_size;
-  for (int j = 0; j < phi.cols(); ++j) {
-    phi.col(j) = phi.col(j) / sqrt(grid_size);
-    // phi.col(j) = phi.col(j) / sqrt(phi.col(j).squaredNorm());  // normalize
-    phi.col(j) = phi.col(j) / sqrt(trapzRcpp(work_grid, phi.col(j).array().square()));
-    if (phi.col(j).dot(work_grid) < 0)
-      phi.col(j) *= -1;
-  }
-  
-  // Select the number of FPCs
-  NumericVector cum_FVE = cumsum(lambda) / sum(lambda);  // cumulative FVE
-  int K_cpp;
-  if (K.isNull()) {
-    K_cpp = std::distance(cum_FVE.begin(), std::find_if(cum_FVE.begin(), cum_FVE.end(), [FVE](double x){return x >= FVE;})) + 1;
-  } else {
-    K_cpp = as<int>(K);
-  }
-  if (K_cpp > lambda.size()) {
-    stop("K is too large.");
-  }
-  
-  // FPC scores
-  lambda.conservativeResize(K_cpp);
-  phi.conservativeResize(phi.rows(), K_cpp);
-  MatrixXd xi(m, K_cpp);
-  for (int k = 0; k < K_cpp; ++k) {
-    for (int i = 0; i < n; ++i) {
-      xi(i, k) = trapzRcpp(work_grid, X.row(i).array() * phi.col(k).array());
-    }
-  }
-  
-  return List::create(Named("eig.val") = lambda,
-                      Named("eig.ftn") = phi,
-                      Named("fpc.score") = xi,
-                      Named("K") = K_cpp,
-                      Named("FVE") = cum_FVE[K_cpp - 1],
-                                            Named("work.grid") = work_grid,
-                                            Named("mean.ftn") = mu);
+  return List::create(Named("singular.value") = S,
+                      Named("eig.ftn") = U);
 }
 
 
+// [[Rcpp::export]]
+Rcpp::NumericMatrix normalize_phi(Rcpp::NumericMatrix phi, Rcpp::NumericVector work_grid) {
+  Rcpp::NumericMatrix phi_normalized(phi.rows(), phi.cols());
+  Rcpp::NumericVector phi_i(phi.rows());
+  for (int i = 0; i < phi.cols(); i++) {
+    phi_i = phi.column(i);
+    // phi_i = phi_i / sqrt(grid_size);
+    phi_i = phi_i / sqrt(trapzRcpp(work_grid, pow(phi_i, 2)));
+    if (0 <= sum(phi_i * work_grid)) {
+      phi_normalized.column(i) = phi_i;
+    } else {
+      phi_normalized.column(i) = -phi_i;
+    }
+  }
+  // std::cout << work_grid;
+  return phi_normalized;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::NumericMatrix get_fpc_scores(Rcpp::NumericMatrix X, Rcpp::NumericMatrix phi, Rcpp::NumericVector work_grid) {
+  int K = phi.cols();
+  int n = X.rows();
+  
+  Rcpp::NumericMatrix xi(n, K);
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < K; j++) {
+      xi(i, j) = trapzRcpp(work_grid, X.row(i) * phi.column(j));
+    }
+  }
+  
+  return xi;
+}
+
+// // [[Rcpp::export]]
+// Rcpp::NumericMatrix get_fpc_scores2(Eigen::MatrixXd X, Eigen::MatrixXd phi, Rcpp::NumericVector work_grid) {
+//   int K = phi.cols();
+//   int n = X.rows();
+//   int m = X.cols();
+// 
+//   Rcpp::NumericMatrix xi(n, K);
+//   Rcpp::NumericMatrix X_phi(m, n);
+//   // Eigen::MatrixXd sub(X.cols(), K);
+//   for (int i = 0; i < K; i++) {
+//     // sub = X.transpose() * phi.col(i);
+//     // X_phi = Rcpp::as<Rcpp::NumericVector>(sub);
+//     // SEXP sub = Rcpp::wrap(X.transpose() * phi.col(i));
+//     X_phi = Rcpp::wrap(X.transpose().array() * phi.col(i).array());
+//     for (int j = 0; j < n; j++) {
+//       xi(j, i) = trapzRcpp(work_grid, X_phi.column(j));
+//     }
+//   }
+// 
+//   return xi;
+// }
+
 
 /*** R
-# timesTwo(42)
+# system.time({
+#   xi <- sapply(1:K, function(k) {
+#     apply(t(X) * phi[, k], 2, function(x_i_phi_k) {
+#       fdapace::trapzRcpp(work.grid, x_i_phi_k)
+#     })
+#   })
+# })
+# system.time({
+#   xi2 <- get_fpc_scores(X, phi[, 1:K], work.grid)
+# })
+# all.equal(xi, xi2)
+
+# # 약간 다름
+# system.time({
+#   phi <- svd.obj$u[, positive_ind]
+#   phi <- phi / sqrt(grid_size)
+#   phi <- apply(phi, 2, function(x) {
+#     # x <- x / sqrt(grid_size)
+#     x <- x / sqrt(fdapace::trapzRcpp(work.grid, x^2))
+#     if ( 0 <= sum(x * work.grid) )
+#       return(x)
+#     else
+#       return(-x)
+#   })
+# })
+# system.time({
+#   phi <- svd.obj$u[, positive_ind]
+#   phi <- phi / sqrt(grid_size)
+#   phi2 <- normalize_phi(phi, work.grid)
+# })
+# all.equal(phi, phi2)
+# phi[1:5, 1:5]
+# phi2[1:5, 1:5]
+
+# # 많이 다름
+# system.time({
+#   svd.obj <- svd(t(X) / sqrt(n))
+#   # positive_ind <- which(svd.obj$d > 0)   # indices of positive eigenvalues
+#   # lambda <- svd.obj$d[positive_ind]^2   # eigenvalues
+#   # phi <- svd.obj$u[, positive_ind]
+# })
+# 
+# system.time({
+#   svd.obj2 <- svd_cpp(X / sqrt(n))
+#   # positive_ind <- which(svd.obj$d > 0)   # indices of positive eigenvalues
+#   # lambda <- svd.obj$d[positive_ind]^2   # eigenvalues
+#   # phi <- svd.obj$u[, positive_ind]
+# })
+# 
+# svd.obj$d[1:10]
+# svd.obj2$singular.val[1:10]
+# 
+# tail(svd.obj$d)
+# tail(svd.obj2$singular.val)
+# svd.obj$d %>% round(3)
+# svd.obj2$singular.val %>% round(3)
 */
