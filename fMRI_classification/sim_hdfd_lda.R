@@ -27,6 +27,28 @@ p <- dim(X)[3]  # number of functional variables
 gr <- seq(0, 1, length.out = m)
 
 
+
+load("fMRI_Classification/fMRI.RData")
+source("R/make_basis_mf.R")
+source("R/hdfd_lda.R")
+
+n <- dim(X)[1]   # number of curves
+m <- dim(X)[2]   # number of timepoints
+p <- dim(X)[3]  # number of functional variables
+gr <- seq(0, 1, length.out = m)
+
+# Fast Fourier Transform
+for (i in 1:p) {
+  print(i)
+  X_fft <- apply(X[, , i], 1, function(x) {
+    # Mod(fft(x)) * (2/m)
+    smooth.spline(Mod(fft(x)) * (2/m))$y
+  })
+  X_fft <- t(X_fft)
+  
+  X[, , i] <- X_fft
+}
+
 ##################################################
 ### Classification
 ##################################################
@@ -34,7 +56,7 @@ basis <- "bspline"
 
 # Parallel computing
 # cl <- makePSOCKcluster(detectCores()/2)
-cl <- makePSOCKcluster(10)
+cl <- makePSOCKcluster(40)
 registerDoParallel(cl)
 
 compare_methods <- c("hdfd_lda")
@@ -74,6 +96,7 @@ for (sim in 1:num_sim) {
   
   print(cv.fit$opt_params)
   print(round(acc_sim[sim, ], 3))
+  print(round(mean(acc_sim[1:sim, ]), 3))
   
   if (sim %% 5 == 0) {
     save(model_obj, pred_list, acc_sim, file = "RData/sim_hdfd_lda.RData")
@@ -90,7 +113,7 @@ print(apply(acc_sim, 2, sd))
 
 # accuracy, sensitivity and specificity
 rbind(
-  acc = colMeans(acc_sim),
+  acc = mean(acc_sim[1:30,]),
   sens = sapply(pred_list, function(p_mat) {
     p_mat %>% 
       filter(y_test == 1) %>% 
