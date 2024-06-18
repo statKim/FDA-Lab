@@ -9,6 +9,10 @@ y <- y$y
 
 # Functional covariates from 82 retions
 file_list <- list.files("./fMRI_Classification/AlignedSubject/")
+ord <- sapply(strsplit(file_list, ".csv"), function(x){ strsplit(x, "AlignedSub")[[1]][2] }) %>% 
+  as.integer() %>% 
+  order()
+file_list <- file_list[ord]
 for (i in 1:length(file_list)) {
   df <- read.csv(paste0("./fMRI_Classification/AlignedSubject/", file_list[i]), header = T)
   df <- df[, -1] %>% as.matrix()
