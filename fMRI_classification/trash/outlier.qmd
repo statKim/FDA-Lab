@@ -1,0 +1,133 @@
+---
+title: ""
+format: 
+  pdf:
+    geometry:
+      - top=20mm
+      - bottom=10mm
+---
+
+
+# Black (Subject_ID = 2296326); Red (Subject_ID = 1860323)
+
+```{r}
+#| echo: false
+#| message: false
+#| fig.width: 8
+#| fig.height: 6
+
+library(tidyverse)
+
+# Class label of 191 subjects
+y <- read.csv("./fMRI_Classification/class_label.csv", header = T)
+y <- y$y
+
+# Functional covariates from 82 retions
+file_list <- list.files("./fMRI_Classification/AlignedSubject/")
+ord <- sapply(strsplit(file_list, ".csv"), function(x){ strsplit(x, "AlignedSub")[[1]][2] }) %>% 
+  as.integer() %>% 
+  order()
+file_list <- file_list[ord]
+for (i in 1:length(file_list)) {
+  df <- read.csv(paste0("./fMRI_Classification/AlignedSubject/", file_list[i]), header = T)
+  df <- df[, -1] %>% as.matrix()
+  
+  if (i == 1) {
+    X <- array(0, c(length(file_list), ncol(df), nrow(df)))
+  }
+  X[i, , ] <- t(df)
+}
+
+
+par(mfrow = c(4, 4), mar = c(2,2,2,1))
+for (i in 1:5) {
+  for (i in ((i-1)*16 + 1):(((i-1)*16) + 16)) {
+    matplot(t(X[y == 0, , i]), type = "l", lty = 1, lwd = 0.5,
+            col = "gray", ylim = c(-20, 20), 
+            main = paste("Region", i), xlab = "")
+    lines(X[33, , i], col = 1, lwd = 1)
+    lines(X[123, , i], col = 2, lwd = 1)
+  }
+}
+
+for (i in 81:82) {
+  matplot(t(X[y == 0, , i]), type = "l", lty = 1, lwd = 0.5,
+          col = "gray", ylim = c(-20, 20), 
+          main = paste("Region", i), xlab = "")
+  lines(X[33, , i], col = 1, lwd = 1)
+  lines(X[123, , i], col = 2, lwd = 1)
+}
+```
+
+
+<!-- # Subject_ID = 2296326 -->
+<!-- ```{r} -->
+<!-- #| echo: false -->
+<!-- #| message: false -->
+<!-- #| fig.width: 8 -->
+<!-- #| fig.height: 6 -->
+
+<!-- library(tidyverse) -->
+
+<!-- # Class label of 191 subjects -->
+<!-- y <- read.csv("./fMRI_Classification/class_label.csv", header = T) -->
+<!-- y <- y$y -->
+
+<!-- # Functional covariates from 82 retions -->
+<!-- file_list <- list.files("./fMRI_Classification/AlignedSubject/") -->
+<!-- ord <- sapply(strsplit(file_list, ".csv"), function(x){ strsplit(x, "AlignedSub")[[1]][2] }) %>%  -->
+<!--   as.integer() %>%  -->
+<!--   order() -->
+<!-- file_list <- file_list[ord] -->
+<!-- for (i in 1:length(file_list)) { -->
+<!--   df <- read.csv(paste0("./fMRI_Classification/AlignedSubject/", file_list[i]), header = T) -->
+<!--   df <- df[, -1] %>% as.matrix() -->
+
+<!--   if (i == 1) { -->
+<!--     X <- array(0, c(length(file_list), ncol(df), nrow(df))) -->
+<!--   } -->
+<!--   X[i, , ] <- t(df) -->
+<!-- } -->
+
+
+<!-- par(mfrow = c(4, 4), mar = c(2,2,2,1)) -->
+<!-- for (i in 1:5) { -->
+<!--   for (i in ((i-1)*16 + 1):(((i-1)*16) + 16)) { -->
+<!--     matplot(t(X[y == 0, , i]), type = "l", col = "gray", ylim = c(-20, 20),  -->
+<!--             main = paste("Region", i), xlab = "") -->
+<!--     lines(X[33, , i], col = 1, lwd = 2) -->
+<!--   } -->
+<!-- } -->
+
+<!-- for (i in 81:82) { -->
+<!--   matplot(t(X[y == 0, , i]), type = "l", col = "gray", ylim = c(-20, 20),  -->
+<!--           main = paste("Region", i), xlab = "") -->
+<!--   lines(X[33, , i], col = 1, lwd = 2) -->
+<!-- } -->
+<!-- ``` -->
+
+
+
+<!-- # Subject_ID = 1860323 -->
+<!-- ```{r} -->
+<!-- #| echo: false -->
+<!-- #| message: false -->
+<!-- #| fig.width: 8 -->
+<!-- #| fig.height: 6 -->
+
+
+<!-- par(mfrow = c(4, 4), mar = c(2,2,2,1)) -->
+<!-- for (i in 1:5) { -->
+<!--   for (i in ((i-1)*16 + 1):(((i-1)*16) + 16)) { -->
+<!--     matplot(t(X[y == 0, , i]), type = "l", col = "gray", ylim = c(-20, 20),  -->
+<!--             main = paste("Region", i), xlab = "") -->
+<!--     lines(X[123, , i], col = 1, lwd = 2) -->
+<!--   } -->
+<!-- } -->
+
+<!-- for (i in 81:82) { -->
+<!--   matplot(t(X[y == 0, , i]), type = "l", col = "gray", ylim = c(-20, 20),  -->
+<!--           main = paste("Region", i), xlab = "") -->
+<!--   lines(X[123, , i], col = 1, lwd = 2) -->
+<!-- } -->
+<!-- ``` -->
