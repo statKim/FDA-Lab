@@ -1,4 +1,4 @@
-Rcpp::sourceCpp("src/homo_test.cpp")
+# Rcpp::sourceCpp("src/homo_test.cpp")
 library(fda.usc)
 library(ddalpha)
 library(doParallel)
@@ -329,6 +329,10 @@ mirror_stat_cutoff <- function(mirror_stat, q = 0.1, est = FALSE) {
   # Cutoff candidates
   cand <- sort(abs(mirror_stat), decreasing = T)   # sorted abs(mirror stat)
   cand <- (cand[-1] + cand[-(length(cand))]) / 2   # mean values of paired 'cand'
+  if (length(mirror_stat) > 1000) {
+    cand <- seq(max(cand), min(cand), length.out = 1000)
+  }
+  
   fdp <- rep(1, length(cand))
   for (i in 1:length(cand)){
     if (is.infinite(cand[i])) {
@@ -376,3 +380,25 @@ mirror_stat_cutoff <- function(mirror_stat, q = 0.1, est = FALSE) {
   }
 }
 
+
+# Find center of mirror statistics
+find_center <- function(x, density_cutoff = 0.6) {
+  # Remove extreme values
+  density_est <- density(x[which(abs(x) < quantile(abs(x), 0.99))])
+  # density_est <- density(x)
+  
+  # Find modes
+  mode.obj <- pracma::findpeaks(density_est$y)
+  
+  # Remove small peaks
+  mode_idx <- mode.obj[which(mode.obj[, 1] > density_cutoff * max(density_est$y)), 2]
+  if (length(mode_idx) == 0) {
+    mode_idx <- mode.obj[which.max(mode.obj[, 1]), 2]
+  }
+  mode_est <- density_est$x[mode_idx]
+  if (length(mode_est) > 1) {
+    mode_est <- mean(mode_est)
+  }
+  
+  return(mode_est)
+}
