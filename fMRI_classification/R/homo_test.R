@@ -328,6 +328,7 @@ fun_homo_test <- function(X1, X2, method = "ddplot",
 mirror_stat_cutoff <- function(mirror_stat, q = 0.1, est = FALSE) {
   # Cutoff candidates
   cand <- sort(abs(mirror_stat), decreasing = T)   # sorted abs(mirror stat)
+  cand <- cand[is.finite(cand)]   # remove Inf values
   cand <- (cand[-1] + cand[-(length(cand))]) / 2   # mean values of paired 'cand'
   if (length(mirror_stat) > 1000) {
     cand <- seq(max(cand), min(cand), length.out = 1000)

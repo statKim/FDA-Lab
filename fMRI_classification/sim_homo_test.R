@@ -24,6 +24,10 @@ for (i in 1:length(file_list)) {
 }
 dim(X)
 
+# Remove 2 outlying curves
+X <- X[-c(33, 123), , ]
+y <- y[-c(33, 123)]
+
 n <- dim(X)[1]   # number of curves
 m <- dim(X)[2]   # number of timepoints
 p <- dim(X)[3]  # number of functional variables
@@ -97,7 +101,7 @@ for (i in 1:p) {
   # print(end_time - start_time)
 }
 stopCluster(cl)
-unregister()
+# unregister()
 # save(test_obj, file = "RData/homo_test_ddplot.RData")
 
 

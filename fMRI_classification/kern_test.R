@@ -24,6 +24,10 @@ for (i in 1:length(file_list)) {
 }
 dim(X)
 
+# Remove 2 outlying curves
+X <- X[-c(33, 123), , ]
+y <- y[-c(33, 123)]
+
 n <- dim(X)[1]   # number of curves
 m <- dim(X)[2]   # number of timepoints
 p <- dim(X)[3]  # number of functional variables
@@ -79,7 +83,7 @@ for (i in 1:p) {
                                               make_K = py$K_SQR, 
                                               return_p = T, seed = np$int16(i))
 }
-# save(test_obj, file = "RData/homo_test_kern.RData")
+save(test_obj, file = "RData/homo_test_kern.RData")
 
 
 ###############################################################
@@ -125,24 +129,24 @@ legend("topright",
        lty = c(1, 1), lwd = c(2, 2), col = c(2, 3))
 
 
-mirror_stat_bound(mirror_stat[, 1], q = 0.1)
-mirror_stat_bound(mirror_stat[, 2], q = 0.1)
-mirror_stat_bound(mirror_stat[, 3], q = 0.1)
-mirror_stat_bound(mirror_stat[, 4], q = 0.1)
+mirror_stat_cutoff(mirror_stat[, 1], q = 0.1)
+mirror_stat_cutoff(mirror_stat[, 2], q = 0.1)
+mirror_stat_cutoff(mirror_stat[, 3], q = 0.1)
+mirror_stat_cutoff(mirror_stat[, 4], q = 0.1)
 
-mirror_stat_bound(mirror_stat[, 1], q = 0.2)
-mirror_stat_bound(mirror_stat[, 2], q = 0.2)
-mirror_stat_bound(mirror_stat[, 3], q = 0.2)
-mirror_stat_bound(mirror_stat[, 4], q = 0.2)
+mirror_stat_cutoff(mirror_stat[, 1], q = 0.2)
+mirror_stat_cutoff(mirror_stat[, 2], q = 0.2)
+mirror_stat_cutoff(mirror_stat[, 3], q = 0.2)
+mirror_stat_cutoff(mirror_stat[, 4], q = 0.2)
 
 # Selected variables
-# cutoff <- mirror_stat_bound(mirror_stat[, 3], q = 0.2)
+# cutoff <- mirror_stat_cutoff(mirror_stat[, 3], q = 0.2)
 # sum(mirror_stat[, 3] > cutoff)
 
-cutoff <- mirror_stat_bound(mirror_stat[, 4], q = 0.1)
+cutoff <- mirror_stat_cutoff(mirror_stat[, 4], q = 0.1)
 sum(mirror_stat[, 4] > cutoff)
 
-cutoff <- mirror_stat_bound(mirror_stat[, 4], q = 0.2)
+cutoff <- mirror_stat_cutoff(mirror_stat[, 4], q = 0.2)
 sum(mirror_stat[, 4] > cutoff)
 
 
@@ -154,7 +158,7 @@ hist(mirror_stat[, i], breaks = 50, probability = T,
      main = colnames(mirror_stat)[i])   
 lines(density(mirror_stat[, i]), col = 2, lwd = 2)
 abline(v = 0, col = 1, lwd = 3)
-abline(v = mirror_stat_bound(mirror_stat[, i], q = 0.2),
+abline(v = mirror_stat_cutoff(mirror_stat[, i], q = 0.2),
        col = 4, lwd = 3)
 i <- 4
 hist(mirror_stat[, i], breaks = 50, probability = T, 
@@ -162,9 +166,9 @@ hist(mirror_stat[, i], breaks = 50, probability = T,
      main = colnames(mirror_stat)[i])   
 lines(density(mirror_stat[, i]), col = 2, lwd = 2)
 abline(v = 0, col = 1, lwd = 3)
-abline(v = mirror_stat_bound(mirror_stat[, i], q = 0.1),
+abline(v = mirror_stat_cutoff(mirror_stat[, i], q = 0.1),
        col = 3, lwd = 3)
-abline(v = mirror_stat_bound(mirror_stat[, i], q = 0.2),
+abline(v = mirror_stat_cutoff(mirror_stat[, i], q = 0.2),
        col = 4, lwd = 3)
 legend("topright",
        c("FDR = 0.1", "FDR = 0.2"),
