@@ -139,7 +139,7 @@ def gen_sim_data(f_bar_star_g1, f_bar_star_g2, cov_f_star_g1, cov_f_star_g2, n1,
     func_data = np.zeros((100, 200, 50))  
     for k in range(50):
         # Group 1
-        func_data[:n1, :, k] = multivariate_normal.rvs(mean=f_bar_star_g2.iloc[:, k], cov=cov_f_star_g1, size = n1)
+        func_data[:n1, :, k] = multivariate_normal.rvs(mean=f_bar_star_g1.iloc[:, k], cov=cov_f_star_g1, size = n1)
 
         # Group 2
         func_data[n1:, :, k] = multivariate_normal.rvs(mean=f_bar_star_g2.iloc[:, k], cov=cov_f_star_g2, size = n2)

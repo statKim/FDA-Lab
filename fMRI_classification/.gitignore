@@ -2,6 +2,6 @@ RData/
 *.RData
 *.eps
 .DS_Store
-fMRI_Classification/
+fMRI_data/
 eeg/
 Rmd/

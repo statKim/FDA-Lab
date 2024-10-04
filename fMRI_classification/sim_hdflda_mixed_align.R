@@ -4,17 +4,17 @@
 library(tidyverse)
 
 # Class label of 191 subjects
-y <- read.csv("./fMRI_Classification/class_label.csv", header = T)
+y <- read.csv("./fMRI_data/PekingUniv/class_label.csv", header = T)
 y <- y$y
 
 # Functional covariates from 82 retions
-file_list <- list.files("./fMRI_Classification/AlignedSubject/")
+file_list <- list.files("./fMRI_data/PekingUniv/AlignedSubject/")
 ord <- sapply(strsplit(file_list, ".csv"), function(x){ strsplit(x, "AlignedSub")[[1]][2] }) %>% 
   as.integer() %>% 
   order()
 file_list <- file_list[ord]
 for (i in 1:length(file_list)) {
-  df <- read.csv(paste0("./fMRI_Classification/AlignedSubject/", file_list[i]), header = T)
+  df <- read.csv(paste0("./fMRI_data/PekingUniv/AlignedSubject/", file_list[i]), header = T)
   df <- df[, -1] %>% as.matrix()
   
   if (i == 1) {
@@ -25,7 +25,7 @@ for (i in 1:length(file_list)) {
 dim(X)
 
 # Scalar variabls of 191 subjects
-X2 <- read.csv("./fMRI_Classification/X2.csv", header = T)
+X2 <- read.csv("./fMRI_data/PekingUniv/X2.csv", header = T)
 colnames(X2) <- c("Gender","Age")
 X2$Gender <- ifelse(X2$Gender == "Male", 1, 0)
 

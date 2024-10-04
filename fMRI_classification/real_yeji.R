@@ -3,30 +3,66 @@
 ##################################################
 library(tidyverse)
 
-# Class label of 191 subjects
-y <- read.csv("./fMRI_Classification/class_label.csv", header = T)
-y <- y$y
+site <- "PekingUniv"
+site <- "OHASU"
+site <- "KKI"
+site <- "NYU"
 
-# Functional covariates from 82 retions
-file_list <- list.files("./fMRI_Classification/AlignedSubject/")
-ord <- sapply(strsplit(file_list, ".csv"), function(x){ strsplit(x, "AlignedSub")[[1]][2] }) %>% 
-  as.integer() %>% 
-  order()
-file_list <- file_list[ord]
-for (i in 1:length(file_list)) {
-  df <- read.csv(paste0("./fMRI_Classification/AlignedSubject/", file_list[i]), header = T)
-  df <- df[, -1] %>% as.matrix()
+if (site == "PekingUniv") {
+  # Class label of 191 subjects
+  y <- read.csv("./fMRI_data/PekingUniv/class_label.csv", header = T)
+  y <- y$y
   
-  if (i == 1) {
-    X <- array(0, c(length(file_list), ncol(df), nrow(df)))
+  # Functional covariates from 82 retions
+  file_list <- list.files("./fMRI_data/PekingUniv/AlignedSubject/")
+  ord <- sapply(strsplit(file_list, ".csv"), function(x){ strsplit(x, "AlignedSub")[[1]][2] }) %>% 
+    as.integer() %>% 
+    order()
+  file_list <- file_list[ord]
+  for (i in 1:length(file_list)) {
+    df <- read.csv(paste0("./fMRI_data/PekingUniv/AlignedSubject/", file_list[i]), header = T)
+    df <- df[, -1] %>% as.matrix()
+    
+    if (i == 1) {
+      X <- array(0, c(length(file_list), ncol(df), nrow(df)))
+    }
+    X[i, , ] <- t(df)
   }
-  X[i, , ] <- t(df)
+  dim(X)
+  # 191 232 82
+  
+  # Remove 2 outlying curves
+  X <- X[-c(33, 123), , ]
+  y <- y[-c(33, 123)]
+} else {
+  # Class label of each subject
+  y <- read.csv(paste0("./fMRI_data/", site, "/y_", site, ".csv"), header = T)
+  y <- y[, 1]
+  
+  # Functional covariates from 82 retions
+  file_list <- list.files(paste0("./fMRI_data/", site, "/Aligned_", site, "/"))
+  ord <- sapply(strsplit(file_list, ".csv"), function(x){ 
+    strsplit(x, paste0("Aligned_", site))[[1]][2] 
+  }) %>% 
+    as.integer() %>% 
+    order()
+  file_list <- file_list[ord]
+  for (i in 1:length(file_list)) {
+    df <- read.csv(paste0(paste0("./fMRI_data/", site, "/Aligned_", site, "/"), file_list[i]), header = T)
+    df <- df[, -1] %>% as.matrix()
+    
+    if (i == 1) {
+      X <- array(0, c(length(file_list), ncol(df), nrow(df)))
+    }
+    X[i, , ] <- t(df)
+  }
+  dim(X)
+  # OHASU: 62 74 82
+  # KKI: 78 120  82
+  # NYU: 126 172  82
 }
-dim(X)
 
-# Remove 2 outlying curves
-X <- X[-c(33, 123), , ]
-y <- y[-c(33, 123)]
+
 
 n <- dim(X)[1]   # number of curves
 m <- dim(X)[2]   # number of timepoints
@@ -34,15 +70,15 @@ p <- dim(X)[3]  # number of functional variables
 gr <- seq(0, 1, length.out = m)
 
 
-fit1 <- uFPCA(X[y == 1, , 1], K = 50)
-fit1$eig.val %>% round(3)
-cumsum(fit1$eig.val) / sum(fit1$eig.val)
-fit2 <- uFPCA(X[y == 0, , 1], K = 50)
-fit2$eig.val %>% round(3)
-
-8^(-(1:50)) %>% round(3)
-
-2^(-(1:50)) * 1:50 %>% round(3)
+# fit1 <- uFPCA(X[y == 1, , 1], K = 50)
+# fit1$eig.val %>% round(3)
+# cumsum(fit1$eig.val) / sum(fit1$eig.val)
+# fit2 <- uFPCA(X[y == 0, , 1], K = 50)
+# fit2$eig.val %>% round(3)
+# 
+# 8^(-(1:50)) %>% round(3)
+# 
+# 2^(-(1:50)) * 1:50 %>% round(3)
 
 ##################################################
 ### Classification
@@ -141,19 +177,22 @@ for (sim in 1:num_sim) {
   print(round(acc_sim[sim, ], 3))
   print(round(colMeans(acc_sim[1:sim, ]), 3))
   
-  # if (sim %% 2 == 0) {
-  #   save(model_obj, pred_list, acc_sim, error_TF, file = "RData/sim_hdflda_align.RData")
-  # }
-  # save(model_obj, pred_list, acc_sim, error_TF, file = "RData/sim_hdflda_align.RData")
+  if (sim %% 5 == 0) {
+    save(model_obj, pred_list, acc_sim, error_TF, file = paste0("RData/fmri_", site, ".RData"))
+  }
 }
 stopCluster(cl)
 unregister()
-save(model_obj, pred_list, acc_sim, error_TF, file = "RData/fmri_yeji_thesis.RData")
+save(model_obj, pred_list, acc_sim, error_TF, file = paste0("RData/fmri_", site, ".RData"))
 
 
 ### Summary results
-load("RData/fmri_yeji_thesis.RData")
-load("RData/fmri_yeji_thesis_with_outlier.RData")
+# load("RData/fmri_yeji_thesis.RData")
+# load("RData/fmri_yeji_thesis_with_outlier.RData")
+load("RData/fmri_PekingUniv.RData")
+load("RData/fmri_OHASU.RData")
+load("RData/fmri_KKI.RData")
+load("RData/fmri_NYU.RData")
 
 print(colMeans(acc_sim))
 print(apply(acc_sim, 2, sd))

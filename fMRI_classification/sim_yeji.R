@@ -7,7 +7,12 @@ library(hdfda)
 library(doParallel)
 library(reticulate)
 use_condaenv("reticulate")   # Use virtual environment
-py_run_file("py/generate_sim_data.py")
+
+# # Generate from covariance structure
+# py_run_file("py/generate_sim_data.py")
+
+# Generate from real data structure
+py_run_file("py/generate_sim_data_fpca.py")
 
 n <- 100   # number of curves
 m <- 200   # number of timepoints
@@ -31,27 +36,33 @@ pred_list <- list()
 acc_sim <- data.frame(matrix(0, num_sim, length(compare_methods)))
 colnames(acc_sim) <- compare_methods
 error_TF <- rep(FALSE, num_sim)
-for (sim in 84:num_sim) {
+for (sim in 1:num_sim) {
   set.seed(sim)
   print(sim)
 
   # Generate data and split
   obj <- py$gen_sim_data(
-    py$f_bar_star_g1,
-    py$f_bar_star_g2,
-    py$cov_f_star_g1,
-    py$cov_f_star_g2,
     py$n1,
     py$n2,
     y = py$y_,
     seed = py$np$int16(sim)
   )
+  # obj <- py$gen_sim_data(
+  #   py$f_bar_star_g1,
+  #   py$f_bar_star_g2,
+  #   py$cov_f_star_g1,
+  #   py$cov_f_star_g2,
+  #   py$n1,
+  #   py$n2,
+  #   y = py$y_,
+  #   seed = py$np$int16(sim)
+  # )
   X_train <- obj[[1]]
   X_test <- obj[[2]]
   y_train <- obj[[3]]
   y_test <- obj[[4]]
   
-  plot(mvtnorm::rmvnorm(1, mean = py$f_bar_star_g1[, 1], sigma = py$cov_f_star_g1)[1, ], type = "l")
+  # plot(mvtnorm::rmvnorm(1, mean = py$f_bar_star_g1[, 1], sigma = py$cov_f_star_g1)[1, ], type = "l")
   # par(mfrow = c(1, 2))
   # matplot(t(X_train[, , 5]), type = "l", col = y_train+1)
   
@@ -111,10 +122,12 @@ for (sim in 84:num_sim) {
 }
 stopCluster(cl)
 # unregister()
-save(model_obj, pred_list, acc_sim, error_TF, file = "RData/sim_yeji_thesis.RData")
+# save(model_obj, pred_list, acc_sim, error_TF, file = "RData/sim_yeji_thesis_fpca.RData")
+# save(model_obj, pred_list, acc_sim, error_TF, file = "RData/sim_yeji_thesis.RData")
 colMeans(acc_sim)
 apply(acc_sim, 2, sd)
 
+# number of nonzero elements
 sapply(pred_list, function(i){ sum(i[, 2]) })
 sapply(pred_list, function(i){ sum(i[, 3]) })
 
@@ -140,46 +153,46 @@ rbind(
   print()
 
 
-library(MLmetrics)
-res_all <- list(
-  flasso = sapply(pred_list, function(p_mat) {
-    p_mat %>% 
-      summarise(
-        Accuracy = Accuracy(y_test, flasso),
-        Precision = Precision(y_test, flasso),
-        Recall = Recall(y_test, flasso),
-        F1_score = F1_Score(y_test, flasso)
-      ) %>% 
-      unlist()
-  }),
-  hdflda = sapply(pred_list, function(p_mat) {
-    p_mat %>% 
-      summarise(
-        ccuracy = Accuracy(y_test, hdflda),
-        Precision = Precision(y_test, hdflda),
-        Recall = Recall(y_test, hdflda),
-        F1_score = F1_Score(y_test, hdflda)
-      ) %>% 
-      unlist()
-  }) 
-)
-
-res <- data.frame(
-  flasso = paste0(
-    format(round(rowMeans(res_all$flasso), 3), nsmall = 3),
-    " (",
-    format(round(apply(res_all$flasso, 1, sd), 3), nsmall = 3),
-    sep = ")"
-  ),
-  hdflda = paste0(
-    format(round(rowMeans(res_all$hdflda), 3), nsmall = 3),
-    " (",
-    format(round(apply(res_all$hdflda, 1, sd), 3), nsmall = 3),
-    sep = ")"
-  )
-)
-rownames(res) <- rownames(res_all$flasso)
-res
+# library(MLmetrics)
+# res_all <- list(
+#   flasso = sapply(pred_list, function(p_mat) {
+#     p_mat %>% 
+#       summarise(
+#         Accuracy = Accuracy(y_test, flasso),
+#         Precision = Precision(y_test, flasso),
+#         Recall = Recall(y_test, flasso),
+#         F1_score = F1_Score(y_test, flasso)
+#       ) %>% 
+#       unlist()
+#   }),
+#   hdflda = sapply(pred_list, function(p_mat) {
+#     p_mat %>% 
+#       summarise(
+#         ccuracy = Accuracy(y_test, hdflda),
+#         Precision = Precision(y_test, hdflda),
+#         Recall = Recall(y_test, hdflda),
+#         F1_score = F1_Score(y_test, hdflda)
+#       ) %>% 
+#       unlist()
+#   }) 
+# )
+# 
+# res <- data.frame(
+#   flasso = paste0(
+#     format(round(rowMeans(res_all$flasso), 3), nsmall = 3),
+#     " (",
+#     format(round(apply(res_all$flasso, 1, sd), 3), nsmall = 3),
+#     sep = ")"
+#   ),
+#   hdflda = paste0(
+#     format(round(rowMeans(res_all$hdflda), 3), nsmall = 3),
+#     " (",
+#     format(round(apply(res_all$hdflda, 1, sd), 3), nsmall = 3),
+#     sep = ")"
+#   )
+# )
+# rownames(res) <- rownames(res_all$flasso)
+# res
 
 
 
@@ -229,16 +242,16 @@ library(reticulate)
 use_condaenv("reticulate")   # Use virtual environment
 sk <- import("sklearn.metrics")
 res_all <- list(
-  # flasso = sapply(pred_list, function(p_mat) {
-  #   p_mat %>% 
-  #     summarise(
-  #       Accuracy = Accuracy(y_test, flasso),
-  #       Precision = Precision(y_test, flasso),
-  #       Recall = Recall(y_test, flasso),
-  #       F1_score = F1_Score(y_test, flasso)
-  #     ) %>% 
-  #     unlist()
-  # }),
+  flasso = sapply(pred_list, function(p_mat) {
+    p_mat %>%
+      summarise(
+        # Accuracy = sk$accuracy_score(y_test, flasso),
+        Precision = sk$precision_score(y_test, flasso),
+        Recall = sk$recall_score(y_test, flasso),
+        F1_score = sk$f1_score(y_test, flasso)
+      ) %>%
+      unlist()
+  }),
   hdflda = sapply(pred_list, function(p_mat) {
     p_mat %>% 
       summarise(
@@ -251,12 +264,12 @@ res_all <- list(
   }) 
 )
 res <- data.frame(
-  # flasso = paste0(
-  #   format(round(rowMeans(res_all$flasso), 3), nsmall = 3),
-  #   " (",
-  #   format(round(apply(res_all$flasso, 1, sd), 3), nsmall = 3),
-  #   sep = ")"
-  # ),
+  flasso = paste0(
+    format(round(rowMeans(res_all$flasso), 3), nsmall = 3),
+    " (",
+    format(round(apply(res_all$flasso, 1, sd), 3), nsmall = 3),
+    sep = ")"
+  ),
   hdflda = paste0(
     format(round(rowMeans(res_all$hdflda), 3), nsmall = 3),
     " (",
@@ -267,6 +280,5 @@ res <- data.frame(
 rownames(res) <- rownames(res_all$hdflda)
 res
 
-rbind(res2, cbind(flasso = "NA", res))
-
-
+# rbind(res2, cbind(flasso = "NA", res))
+rbind(res2, res)
