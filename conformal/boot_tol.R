@@ -1,11 +1,13 @@
 library(tidyverse)
+library(progress)  # show progress bar
+
 library(FlexCoDE)
 source("R/utils.R")
 # Parallel computation
 library(doSNOW)
 library(doRNG)
 library(foreach)
-library(progress)  # show progress bar in `foreach`
+
 
 
 # Find the range of the interval with dis-connection
@@ -61,134 +63,280 @@ find_split_interval <- function(interval_value, min_grid_size = NULL) {
 #' @param ... additional options for `FlexCoDE::fitFlexCoDE`
 boot_cde_tol <- function(x_train, y_train, x_test, 
                          cde = "flexcode", alpha = 0.1, delta = 0.05, 
-                         B = 100, n_cores = 1, seed = NULL, ...) {
+                         B = 100, n_cores = 1, seed = NULL, 
+                         n_components = 4, hidden_dim = 30,
+                         ...) {
   if (!is.null(seed)) {
     set.seed(seed)
   }
-  
-  # Validation set for FlexCode
-  valid_prop <- 0.2  # validation set proportion
-  idx_valid <- sample(1:nrow(x_train), size = round(nrow(x_train)*valid_prop))
-  
-  # Estimate conditional density function of training data (\hat{f}(y|x))
-  fit <- FlexCoDE::fitFlexCoDE(
-    xTrain = x_train[-idx_valid, ],
-    zTrain = y_train[-idx_valid],
-    xValidation = x_train[idx_valid, ],
-    zValidation = y_train[idx_valid],
-    ...
-  )
-  cde_train <- FlexCoDE::predict.FlexCoDE(fit, x_train)
-  
-  # CDF of conditional density for sampling
-  cdf_train <- apply(cde_train$CDE, 1, function(x){ cumsum(x) / sum(x) })
-  cdf_train <- t(cdf_train)
-  
-  # CDE and CDF for test data
-  cde_test <- FlexCoDE::predict.FlexCoDE(fit, x_test)
-  cdf_test <- apply(cde_test$CDE, 1, function(x){ cumsum(x) / sum(x) })
-  cdf_test <- t(cdf_test)
-  
-  # par(mfrow = c(1, 2))
-  # i <- 10
-  # plot(cde_train$z, cdf_train[i, ], type = "l", main = "CDF")
-  # plot(cde_train$z, cde_train$CDE[i, ], type = "l", main = "pdf (cde)")
-  # lines(density(replicate(1000, cde_train$z[findInterval(runif(1), cdf_train[i, ])+1])), col = 2, lwd = 2)
-  
-  
-  ### Bootstrap
-  # Parallel computation
-  cl <- makeCluster(n_cores)
-  registerDoSNOW(cl)
-  
-  # Progress bar for `foreach`
-  pb <- progress_bar$new(
-    format = "[:bar] :percent [Execution time :elapsedfull || Estimated time remaining: :eta]",
-    total = B,   # total number of ticks to complete (default 100)
-    clear = FALSE,   # whether to clear the progress bar on completion (default TRUE)
-    width = 80   # width of the progress bar
-  )
-  progress <- function(n){
-    pb$tick()
-  } 
-  opts <- list(progress = progress)
-  
-  # For replication of `foreach`
-  if (!is.null(seed)) {
-    registerDoRNG(seed)
-  }
-  
-  # Bootstrap using `foreach`
   n_test <- nrow(x_test)
-  delta <- foreach(i = 1:B, .combine = cbind, .options.snow = opts) %dopar% {
-    # Sample from CDE \hat{f}(y|x)
-    y_star <- apply(cdf_train, 1, function(cdf_i){
-      replicate(1, cde_train$z[findInterval(runif(1), cdf_i)+1])
-    })
-    y_star_test <- apply(cdf_test, 1, function(cdf_i){
-      replicate(1, cde_test$z[findInterval(runif(1), cdf_i)+1])
-    })
+  
+  if (cde == "flexcode") {
+    # Validation set for FlexCode
+    valid_prop <- 0.2  # validation set proportion
+    idx_valid <- sample(1:nrow(x_train), size = round(nrow(x_train)*valid_prop))
     
-    # Re-estimate CDE (\hat{f}^*(y|x)) for y_star_test
-    fit_boot <- FlexCoDE::fitFlexCoDE(
+    # Estimate conditional density function of training data (\hat{f}(y|x))
+    fit <- FlexCoDE::fitFlexCoDE(
       xTrain = x_train[-idx_valid, ],
-      zTrain = y_star[-idx_valid],
+      zTrain = y_train[-idx_valid],
       xValidation = x_train[idx_valid, ],
-      zValidation = y_star[idx_valid],
+      zValidation = y_train[idx_valid],
       ...
     )
-    cde_test_boot <- FlexCoDE::predict.FlexCoDE(fit_boot, x_test)
+    cde_train <- FlexCoDE::predict.FlexCoDE(fit, x_train)
     
-    # Compute log likelihood ratio
-    delta_b <- sapply(1:n_test, function(i) {
-      # Obtain CDE of y_star_test
-      f_hat_y <- mean( cde_test_boot$CDE[i, order(abs(cde_test_boot$z - y_star_test[i]))[1:2]] )
-      f_hat_y <- ifelse(f_hat_y == 0, 1e-6, f_hat_y)
+    # CDF of conditional density for sampling
+    cdf_train <- apply(cde_train$CDE, 1, function(x){ cumsum(x) / sum(x) })
+    cdf_train <- t(cdf_train)
+    
+    # CDE and CDF for test data
+    cde_test <- FlexCoDE::predict.FlexCoDE(fit, x_test)
+    cdf_test <- apply(cde_test$CDE, 1, function(x){ cumsum(x) / sum(x) })
+    cdf_test <- t(cdf_test)
+    
+    # par(mfrow = c(1, 2))
+    # i <- 10
+    # plot(cde_train$z, cdf_train[i, ], type = "l", main = "CDF")
+    # plot(cde_train$z, cde_train$CDE[i, ], type = "l", main = "pdf (cde)")
+    # lines(density(replicate(1000, cde_train$z[findInterval(runif(1), cdf_train[i, ])+1])), col = 2, lwd = 2)
+    
+    
+    ### Bootstrap
+    # Parallel computation
+    cl <- makeCluster(n_cores)
+    registerDoSNOW(cl)
+    
+    # Progress bar for `foreach`
+    pb <- progress_bar$new(
+      format = "[:bar] :percent [Execution time :elapsedfull || Estimated time remaining: :eta]",
+      total = B,   # total number of ticks to complete (default 100)
+      clear = FALSE,   # whether to clear the progress bar on completion (default TRUE)
+      width = 80   # width of the progress bar
+    )
+    progress <- function(n){
+      pb$tick()
+    } 
+    opts <- list(progress = progress)
+    
+    # For replication of `foreach`
+    if (!is.null(seed)) {
+      registerDoRNG(seed)
+    }
+    
+    # Bootstrap using `foreach`
+    n_test <- nrow(x_test)
+    delta <- foreach(i = 1:B, .combine = cbind, .options.snow = opts) %dopar% {
+      # Sample from CDE \hat{f}(y|x)
+      y_star <- apply(cdf_train, 1, function(cdf_i){
+        replicate(1, cde_train$z[findInterval(runif(1), cdf_i)+1])
+      })
+      y_star_test <- apply(cdf_test, 1, function(cdf_i){
+        replicate(1, cde_test$z[findInterval(runif(1), cdf_i)+1])
+      })
       
-      return( log( max(cde_test_boot$CDE[i, ]) / f_hat_y) )
-    })
+      # Re-estimate CDE (\hat{f}^*(y|x)) for y_star_test
+      fit_boot <- FlexCoDE::fitFlexCoDE(
+        xTrain = x_train[-idx_valid, ],
+        zTrain = y_star[-idx_valid],
+        xValidation = x_train[idx_valid, ],
+        zValidation = y_star[idx_valid],
+        ...
+      )
+      cde_test_boot <- FlexCoDE::predict.FlexCoDE(fit_boot, x_test)
+      
+      # Compute log likelihood ratio
+      delta_b <- sapply(1:n_test, function(i) {
+        # Obtain CDE of y_star_test
+        f_hat_y <- mean( cde_test_boot$CDE[i, order(abs(cde_test_boot$z - y_star_test[i]))[1:2]] )
+        f_hat_y <- ifelse(f_hat_y == 0, 1e-6, f_hat_y)
+        
+        return( log( max(cde_test_boot$CDE[i, ]) / f_hat_y) )
+      })
+      
+      return(delta_b)
+    }
     
-    return(delta_b)
+    # End parallel backend
+    stopCluster(cl) 
+    
+    # # Bootstrap using for loop
+    # delta <- matrix(NA, n_test, B)
+    # for (b in 1:B) {
+    #   # Show the progress bar
+    #   if (b %% 10 == 0) {
+    #     progress(b, max = B)
+    #   }
+    #   
+    #   # Sample from CDE \hat{f}(y|x)
+    #   y_star <- apply(cdf_train, 1, function(cdf_i){
+    #     replicate(1, cde_train$z[findInterval(runif(1), cdf_i)+1])
+    #   })
+    #   y_star_test <- apply(cdf_test, 1, function(cdf_i){
+    #     replicate(1, cde_test$z[findInterval(runif(1), cdf_i)+1])
+    #   })
+    #   
+    #   # Re-estimate CDE (\hat{f}^*(y|x)) for y_star_test
+    #   fit_boot <- FlexCoDE::fitFlexCoDE(
+    #     xTrain = x_train[-idx_valid, ],
+    #     zTrain = y_star[-idx_valid],
+    #     xValidation = x_train[idx_valid, ],
+    #     zValidation = y_star[idx_valid],
+    #     ...
+    #   )
+    #   cde_test_boot <- FlexCoDE::predict.FlexCoDE(fit_boot, x_test)
+    #   
+    #   # Compute log likelihood ratio
+    #   delta[, b] <- sapply(1:n_test, function(i) {
+    #     # Obtain CDE of y_star_test
+    #     f_hat_y <- mean( cde_test_boot$CDE[i, order(abs(cde_test_boot$z - y_star_test[i]))[1:2]] )
+    #     f_hat_y <- ifelse(f_hat_y == 0, 1e-6, f_hat_y)
+    #     
+    #     return( log( max(cde_test_boot$CDE[i, ]) / f_hat_y) )
+    #   })
+    # }
+  } else if (cde == "mdn") {
+    # Gaussian Mixture Density Network
+    if (!is.null(seed)) {
+      seed <- 1
+    }
+    
+    # Estimate conditional density function of training data (\hat{f}(y|x))
+    n_levels <- 1000  # number of grids
+    loss <- NA
+    seed_sub <- seed
+    # Check the NA loss
+    while(!is.finite(loss)) {
+      fit <- py$fit_mixture_density_network(x = py$np$array(x_train),
+                                            y = py$np$array(matrix(y_train, ncol = 1)),
+                                            n_components = py$np$int16(n_components), 
+                                            hidden_dim = py$np$int16(hidden_dim),
+                                            seed = py$np$int16(seed_sub))
+      loss <- fit$loss(py$torch$Tensor(x_train), 
+                       py$torch$Tensor(matrix(y_train, ncol = 1)))$mean()$item()
+      seed_sub <- seed_sub + 1
+    }
+    pred_train_cde <- py$predict_mixture_density_network(fit,
+                                                         py$np$array(x_train), 
+                                                         py$np$array(matrix(y_train, ncol = 1)))
+    t_grid <- seq(0, min(max(pred_train_cde), max(y_train)), length.out = n_levels)
+    y_grid <- seq(min(y_train), max(y_train), length.out = n_levels)  # candidate of y
+    cde_train <- list(
+      z = y_grid,
+      CDE = matrix(NA, length(y_train), n_levels)
+    )
+    for (i in 1:nrow(x_train)) {
+      x_temp <- matrix(rep(x_train[i, ], n_levels), ncol = ncol(x_train), byrow = T)
+      cde_train$CDE[i, ] <- py$predict_mixture_density_network(fit,
+                                                               x_temp, 
+                                                               matrix(cde_train$z, ncol = 1))
+    }
+    
+    
+    # CDF of conditional density for sampling
+    cdf_train <- apply(cde_train$CDE, 1, function(x){ cumsum(x) / sum(x) })
+    cdf_train <- t(cdf_train)
+    
+    # CDE and CDF for test data
+    cde_test <- list(
+      z = y_grid,
+      CDE = matrix(NA, nrow(x_test), n_levels)
+    )
+    for (i in 1:nrow(x_test)) {
+      x_temp <- matrix(rep(x_test[i, ], n_levels), ncol = ncol(x_test), byrow = T)
+      cde_test$CDE[i, ] <- py$predict_mixture_density_network(fit,
+                                                              x_temp, 
+                                                              matrix(cde_test$z, ncol = 1))
+    }
+    cdf_test <- apply(cde_test$CDE, 1, function(x){ cumsum(x) / sum(x) })
+    cdf_test <- t(cdf_test)
+    
+    # Adjust CDF which all CDE = 0
+    idx <- which(apply(cde_train$CDE, 1, sum) == 0)
+    if (length(idx) > 0) {
+      cdf_train[idx, ] <- 0
+    }
+    idx <- which(apply(cde_test$CDE, 1, sum) == 0)
+    if (length(idx) > 0) {
+      cdf_test[idx, ] <- 0
+    }
+    
+    
+    ### Bootstrap
+    # Progress bar
+    pb <- progress_bar$new(
+      format = "[:bar] :percent [Execution time :elapsedfull || Estimated time remaining: :eta]",
+      total = B,   # total number of ticks to complete (default 100)
+      clear = FALSE,   # whether to clear the progress bar on completion (default TRUE)
+      width = 80   # width of the progress bar
+    )
+    progress <- function(n){
+      pb$tick()
+    } 
+    
+    # Bootstrap using for loop
+    delta <- matrix(NA, n_test, B)
+    for (b in 1:B) {
+      # Show the progress bar
+      progress(b)
+      # if (b %% 10 == 0) {
+      #   progress(b, max = B)
+      # }
+      
+      # Sample from CDE \hat{f}(y|x)
+      y_star <- apply(cdf_train, 1, function(cdf_i){
+        idx <- findInterval(runif(1), cdf_i) + 1
+        if (idx > n_levels) {
+          idx <- n_levels
+        }
+        replicate(1, cde_train$z[idx])
+      })
+      y_star_test <- apply(cdf_test, 1, function(cdf_i){
+        idx <- findInterval(runif(1), cdf_i) + 1
+        if (idx > n_levels) {
+          idx <- n_levels
+        }
+        replicate(1, cde_test$z[idx])
+      })
+
+      # Re-estimate CDE (\hat{f}^*(y|x)) for y_star_test
+      loss <- NA
+      seed_sub <- seed
+      # Check the NA loss
+      while(!is.finite(loss)) {
+        fit_boot <- py$fit_mixture_density_network(x = py$np$array(x_train),
+                                                   y = py$np$array(matrix(y_star, ncol = 1)),
+                                                   n_components = py$np$int16(n_components), 
+                                                   hidden_dim = py$np$int16(hidden_dim),
+                                                   seed = py$np$int16(seed_sub))
+        loss <- fit_boot$loss(py$torch$Tensor(x_train), 
+                              py$torch$Tensor(matrix(y_star, ncol = 1)))$mean()$item()
+        seed_sub <- seed_sub + 1
+      }
+      cde_test_boot <- list(
+        z = y_grid,
+        CDE = matrix(NA, nrow(x_test), n_levels)
+      )
+      for (i in 1:nrow(x_test)) {
+        x_temp <- matrix(rep(x_test[i, ], n_levels), ncol = ncol(x_test), byrow = T)
+        cde_test_boot$CDE[i, ] <- py$predict_mixture_density_network(fit_boot,
+                                                                     x_temp, 
+                                                                     matrix(cde_test_boot$z, ncol = 1))
+      }
+      
+
+      # Compute log likelihood ratio
+      delta[, b] <- sapply(1:n_test, function(i) {
+        # Obtain CDE of y_star_test
+        f_hat_y <- mean( cde_test_boot$CDE[i, order(abs(cde_test_boot$z - y_star_test[i]))[1:2]] )
+        f_hat_y <- ifelse(f_hat_y == 0, 1e-6, f_hat_y)
+
+        return( log( max(cde_test_boot$CDE[i, ]) / f_hat_y) )
+      })
+    }
+    
   }
   
-  # End parallel backend
-  stopCluster(cl) 
-  
-  # # Bootstrap using for loop
-  # delta <- matrix(NA, n_test, B)
-  # for (b in 1:B) {
-  #   # Show the progress bar
-  #   if (b %% 10 == 0) {
-  #     progress(b, max = B)
-  #   }
-  #   
-  #   # Sample from CDE \hat{f}(y|x)
-  #   y_star <- apply(cdf_train, 1, function(cdf_i){
-  #     replicate(1, cde_train$z[findInterval(runif(1), cdf_i)+1])
-  #   })
-  #   y_star_test <- apply(cdf_test, 1, function(cdf_i){
-  #     replicate(1, cde_test$z[findInterval(runif(1), cdf_i)+1])
-  #   })
-  #   
-  #   # Re-estimate CDE (\hat{f}^*(y|x)) for y_star_test
-  #   fit_boot <- FlexCoDE::fitFlexCoDE(
-  #     xTrain = x_train[-idx_valid, ],
-  #     zTrain = y_star[-idx_valid],
-  #     xValidation = x_train[idx_valid, ],
-  #     zValidation = y_star[idx_valid],
-  #     ...
-  #   )
-  #   cde_test_boot <- FlexCoDE::predict.FlexCoDE(fit_boot, x_test)
-  #   
-  #   # Compute log likelihood ratio
-  #   delta[, b] <- sapply(1:n_test, function(i) {
-  #     # Obtain CDE of y_star_test
-  #     f_hat_y <- mean( cde_test_boot$CDE[i, order(abs(cde_test_boot$z - y_star_test[i]))[1:2]] )
-  #     f_hat_y <- ifelse(f_hat_y == 0, 1e-6, f_hat_y)
-  #     
-  #     return( log( max(cde_test_boot$CDE[i, ]) / f_hat_y) )
-  #   })
-  # }
   
   
   # 1-alpha quantiles of \delta_b
@@ -490,6 +638,11 @@ x <- data[, c("mag_r", "feat1", "feat2", "feat3", "feat4", "feat5")] %>%
 
 n <- nrow(x)
 
+# Load python sources
+library(reticulate)
+use_condaenv("torch")   # Use virtual environment
+py_run_file("py/gaussian_mixture_density.py")
+
 # Number of cores
 n_cores <- 10
 
@@ -525,22 +678,28 @@ for (i in 1:num_sim) {
   y_sim <- c(y_train, y_calib)
   start_time <- Sys.time()
   fit_boot_cde_tol <- boot_cde_tol(x_sim, y_sim, x_test, 
-                                   cde = "flexcode", alpha = 0.1, delta = 0.05, 
+                                   cde = "mdn", alpha = 0.1, delta = 0.05, 
                                    B = 100,
-                                   n_cores = n_cores,
-                                   seed = seed,
-                                   # Additional `FlexCode` options
-                                   nIMax = 30,
-                                   regressionFunction = FlexCoDE::regressionFunction.NW)
+                                   seed = seed)
+  # fit_boot_cde_tol <- boot_cde_tol(x_sim, y_sim, x_test, 
+  #                                  cde = "flexcode", alpha = 0.1, delta = 0.05, 
+  #                                  B = 100,
+  #                                  n_cores = n_cores,
+  #                                  seed = seed,
+  #                                  # Additional `FlexCode` options
+  #                                  nIMax = 30,
+  #                                  regressionFunction = FlexCoDE::regressionFunction.NW)
   end_time <- Sys.time()
   print(end_time - start_time)
   res <- summary_tol_band(fit_boot_cde_tol$tol_band, y_test, idx_bright, idx_faint)
   res_boot_tol[, , i] <- as.matrix(res)
   print(res)
+  
+  save(res_boot_tol, file = "RData/res_boot_tol_100_MDN.RData")
 }
-# save(res_rcps_flexcode, res_rcps_mdn, res_npreg_tol, file = "RData/gallaxy_all.RData")
+# save(res_boot_tol, file = "RData/res_boot_tol_100.RData")
 
-# load("RData/gallaxy_rcps_flexcode_NW.RData")
+# load("RData/res_boot_tol_100.RData")
 df <- paste0(
   paste(
     format(round(apply(res_boot_tol, c(1,2), mean), 3), 3), 

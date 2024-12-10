@@ -110,11 +110,13 @@ class MixtureDensityNetwork(nn.Module):
 
 
 # Fit Mixture Density Network
-def fit_mixture_density_network(x, y, n_components=4, hidden_dim=30, seed=100):
+def fit_mixture_density_network(x, y, n_components=4, hidden_dim=30, seed=None):
     x = torch.Tensor(x)
     y = torch.Tensor(y)
 
-    torch.manual_seed(seed)
+    if (seed is not None):
+        torch.manual_seed(seed)
+        
     model = MixtureDensityNetwork(6, 1, n_components=n_components, hidden_dim=hidden_dim, noise_type=NoiseType.DIAGONAL)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, 2000)
@@ -125,9 +127,9 @@ def fit_mixture_density_network(x, y, n_components=4, hidden_dim=30, seed=100):
         loss.backward()
         optimizer.step()
         scheduler.step()
-        if i % 200 == 0:
-            # logger.info(f"Iter: {i}\t" + f"Loss: {loss.data:.2f}")
-            print(loss)
+        # if i % 200 == 0:
+        #     # logger.info(f"Iter: {i}\t" + f"Loss: {loss.data:.2f}")
+        #     print(loss)
             
     return model
 
