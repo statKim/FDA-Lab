@@ -44,78 +44,37 @@ for (b in 1:B) {
   
   
   
-  ### Split conformal prediction
+  ### Split data into training and test set
+  set.seed(1)
   n <- nrow(data[[1]])
   p <- length(data)
   
   alpha <- 0.1  # coverage level
-  rho <- 0.7  # split proportion (train + calib)
+  prop_train <- 0.7  # proportion of training set
   
-  m <- round(n * rho)   # size of training + calib
-  # l <- n - m   # size of test set
+  n_train <- round(n * prop_train)   # size of training set
+  n_test <- n - n_train   # size of test set
   
-  # Split data
-  idx_train_calib <- sample(setdiff(1:n, idx_outliers), m)
-  idx_train <- sample(idx_train_calib, round(m/2))
-  idx_calib <- setdiff(idx_train_calib, idx_train)
-  idx_test <- setdiff(1:n, c(idx_train, idx_calib))
+  # Split training and test data
+  idx_train <- sample(setdiff(1:n, idx_outliers), n_train)
+  idx_test <- setdiff(1:n, idx_train)
   
   data_train <- lapply(data, function(x){ x[idx_train, ] })
-  data_calib <- lapply(data, function(x){ x[idx_calib, ] })
   data_test <- lapply(data, function(x){ x[idx_test, ] })
   
-  # Point predictor
-  pred <- lapply(data_train, function(x){ colMeans(x) })
   
-  # Modulation function (t-function)
-  abs_resid_train <- mapply(function(X_p, pred_p) {
-    apply(X_p, 1, function(x){ abs(x - pred_p) })  # timepoints x observation
-  }, data_train, pred, SIMPLIFY = F)
-  score_H <- sapply(abs_resid_train, function(resid_p) { 
-    apply(resid_p, 2, max)   # esssup_t resid
-  }) %>% 
-    apply(1, max)
-  gamma <- sort(score_H)[ ceiling((1 - alpha) * (length(idx_train) + 1)) ]
-  idx_H <- which(score_H <= gamma)   # index of H_1
-  s_ftn <- lapply(abs_resid_train, function(resid_p) {
-    apply(resid_p[, idx_H], 1, max)
-  }) 
+  ### Split conformal prediction
+  # Marginal conformal p-value
+  cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
+                               type = "depth", type_depth = "projdepth")
+  conf_pvalue_marg <- cp_obj$conf_pvalue_marg
+  conf_pvalue_marg
   
-  
-  # Non-conformity score with modulation
-  nonconform_score_calib <- mapply(function(X_p, pred_p, s_ftn_p){
-    apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-  }, data_calib, pred, s_ftn) %>% 
-    apply(1, max)
-  idx_cutoff <- ceiling((1 - alpha) * (length(idx_calib) + 1))
-  k_s <- sort(nonconform_score_calib)[idx_cutoff]
-  
-  # # Coverage check
-  # sum(nonconform_score_calib <= k_s) / length(idx_calib)
-  
-  # # Conformal prediction band
-  # lb <- mapply(function(pred_p, s_ftn_p){
-  #   pred_p - k_s*s_ftn_p
-  # }, pred, s_ftn, SIMPLIFY = F)
-  # ub <- mapply(function(pred_p, s_ftn_p){
-  #   pred_p + k_s*s_ftn_p
-  # }, pred, s_ftn, SIMPLIFY = F)
-  
-  
-  ### Conformal p-value (marginal)
-  m <- length(idx_test)
-  nonconform_score_test <- mapply(function(X_p, pred_p, s_ftn_p){
-    apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-  }, data_test, pred, s_ftn) %>% 
-    apply(1, max)
-  conf_pvalue_marg <- sapply(nonconform_score_test, function(s){
-    (1 + sum(nonconform_score_calib >= s)) / (length(idx_calib) + 1)
-  })
-  
-  
-  ### Conformal p-value (CCV)
-  conf_pvalue_simes <- ccv_conf_pvalue(conf_pvalue_marg, method = "simes", delta = 0.1, n_cal = length(idx_calib))
-  conf_pvalue_asymp <- ccv_conf_pvalue(conf_pvalue_marg, method = "asymp", delta = 0.1, n_cal = length(idx_calib))
+  # Calibration-conditional valid conformal p-value
+  conf_pvalue_simes <- ccv_conf_pvalue(conf_pvalue_marg, method = "simes", 
+                                       delta = 0.1, n_calib = length(cp_obj$idx_calib))
+  conf_pvalue_asymp <- ccv_conf_pvalue(conf_pvalue_marg, method = "asymp", 
+                                       delta = 0.1, n_calib = length(cp_obj$idx_calib))
   
   # Conformal p-values
   conf_pvalue <- data.frame(
@@ -200,6 +159,8 @@ idx_test[ seqobj$outliers$O ]
 ######################################################
 library(tidyverse)
 library(fdaoutlier)
+library(progress)
+
 n <- 200
 n_test <- 200
 m <- 51
@@ -224,6 +185,7 @@ sim_ftn_list <- list(
 #   simulation_model9   # shape outlier
 # )
 
+
 # Simulation
 res <- list()
 res2 <- list()
@@ -231,14 +193,40 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
   print(sim_model_idx)
   sim_ftn <- sim_ftn_list[[sim_model_idx]]   # generating function
   
+  # Progress bar
+  pb <- progress_bar$new(
+    format = "[:bar] :percent [Execution time :elapsedfull || Estimated time remaining: :eta]",
+    total = B,   # total number of ticks to complete (default 100)
+    clear = FALSE,   # whether to clear the progress bar on completion (default TRUE)
+    width = 80   # width of the progress bar
+  )
+  progress <- function(n){
+    pb$tick()
+  } 
+  
+  
   # Simulation for each simulation model
-  fdr_single <- data.frame(
+  # fdr_single <- data.frame(
+  #   marg = rep(NA, B),
+  #   simes = rep(NA, B),
+  #   asymp = rep(NA, B)
+  # )
+  # fdr_bh <- fdr_single
+  # tpr_single <- fdr_single
+  # tpr_bh <- fdr_single
+  fdr_res <- data.frame(
     marg = rep(NA, B),
     simes = rep(NA, B),
     asymp = rep(NA, B)
   )
-  fdr_bh <- fdr_single
+  fdr_single <- list(
+    esssup = fdr_res,
+    hdepth = fdr_res,
+    projdepth = fdr_res,
+    seq_trans = fdr_res
+  )
   tpr_single <- fdr_single
+  fdr_bh <- fdr_single
   tpr_bh <- fdr_single
   
   fdr_comparison <- data.frame(
@@ -248,17 +236,21 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
   tpr_comparison <- fdr_comparison
   
   for (b in 1:B) {
-    print(b)
+    # print(b)
     set.seed(b)
     
-    # Generate multivariate functional data without outliers (training + calibration)
-    data_train_calib <- list()
+    # Show the progress bar
+    progress(b)
+    
+    ### Data generation
+    # Generate multivariate functional data without outliers (training set)
+    data_train <- list()
     for (j in 1:p) {
       sim_obj <- sim_ftn(n = n, p = m, outlier_rate = 0)
-      data_train_calib[[j]] <- sim_obj$data
+      data_train[[j]] <- sim_obj$data
     }
     
-    # Generate multivariate functional data with outliers (test)
+    # Generate multivariate functional data with outliers (test set)
     idx_outliers <- (n_test - n_test*outlier_rate + 1):n_test
     data_test <- list()
     for (j in 1:p) {
@@ -274,130 +266,202 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     # matplot(t(data_test[[1]]), type = "l", col = ifelse(1:n %in% idx_outliers, "red", "gray"))
     
     
+    ### Outlier detection based on CP
+    summary_CP_out_detect <- function(type = "depth", type_depth = "projdepth") {
+      # Marginal conformal p-value
+      cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
+                                   type = type, type_depth = type_depth,
+                                   seed = b)
+      conf_pvalue_marg <- cp_obj$conf_pvalue_marg
+      
+      # Calibration-conditional valid conformal p-value
+      conf_pvalue_simes <- ccv_conf_pvalue(conf_pvalue_marg, method = "simes", 
+                                           delta = 0.1, n_calib = length(cp_obj$idx_calib))
+      conf_pvalue_asymp <- ccv_conf_pvalue(conf_pvalue_marg, method = "asymp", 
+                                           delta = 0.1, n_calib = length(cp_obj$idx_calib))
+      # Conformal p-values
+      conf_pvalue <- data.frame(
+        marg = conf_pvalue_marg,
+        simes = conf_pvalue_simes,
+        asymp = conf_pvalue_asymp
+      )
+      
+      # Single test
+      idx_single <- apply(conf_pvalue, 2, function(x){ which(x < alpha) }, simplify = F)
+      # fdr_single$projdepth[b, ] <- sapply(idx_single, function(x){
+      #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+      # })
+      # tpr_single$projdepth[b, ] <- sapply(idx_single, function(x){
+      #   sum(idx_outliers %in% x) / length(idx_outliers)
+      # })
+      
+      # BH procedure
+      idx_bh <- apply(conf_pvalue, 2, function(x){ 
+        if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
+          return(NA)
+        } else {
+          order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
+        }
+      }, simplify = F)
+      # fdr_bh$projdepth[b, ] <- sapply(idx_bh, function(x){
+      #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+      # })
+      # tpr_bh$projdepth[b, ] <- sapply(idx_bh, function(x){
+      #   sum(idx_outliers %in% x) / length(idx_outliers)
+      # })
+      
+      out <- list(
+        idx_single = idx_single,
+        idx_bh = idx_bh
+      )
+      return(out)
+    }
     
-    ### Split conformal prediction
-    # Split data
-    idx_train <- sample(1:n, round(n/2))
-    idx_calib <- setdiff(1:n, idx_train)
-    
-    data_train <- lapply(data_train_calib, function(x){ x[idx_train, ] })
-    data_calib <- lapply(data_train_calib, function(x){ x[idx_calib, ] })
-    
-    # Point predictor
-    pred <- lapply(data_train, function(x){ colMeans(x) })
-    
-    # Modulation function (t-function)
-    abs_resid_train <- mapply(function(X_p, pred_p) {
-      apply(X_p, 1, function(x){ abs(x - pred_p) })  # timepoints x observation
-    }, data_train, pred, SIMPLIFY = F)
-    score_H <- sapply(abs_resid_train, function(resid_p) { 
-      apply(resid_p, 2, max)   # esssup_t resid
-    }) %>% 
-      apply(1, max)
-    gamma <- sort(score_H)[ ceiling((1 - alpha) * (length(idx_train) + 1)) ]
-    idx_H <- which(score_H <= gamma)   # index of H_1
-    s_ftn <- lapply(abs_resid_train, function(resid_p) {
-      apply(resid_p[, idx_H], 1, max)
-    }) 
-    
-    
-    # Non-conformity score with modulation
-    nonconform_score_calib <- mapply(function(X_p, pred_p, s_ftn_p){
-      apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-    }, data_calib, pred, s_ftn) %>% 
-      apply(1, max)
-    idx_cutoff <- ceiling((1 - alpha) * (length(idx_calib) + 1))
-    k_s <- sort(nonconform_score_calib)[idx_cutoff]
-    
-    
-    ### Conformal p-value (marginal)
-    nonconform_score_test <- mapply(function(X_p, pred_p, s_ftn_p){
-      apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-    }, data_test, pred, s_ftn) %>% 
-      apply(1, max)
-    conf_pvalue_marg <- sapply(nonconform_score_test, function(s){
-      (1 + sum(nonconform_score_calib >= s)) / (length(idx_calib) + 1)
-    })
-    
-    
-    ### Conformal p-value (CCV)
-    conf_pvalue_simes <- ccv_conf_pvalue(conf_pvalue_marg, method = "simes", delta = 0.1, n_cal = length(idx_calib))
-    conf_pvalue_asymp <- ccv_conf_pvalue(conf_pvalue_marg, method = "asymp", delta = 0.1, n_cal = length(idx_calib))
-    
-    # Conformal p-values
-    conf_pvalue <- data.frame(
-      marg = conf_pvalue_marg,
-      simes = conf_pvalue_simes,
-      asymp = conf_pvalue_asymp
-    )
-    
-    ### Outlier detection
-    # Single test
-    idx_single <- apply(conf_pvalue, 2, function(x){ which(x < alpha) }, simplify = F)
-    fdr_single[b, ] <- sapply(idx_single, function(x){
+    # Sequential Transformations
+    obj <- summary_CP_out_detect(type = "seq_transform", type_depth = "projdepth")
+    fdr_single$seq_trans[b, ] <- sapply(obj$idx_single, function(x){
       sum(!(x %in% idx_outliers)) / max(1, length(x))
     })
-    tpr_single[b, ] <- sapply(idx_single, function(x){
+    tpr_single$seq_trans[b, ] <- sapply(obj$idx_single, function(x){
       sum(idx_outliers %in% x) / length(idx_outliers)
     })
-    
-    
-    # BH procedure - Not reject
-    idx_bh <- apply(conf_pvalue, 2, function(x){ 
-      if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-        return(NA)
-      } else {
-        order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
-      }
-    }, simplify = F)
-    fdr_bh[b, ] <- sapply(idx_bh, function(x){
+    fdr_bh$seq_trans[b, ] <- sapply(obj$idx_bh, function(x){
       sum(!(x %in% idx_outliers)) / max(1, length(x))
     })
-    tpr_bh[b, ] <- sapply(idx_bh, function(x){
+    tpr_bh$seq_trans[b, ] <- sapply(obj$idx_bh, function(x){
       sum(idx_outliers %in% x) / length(idx_outliers)
     })
+    # cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
+    #                              type = "seq_transform", type_depth = "projdepth",
+    #                              seed = b)
+    # conf_pvalue_marg <- cp_obj$conf_pvalue_marg
+    # conf_pvalue_simes <- ccv_conf_pvalue(conf_pvalue_marg, method = "simes", 
+    #                                      delta = 0.1, n_calib = length(cp_obj$idx_calib))
+    # conf_pvalue_asymp <- ccv_conf_pvalue(conf_pvalue_marg, method = "asymp", 
+    #                                      delta = 0.1, n_calib = length(cp_obj$idx_calib))
+    # conf_pvalue <- data.frame(
+    #   marg = conf_pvalue_marg,
+    #   simes = conf_pvalue_simes,
+    #   asymp = conf_pvalue_asymp
+    # )
     
     
-    ### Existing functional outlier detection
-    idx_comparison <- list()
-    df <- abind::abind(data_test, along = 3)
-    
-    # MS plot
-    idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
-    
-    # Sequential method
-    seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-                            erld_type = "one_sided_right", save_data = TRUE)
-    idx_comparison$seq <- seqobj$outliers$O
-    
-    fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
-      sum(!(x %in% idx_outliers)) / max(1, length(x))
-    })
-    tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
-      sum(idx_outliers %in% x) / length(idx_outliers)
-    })
+    # # esssup
+    # obj <- summary_CP_out_detect(type = "esssup")
+    # fdr_single$esssup[b, ] <- sapply(obj$idx_single, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_single$esssup[b, ] <- sapply(obj$idx_single, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
+    # fdr_bh$esssup[b, ] <- sapply(obj$idx_bh, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_bh$esssup[b, ] <- sapply(obj$idx_bh, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
+    # 
+    # # projdepth
+    # obj <- summary_CP_out_detect(type_depth = "projdepth")
+    # fdr_single$projdepth[b, ] <- sapply(obj$idx_single, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_single$projdepth[b, ] <- sapply(obj$idx_single, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
+    # fdr_bh$projdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_bh$projdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
+    # 
+    # # hdepth
+    # obj <- summary_CP_out_detect(type_depth = "hdepth")
+    # fdr_single$hdepth[b, ] <- sapply(obj$idx_single, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_single$hdepth[b, ] <- sapply(obj$idx_single, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
+    # fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
+    # 
+    # 
+    # 
+    # ### Existing functional outlier detection
+    # idx_comparison <- list()
+    # df <- abind::abind(data_test, along = 3)
+    # 
+    # # MS plot
+    # idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
+    # 
+    # # Sequential method
+    # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
+    #                         erld_type = "one_sided_right", save_data = TRUE)
+    # idx_comparison$seq <- seqobj$outliers$O
+    # 
+    # fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
+    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
+    # })
+    # tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
+    #   sum(idx_outliers %in% x) / length(idx_outliers)
+    # })
   }
   
-  # Results
-  res[[sim_model_idx]] <- list(
-    single = list(fdr = fdr_single,
-                  tpr = tpr_single),
-    bh = list(fdr = fdr_bh,
-              tpr = tpr_bh),
-    comparison = list(fdr = fdr_comparison,
-                      tpr = tpr_comparison)
-  )
-  res2[[sim_model_idx]] <- list(
-    fdr = cbind(single = fdr_single$marg,
-                bh = fdr_bh$marg,
-                fdr_comparison),
-    tpr = cbind(single = tpr_single$marg,
-                bh = tpr_bh$marg,
-                tpr_comparison)
-  )
+  # # Results
+  # res[[sim_model_idx]] <- list(
+  #   single = list(fdr = fdr_single,
+  #                 tpr = tpr_single),
+  #   bh = list(fdr = fdr_bh,
+  #             tpr = tpr_bh),
+  #   comparison = list(fdr = fdr_comparison,
+  #                     tpr = tpr_comparison)
+  # )
+  # # res2[[sim_model_idx]] <- list(
+  # #   fdr = cbind(single = fdr_single$marg,
+  # #               bh = fdr_bh$marg,
+  # #               fdr_comparison),
+  # #   tpr = cbind(single = tpr_single$marg,
+  # #               bh = tpr_bh$marg,
+  # #               tpr_comparison)
+  # # )
+  # res2[[sim_model_idx]] <- list(
+  #   fdr = cbind(single_esssup = fdr_single$esssup$marg,
+  #               bh_esssup = fdr_bh$esssup$marg,
+  #               single_hdepth = fdr_single$hdepth$marg,
+  #               bh_hdepth = fdr_bh$hdepth$marg,
+  #               single_projdepth = fdr_single$projdepth$marg,
+  #               bh_projdepth = fdr_bh$projdepth$marg,
+  #               fdr_comparison),
+  #   tpr = cbind(single_esssup = tpr_single$esssup$marg,
+  #               bh_esssup = tpr_bh$esssup$marg,
+  #               single_hdepth = tpr_single$hdepth$marg,
+  #               bh_hdepth = tpr_bh$hdepth$marg,
+  #               single_projdepth = tpr_single$projdepth$marg,
+  #               bh_projdepth = tpr_bh$projdepth$marg,
+  #               tpr_comparison)
+  # )
+  
+  
+  res[[sim_model_idx]]$single$fdr$seq_trans <- fdr_single$seq_trans
+  res[[sim_model_idx]]$single$tpr$seq_trans <- tpr_single$seq_trans
+  res[[sim_model_idx]]$bh$fdr$seq_trans <- fdr_bh$seq_trans
+  res[[sim_model_idx]]$bh$tpr$seq_trans <- tpr_bh$seq_trans
+  
+  res2[[sim_model_idx]]$fdr$single_seq_trans <- fdr_single$seq_trans$marg
+  res2[[sim_model_idx]]$fdr$bh_seq_trans <- fdr_bh$seq_trans$marg
+  res2[[sim_model_idx]]$tpr$single_seq_trans <- tpr_single$seq_trans$marg
+  res2[[sim_model_idx]]$tpr$bh_seq_trans <- tpr_bh$seq_trans$marg
 }
 # save(res, res2, file = "RData/sim_1.RData")
-save(res, res2, file = "RData/sim_2.RData")
+# save(res, res2, file = "RData/sim_2.RData")
+# save(res, res2, file = "RData/sim_3_max.RData")
+save(res, res2, file = "RData/sim_3_mean.RData")
 
 # lapply(res, function(sim){
 #   lapply(sim, function(x){
@@ -448,6 +512,39 @@ lapply(res2, function(sim){
 # single            bh            ms           seq
 # FDR 0.460 (0.090) 0.164 (0.272) 0.004 (0.014) 0.000 (0.005)
 # TPR 1.000 (0.000) 0.909 (0.288) 1.000 (0.000) 1.000 (0.000)
+
+
+
+lapply(res2, function(sim){
+  sub <- paste0(
+    rbind(fdr = colMeans(sim$fdr[, c(2, 4, 6, 10, 7, 8)]),
+          tpr = colMeans(sim$tpr[, c(2, 4, 6, 10, 7, 8)])) %>% 
+      round(3) %>% 
+      format(nsmall = 3),
+    " (",
+    rbind(fdr = apply(sim$fdr[, c(2, 4, 6, 10, 7, 8)], 2, sd),
+          tpr = apply(sim$tpr[, c(2, 4, 6, 10, 7, 8)], 2, sd)) %>% 
+      round(3) %>% 
+      format(nsmall = 3),
+    ")"
+  )
+  dim(sub) <- c(2, ncol(sim$fdr[, c(2, 4, 6, 10, 7, 8)]))
+  rownames(sub) <- c("FDR","TPR")
+  colnames(sub) <- colnames(sim$fdr[, c(2, 4, 6, 10, 7, 8)])
+  sub <- data.frame(sub)
+  sub
+})
+
+
+
+
+
+matplot(t(data_test[[1]]), type = "l", col = ifelse(1:n %in% idx_outliers, 2, 1))
+matplot(apply(data_test[[1]], 1, diff), type = "l", col = ifelse(1:n %in% idx_outliers, 2, 1))
+
+
+
+
 
 par(mfrow = c(2, 3))
 dtss <- simulation_model1(n = 100, p = 50, outlier_rate = .1, plot = T)
