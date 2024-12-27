@@ -61,6 +61,8 @@ idx_outliers  # 12 outliers
 
 
 
+source("R/foutlier_cp.R")
+
 ### Split conformal prediction
 set.seed(1)
 n <- nrow(data[[1]])

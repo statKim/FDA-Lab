@@ -2,6 +2,8 @@ library(tidyverse)
 library(fdaoutlier)
 library(progress)
 
+source("R/foutlier_cp.R")
+
 ########################################
 ### fMRI Data
 ########################################
@@ -26,7 +28,14 @@ for (i in 1:length(file_list)) {
 }
 dim(X)
 
+n <- dim(X)[1]   # number of curves
+m <- dim(X)[2]   # number of timepoints
+p <- dim(X)[3]  # number of functional variables
+gr <- seq(0, 1, length.out = m)
 
+
+
+### CV+ CP instead of split CP because of the high-dimensionality issue!!
 ### Outlier detection with diffrent B splits
 B <- 100
 fdr_res <- data.frame(
@@ -58,6 +67,9 @@ pb <- progress_bar$new(
 progress <- function(n){
   pb$tick()
 } 
+
+# Parallel computations
+n_cores <- 10
 
 # Repetitions
 for (b in 1:B) {
@@ -115,28 +127,17 @@ for (b in 1:B) {
   data_test <- lapply(data, function(x){ x[idx_test, ] })
   
   
-  # Sample the 40 functional variables
-  idx_selected <- sample(1:p, 40)
-  data_train <- data_train[idx_selected]
-  data_test <- data_test[idx_selected]
-  
-  
-  ### Outlier detection based on CP
+  ### Outlier detection based on CV+ CP
   summary_CP_out_detect <- function(type = "depth", type_depth = "projdepth") {
     # Marginal and CCV conformal p-value
-    cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
-                                 type = type, type_depth = type_depth,
-                                 seed = b)
+    cp_obj <- cv_conformal_fd(X = data_train, X_test = data_test,
+                              type = type, type_depth = type_depth,
+                              n_cores = n_cores,
+                              seed = b)
+    # cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
+    #                              type = type, type_depth = type_depth,
+    #                              seed = b)
     conf_pvalue <- cp_obj$conf_pvalue
-    
-    # Single test
-    idx_single <- apply(conf_pvalue, 2, function(x){ which(x < alpha) }, simplify = F)
-    # fdr_single$projdepth[b, ] <- sapply(idx_single, function(x){
-    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
-    # })
-    # tpr_single$projdepth[b, ] <- sapply(idx_single, function(x){
-    #   get_tpr(x, idx_outliers)
-    # })
     
     # BH procedure
     idx_bh <- apply(conf_pvalue, 2, function(x){ 
@@ -154,7 +155,6 @@ for (b in 1:B) {
     # })
     
     out <- list(
-      idx_single = idx_single,
       idx_bh = idx_bh
     )
     return(out)
@@ -192,19 +192,21 @@ for (b in 1:B) {
     get_tpr(x, idx_outliers)
   })
   
-  # hdepth
-  obj <- summary_CP_out_detect(type_depth = "hdepth")
-  fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
-    get_fdr(x, idx_outliers)
-  })
-  tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
-    get_tpr(x, idx_outliers)
-  })
+  # # hdepth
+  # obj <- summary_CP_out_detect(type_depth = "hdepth")
+  # fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+  #   get_fdr(x, idx_outliers)
+  # })
+  # tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+  #   get_tpr(x, idx_outliers)
+  # })
   
   
   ### Existing functional outlier detection (Coverage guarantee X)
+  ### Only use test set
   idx_comparison <- list()
   df <- abind::abind(data_test, along = 3)
+  # df <- abind::abind(data, along = 3)
   
   # MS plot
   idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
