@@ -1,5 +1,6 @@
 library(tidyverse)
 library(mrfDepth)
+library(roahd)
 library(progress)  # show progress bar
 
 # Parallel computation
@@ -7,12 +8,12 @@ library(doSNOW)
 library(doRNG)
 library(foreach)
 
-# Get FDR
+# Get FDR (False discovery rate)
 get_fdr <- function(idx_reject, idx_true) {
   sum(!(idx_reject %in% idx_true)) / max(1, length(idx_reject))
 }
 
-# Get TPR
+# Get TPR (True positive rate; Power)
 get_tpr <- function(idx_reject, idx_true) {
   sum(idx_true %in% idx_reject) / length(idx_true)
 }
@@ -25,7 +26,7 @@ get_tpr <- function(idx_reject, idx_true) {
 #' @param ... additional options for `mrfDepth::mfd()`
 split_conformal_fd <- function(X, y = NULL, X_test, 
                                type = "esssup", type_depth = "projdepth",
-                               sequence = c("D0","D1","D2"),
+                               transform = c("D0","D1","D2"),
                                alpha = 0.1, rho = 0.5, 
                                ccv = TRUE, delta = 0.1, k = NULL,
                                seed = NULL, ...) {
@@ -116,7 +117,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     }
     
     # Multivariate functional depth for calibration set
-    # Lower depth is outlier => we take "-" to make nonconformity score
+    # Lower depth is outlier => we take "-" to make nonconformity score!
     depth_values <- mfd(arr_train, arr_calib, 
                         type = type_depth, ...)
     nonconform_score_calib <- -as.numeric(depth_values$MFDdepthZ)
@@ -141,7 +142,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       nonconform_score_test = nonconform_score_test,
       conf_pvalue = data.frame(marginal = conf_pvalue_marg)
     )
-  } else if (type == "seq_transform") {
+  } else if (type == "depth_transform") {
     # Transform data structure for `mrfDepth::mfd()`
     arr_train <- array(NA, c(m, n_train, p))
     arr_calib <- array(NA, c(m, n_calib, p))
@@ -152,12 +153,12 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       arr_test[, , i] <- t(X_test[[i]])
     }
     
-    # Compute functional depth using sequential transformation
-    nonconform_score_calib <- matrix(NA, n_calib, length(sequence))
-    nonconform_score_test <- matrix(NA, n_test, length(sequence))
+    # Compute functional depth with transformations
+    nonconform_score_calib <- matrix(NA, n_calib, length(transform))
+    nonconform_score_test <- matrix(NA, n_test, length(transform))
     
-    for (s in 1:length(sequence)) {
-      trans_type <- sequence[s]  # transform type
+    for (s in 1:length(transform)) {
+      trans_type <- transform[s]  # transform type
       
       # Transform into 1st or 2nd derivatives
       if (trans_type == "D0") {
@@ -186,39 +187,56 @@ split_conformal_fd <- function(X, y = NULL, X_test,
           arr_test_trans[, , i] <- apply(arr_test[, , i], 2, function(x){ diff(diff(x)) })
         }
       } else {
-        stop("Not supproted for `sequence`!")
+        stop("Not supproted for `transform`!")
       }
       
-      # Multivariate functional depth for calibration set
-      # Lower depth is outlier => we take "-" to make nonconformity score
-      depth_values <- mfd(arr_train_trans, arr_calib_trans, 
-                          type = type_depth, ...)
-      nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
+      # Non-conformity scores for calibration and test set
+      if (type_depth == "mbd") {
+        ### Averaged modifed band depth for univariate functional data for each variable
+        # Calibration scores
+        depth_values <- sapply(1:p, function(i){
+          MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]), ...)
+        })
+        nonconform_score_calib[, s] <- -apply(depth_values, 1, mean)
+        
+        # Test scores
+        depth_values <- sapply(1:p, function(i){
+          MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]), ...)
+        })
+        nonconform_score_test[, s] <- -apply(depth_values, 1, mean)
+      } else {
+        # Multivariate functional depth for calibration set
+        # Lower depth is outlier => we take "-" to make nonconformity score
+        depth_values <- mfd(arr_train_trans, arr_calib_trans, 
+                            type = type_depth, ...)
+        nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
+        
+        # D0
+        # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+        # 0.1077  0.1459  0.1577  0.1576  0.1677  0.2172 
+        # D1
+        # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+        # 0.1534  0.1571  0.1602  0.1603  0.1632  0.1708 
+        # D2
+        # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+        # 0.1504  0.1573  0.1593  0.1602  0.1626  0.1733 
+        
+        # Multivariate functional depth for test set
+        depth_values <- mfd(arr_train_trans, arr_test_trans, 
+                            type = type_depth, ...)
+        nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
+        
+        # D0
+        # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+        # 0.1042  0.1436  0.1577  0.1563  0.1716  0.2003 
+        # D1
+        # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+        # 0.03539 0.15526 0.15833 0.14690 0.16141 0.16769 
+        # D2
+        # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+        # 0.03066 0.15539 0.15841 0.14645 0.16175 0.16787 
+      }
       
-      # D0
-      # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-      # 0.1077  0.1459  0.1577  0.1576  0.1677  0.2172 
-      # D1
-      # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-      # 0.1534  0.1571  0.1602  0.1603  0.1632  0.1708 
-      # D2
-      # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-      # 0.1504  0.1573  0.1593  0.1602  0.1626  0.1733 
-      
-      # Multivariate functional depth for test set
-      depth_values <- mfd(arr_train_trans, arr_test_trans, 
-                          type = type_depth, ...)
-      nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
-      
-      # D0
-      # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-      # 0.1042  0.1436  0.1577  0.1563  0.1716  0.2003 
-      # D1
-      # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-      # 0.03539 0.15526 0.15833 0.14690 0.16141 0.16769 
-      # D2
-      # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-      # 0.03066 0.15539 0.15841 0.14645 0.16175 0.16787 
     }
     
     # Aggregate scores from transformations
@@ -238,7 +256,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       idx_calib = idx_calib,
       type = type,
       type_depth = type_depth,
-      sequence = sequence,
+      transform = transform,
       nonconform_score_calib = nonconform_score_calib,
       nonconform_score_test = nonconform_score_test,
       conf_pvalue = data.frame(marginal = conf_pvalue_marg)
@@ -247,9 +265,9 @@ split_conformal_fd <- function(X, y = NULL, X_test,
   
   # Calibration-conditional valid (CCV) conformal p-value
   if (isTRUE(ccv)) {
-    out$conf_pvalue$simes <- ccv_conf_pvalue(conf_pvalue$marginal, method = "simes", 
+    out$conf_pvalue$simes <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "simes", 
                                              delta = delta, n_calib = n_calib, k = k)
-    out$conf_pvalue$asymp <- ccv_conf_pvalue(conf_pvalue$marginal, method = "asymp", 
+    out$conf_pvalue$asymp <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "asymp", 
                                              delta = delta, n_calib = n_calib, k = k)
   }
   
@@ -310,7 +328,7 @@ ccv_conf_pvalue <- function(marg_conf_pvalue, method = "simes", delta = 0.1, n_c
 #' @param K a number of folds for K-fold CV+
 cv_conformal_fd <- function(X, y = NULL, X_test, 
                             type = "esssup", type_depth = "projdepth",
-                            sequence = c("D0","D1","D2"),
+                            transform = c("D0","D1","D2"),
                             alpha = 0.1,
                             ccv = TRUE, delta = 0.1, k = NULL,
                             K = 10, n_cores = 1,
@@ -412,7 +430,7 @@ cv_conformal_fd <- function(X, y = NULL, X_test,
       depth_values <- mfd(arr_train, arr_test, 
                           type = type_depth)
       nonconform_score_test <- -as.numeric(depth_values$MFDdepthZ)
-    } else if (type == "seq_transform") {
+    } else if (type == "depth_transform") {
       # Transform data structure for `mrfDepth::mfd()`
       arr_train <- array(NA, c(m, n_train, p))
       arr_calib <- array(NA, c(m, n_calib, p))
@@ -423,12 +441,12 @@ cv_conformal_fd <- function(X, y = NULL, X_test,
         arr_test[, , i] <- t(X_test[[i]])
       }
       
-      # Compute functional depth using sequential transformation
-      nonconform_score_calib <- matrix(NA, n_calib, length(sequence))
-      nonconform_score_test <- matrix(NA, n_test, length(sequence))
+      # Compute functional depth with transformations
+      nonconform_score_calib <- matrix(NA, n_calib, length(transform))
+      nonconform_score_test <- matrix(NA, n_test, length(transform))
       
-      for (s in 1:length(sequence)) {
-        trans_type <- sequence[s]  # transform type
+      for (s in 1:length(transform)) {
+        trans_type <- transform[s]  # transform type
         
         # Transform into 1st or 2nd derivatives
         if (trans_type == "D0") {
@@ -457,7 +475,7 @@ cv_conformal_fd <- function(X, y = NULL, X_test,
             arr_test_trans[, , i] <- apply(arr_test[, , i], 2, function(x){ diff(diff(x)) })
           }
         } else {
-          stop("Not supproted for `sequence`!")
+          stop("Not supproted for `transform`!")
         }
         
         # Multivariate functional depth for calibration set
@@ -514,7 +532,7 @@ cv_conformal_fd <- function(X, y = NULL, X_test,
   out <- list(
     type = type,
     type_depth = type_depth,
-    sequence = sequence,
+    transform = transform,
     nonconform_score_calib = nonconform_score_calib,
     nonconform_score_test = nonconform_score_test,
     conf_pvalue = data.frame(marginal = conf_pvalue_marg)
