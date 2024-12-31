@@ -595,6 +595,38 @@ lapply(res2, function(sim){
 # FDR 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)  0.069 (0.078) 0.830 (0.378) 0.000 (0.000)
 # TPR 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)  1.000 (0.000) 0.000 (0.000) 0.000 (0.000)
 
+# sim5
+# [[1]]
+#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
+# FDR    0.061 (0.073) 1.000 (0.000) 0.068 (0.064) 0.852 (0.336) 1.000 (0.000)  0.057 (0.062)
+# TPR    1.000 (0.000) 0.000 (0.000) 1.000 (0.000) 0.153 (0.349) 0.000 (0.000)  1.000 (0.000)
+#               ms           seq        ms_all       seq_all
+# FDR 0.032 (0.042) 0.000 (0.000) 0.999 (0.008) 1.000 (0.000)
+# TPR 1.000 (0.000) 0.972 (0.039) 0.002 (0.009) 0.000 (0.000)
+# 
+# [[2]]
+#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
+# FDR    0.047 (0.054) 1.000 (0.000) 0.978 (0.119) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)
+# TPR    1.000 (0.000) 0.000 (0.000) 0.025 (0.137) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)
+#               ms           seq        ms_all       seq_all
+# FDR 0.112 (0.253) 0.000 (0.000) 0.933 (0.254) 0.000 (0.000)
+# TPR 0.032 (0.048) 0.003 (0.013) 0.000 (0.000) 0.000 (0.000)
+# 
+# [[3]]
+#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
+# FDR    0.047 (0.054) 1.000 (0.000) 0.727 (0.395) 1.000 (0.000) 1.000 (0.000)  0.977 (0.128)
+# TPR    1.000 (0.000) 0.000 (0.000) 0.315 (0.454) 0.000 (0.000) 0.000 (0.000)  0.023 (0.128)
+#               ms           seq        ms_all       seq_all
+# FDR 0.020 (0.039) 0.000 (0.000) 0.999 (0.007) 0.900 (0.305)
+# TPR 0.928 (0.077) 0.075 (0.082) 0.002 (0.009) 0.000 (0.000)
+# 
+# [[4]]
+#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
+# FDR    0.045 (0.057) 1.000 (0.000) 0.068 (0.075) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)
+# TPR    1.000 (0.000) 0.000 (0.000) 1.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)
+#               ms           seq        ms_all       seq_all
+# FDR 0.700 (0.466) 0.000 (0.000) 0.877 (0.306) 0.000 (0.000)
+# TPR 0.000 (0.000) 0.000 (0.000) 0.005 (0.015) 0.000 (0.000)
 
 
 
@@ -641,7 +673,7 @@ library(tidyverse)
 library(fdaoutlier)
 library(progress)
 
-n <- 400
+n <- 200
 n_test <- 200
 m <- 51
 p <- 20
@@ -673,7 +705,7 @@ sim_ftn_list <- list(
 
 # Simulation
 res <- list()
-for (sim_model_idx in 1:length(sim_ftn_list)) {
+for (sim_model_idx in 2:length(sim_ftn_list)) {
   print(sim_model_idx)
   sim_ftn <- sim_ftn_list[[sim_model_idx]]   # generating function
   
@@ -752,23 +784,23 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       get_tpr(x, idx_outliers)
     })
     
-    # MBD
-    cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
-                                 type = "depth_transform", type_depth = "mbd",
-                                 seed = b)
-    idx_bh <- apply(cp_obj$conf_pvalue, 2, function(x){ 
-      if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-        return(NA)
-      } else {
-        order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
-      }
-    }, simplify = F)
-    fdr_bh$mbd[b, ] <- sapply(idx_bh, function(x){
-      get_fdr(x, idx_outliers)
-    })
-    tpr_bh$mbd[b, ] <- sapply(idx_bh, function(x){
-      get_tpr(x, idx_outliers)
-    })
+    # # MBD
+    # cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
+    #                              type = "depth_transform", type_depth = "mbd",
+    #                              seed = b)
+    # idx_bh <- apply(cp_obj$conf_pvalue, 2, function(x){ 
+    #   if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
+    #     return(NA)
+    #   } else {
+    #     order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
+    #   }
+    # }, simplify = F)
+    # fdr_bh$mbd[b, ] <- sapply(idx_bh, function(x){
+    #   get_fdr(x, idx_outliers)
+    # })
+    # tpr_bh$mbd[b, ] <- sapply(idx_bh, function(x){
+    #   get_tpr(x, idx_outliers)
+    # })
     
   }
   
@@ -782,7 +814,8 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
                        mbd = tpr_bh$mbd$marg)))
 }
 # save(res, file = "RData/sim_proposed.RData")
-save(res, file = "RData/sim_proposed_n400.RData")
+# save(res, file = "RData/sim_proposed_n400.RData")
+save(res, file = "RData/sim_proposed_depthgram.RData")
 
 
 # Summary the results

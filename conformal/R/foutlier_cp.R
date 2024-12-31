@@ -29,6 +29,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
                                transform = c("D0","D1","D2"),
                                alpha = 0.1, rho = 0.5, 
                                ccv = TRUE, delta = 0.1, k = NULL,
+                               n_cores = 1,
                                seed = NULL, ...) {
   n <- nrow(X[[1]])  # number of training data
   m <- ncol(X[[1]])  # number of timepoints
@@ -192,18 +193,99 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       
       # Non-conformity scores for calibration and test set
       if (type_depth == "mbd") {
-        ### Averaged modifed band depth for univariate functional data for each variable
-        # Calibration scores
-        depth_values <- sapply(1:p, function(i){
-          MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]), ...)
-        })
-        nonconform_score_calib[, s] <- -apply(depth_values, 1, mean)
+        # ### Averaged modifed band depth for univariate functional data for each variable
+        # # Calibration scores
+        # depth_values <- sapply(1:p, function(i){
+        #   MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]), ...)
+        # })
+        # nonconform_score_calib[, s] <- -apply(depth_values, 1, mean)
+        # 
+        # # Test scores
+        # depth_values <- sapply(1:p, function(i){
+        #   MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]), ...)
+        # })
+        # nonconform_score_test[, s] <- -apply(depth_values, 1, mean)
         
-        # Test scores
-        depth_values <- sapply(1:p, function(i){
-          MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]), ...)
-        })
-        nonconform_score_test[, s] <- -apply(depth_values, 1, mean)
+        ## Depthgram based non-conformity scores
+        # Get MEI for reference data
+        MEI_relative <- function(Data_target, Data_reference) {
+          n_target <- nrow(Data_target)
+          n_reference <- nrow(Data_reference)
+          sapply(1:n_target, function(j){
+            MEI(rbind(Data_reference, Data_target[j, ]))[n_reference+1]
+          })
+        }
+        
+        # Get depthgram score
+        get_depthgram_score <- function(mbd_mat, mei_mat) {
+          n_targ <- nrow(mbd_mat)
+          mei_mbd <- MEI(mbd_mat)
+          mbd_mei <- MBD(mei_mat)
+          g <- function(z) {
+            2/n + z -n/(2*(n-1))*z^2
+          }
+          return(mbd_mei - g(1-mei_mbd))
+        }
+        
+        # Parallel computation
+        cl <- makeCluster(n_cores)
+        registerDoSNOW(cl)
+        
+        pkgs <- c("roahd")
+        ftns <- c("MEI_relative")
+        scores_parallel <- foreach(i = 1:p, .packages = pkgs, .export = ftns) %dopar% {
+          # Calibration set
+          mbd_calib <- MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+          mei_calib <- MEI_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+          
+          # Test set
+          mbd_test <- MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+          mei_test <- MEI_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+          
+          out <- list(
+            mbd_calib = mbd_calib,
+            mei_calib = mei_calib,
+            mbd_test = mbd_test,
+            mei_test = mei_test
+          )
+          
+          return(out)
+        }
+        
+        # End parallel backend
+        stopCluster(cl) 
+        
+        mbd_calib <- matrix(NA, n_calib, p)
+        mei_calib <- matrix(NA, n_calib, p)
+        mbd_test <- matrix(NA, n_test, p)
+        mei_test <- matrix(NA, n_test, p)
+        for (i in 1:p) {
+          # Calibration set
+          mbd_calib[, i] <- scores_parallel[[i]]$mbd_calib
+          mei_calib[, i] <- scores_parallel[[i]]$mei_calib
+          
+          # Test set
+          mbd_test[, i] <- scores_parallel[[i]]$mbd_test
+          mei_test[, i] <- scores_parallel[[i]]$mei_test
+        }
+        
+        # mbd_calib <- matrix(NA, n_calib, p)
+        # mei_calib <- matrix(NA, n_calib, p)
+        # mbd_test <- matrix(NA, n_test, p)
+        # mei_test <- matrix(NA, n_test, p)
+        # for (i in 1:p) {
+        #   # Calibration set
+        #   mbd_calib[, i] <- MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+        #   mei_calib[, i] <- MEI_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+        #   
+        #   # Test set
+        #   mbd_test[, i] <- MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+        #   mei_test[, i] <- MEI_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+        # }
+        nonconform_score_calib[, s] <- get_depthgram_score(mbd_calib, mei_calib)
+        nonconform_score_test[, s] <- get_depthgram_score(mbd_test, mei_test)
+        # plot(get_depthgram_score(mbd_test, mei_test))
+        # points(get_depthgram_score(mbd_calib, mei_calib), col = 2)
       } else {
         # Multivariate functional depth for calibration set
         # Lower depth is outlier => we take "-" to make nonconformity score
@@ -238,6 +320,18 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       }
       
     }
+    
+    # for (i in 1:3) {
+    #   plot(nonconform_score_test[, i])
+    #   points(nonconform_score_calib[, i], col = 2)
+    # }
+    # plot(apply(nonconform_score_test, 1, mean))
+    # points(apply(nonconform_score_calib, 1, mean), col = 2)
+    # conf_pvalue_marg <- sapply(apply(nonconform_score_test, 1, mean), function(s){
+    #   (1 + sum(apply(nonconform_score_calib, 1, mean) >= s)) / (n_calib + 1)
+    # })
+    # which(p.adjust(conf_pvalue_marg, method = "BH") < 0.1)
+    
     
     # Aggregate scores from transformations
     nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)

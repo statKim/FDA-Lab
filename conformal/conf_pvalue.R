@@ -91,7 +91,7 @@ set.seed(1)
 n <- nrow(data[[1]])
 p <- length(data)
 
-alpha <- 0.1  # coverage level
+alpha <- 0.2  # coverage level
 prop_train <- 0.7  # proportion of training set
 
 n_train <- round(n * prop_train)   # size of training set
@@ -106,7 +106,7 @@ data_test <- lapply(data, function(x){ x[idx_test, ] })
 
 # Marginal and CCV conformal p-value
 cp_obj <- split_conformal_fd(X = data_train[1:30], X_test = data_test[1:30],
-                             type = "depth_transform", type_depth = "projdepth")
+                             type = "depth", type_depth = "projdepth")
 conf_pvalue <- cp_obj$conf_pvalue
 conf_pvalue
 
