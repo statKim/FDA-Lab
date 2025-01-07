@@ -37,7 +37,7 @@ gr <- seq(0, 1, length.out = m)
 
 ### CV+ CP instead of split CP because of the high-dimensionality issue!!
 ### Outlier detection with diffrent B splits
-B <- 100
+B <- 30
 fdr_res <- data.frame(
   marg = rep(NA, B),
   simes = rep(NA, B),
@@ -47,13 +47,16 @@ fdr_bh <- list(
   esssup = fdr_res,
   hdepth = fdr_res,
   projdepth = fdr_res,
-  seq_trans = fdr_res
+  T_projdepth = fdr_res,
+  T_hdepth = fdr_res
 )
 tpr_bh <- fdr_bh
 
 fdr_comparison <- data.frame(
-  ms = rep(NA, B),
-  seq = rep(NA, B)
+  # ms = rep(NA, B),
+  seq = rep(NA, B),
+  ms_all = rep(NA, B),
+  seq_all = rep(NA, B)
 )
 tpr_comparison <- fdr_comparison
 
@@ -68,8 +71,8 @@ progress <- function(n){
   pb$tick()
 } 
 
-# Parallel computations
-n_cores <- 10
+# # Parallel computations
+# n_cores <- 10
 
 # Repetitions
 for (b in 1:B) {
@@ -91,6 +94,8 @@ for (b in 1:B) {
   # Add the 10 ADHD labels as outliers
   # - Choose the 20 candidates having the higher value
   idx_adhd_cand <- which(y == 1)[ order(sapply(which(y == 1), function(i){ max(X[i, , ]) }), decreasing = T)[1:20] ]
+  # which(y == 1)[ order(sapply(which(y == 1), function(i){ var(apply(X[i, , ], 2, var)) }), decreasing = T)[1:20] ]
+  # which(y == 1)[ order(sapply(which(y == 1), function(i){ max(apply(X[i, , ], 2, var)) }), decreasing = T)[1:20] ]
   idx_adhd <- sample(idx_adhd_cand, 10)   # 10 sampled ADHD curves
   data <- lapply(1:p, function(i){ rbind(data[[i]], X[idx_adhd, , i]) })
   idx_outliers <- c(idx_outliers, 
@@ -113,7 +118,7 @@ for (b in 1:B) {
   n <- nrow(data[[1]])
   p <- length(data)
   
-  alpha <- 0.1  # coverage level
+  alpha <- 0.2  # coverage level
   prop_train <- 0.8  # proportion of training set
   
   n_train <- round(n * prop_train)   # size of training set
@@ -130,13 +135,14 @@ for (b in 1:B) {
   ### Outlier detection based on CV+ CP
   summary_CP_out_detect <- function(type = "depth", type_depth = "projdepth") {
     # Marginal and CCV conformal p-value
-    cp_obj <- cv_conformal_fd(X = data_train, X_test = data_test,
-                              type = type, type_depth = type_depth,
-                              n_cores = n_cores,
-                              seed = b)
-    # cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
-    #                              type = type, type_depth = type_depth,
-    #                              seed = b)
+    # cp_obj <- cv_conformal_fd(X = data_train, X_test = data_test,
+    #                           type = type, type_depth = type_depth,
+    #                           n_cores = n_cores,
+    #                           seed = b)
+    cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
+                                 type = type, type_depth = type_depth,
+                                 depthOptions = list(type = "Rotation"),
+                                 seed = b)
     conf_pvalue <- cp_obj$conf_pvalue
     
     # BH procedure
@@ -155,23 +161,28 @@ for (b in 1:B) {
     # })
     
     out <- list(
-      idx_bh = idx_bh
+      idx_bh = lapply(idx_bh, function(x){ idx_test[x] })
     )
     return(out)
   }
   
-  # Sequential Transformations
+  # Transformations + Depth based scores
   obj <- summary_CP_out_detect(type = "depth_transform", type_depth = "projdepth")
-  fdr_bh$seq_trans[b, ] <- sapply(obj$idx_bh, function(x){
+  fdr_bh$T_projdepth[b, ] <- sapply(obj$idx_bh, function(x){
     get_fdr(x, idx_outliers)
   })
-  tpr_bh$seq_trans[b, ] <- sapply(obj$idx_bh, function(x){
+  tpr_bh$T_projdepth[b, ] <- sapply(obj$idx_bh, function(x){
     get_tpr(x, idx_outliers)
   })
-  # cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
-  #                              type = "depth_transform", type_depth = "projdepth",
-  #                              seed = b)
-  # conf_pvalue <- cp_obj$conf_pvalue
+
+  # hdepth
+  obj <- summary_CP_out_detect(type = "depth_transform", type_depth = "hdepth")
+  fdr_bh$T_hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    get_fdr(x, idx_outliers)
+  })
+  tpr_bh$T_hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    get_tpr(x, idx_outliers)
+  })
   
   
   # esssup
@@ -192,30 +203,42 @@ for (b in 1:B) {
     get_tpr(x, idx_outliers)
   })
   
-  # # hdepth
-  # obj <- summary_CP_out_detect(type_depth = "hdepth")
-  # fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
-  #   get_fdr(x, idx_outliers)
-  # })
-  # tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
-  #   get_tpr(x, idx_outliers)
-  # })
+  # hdepth
+  obj <- summary_CP_out_detect(type_depth = "hdepth")
+  fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    get_fdr(x, idx_outliers)
+  })
+  tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    get_tpr(x, idx_outliers)
+  })
   
   
   ### Existing functional outlier detection (Coverage guarantee X)
-  ### Only use test set
   idx_comparison <- list()
+  ### Only use test set
   df <- abind::abind(data_test, along = 3)
-  # df <- abind::abind(data, along = 3)
   
-  # MS plot
-  idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
+  # # MS plot 
+  # # - Error occurs because of high-dimensionality
+  # idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
   
   # Sequential method
   seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-                          erld_type = "one_sided_right", save_data = TRUE)
-  idx_comparison$seq <- seqobj$outliers$O
+                          erld_type = "one_sided_right", save_data = F)
+  idx_comparison$seq <- idx_test[seqobj$outliers$O]
   
+  
+  ## Use all data set (train + test)
+  df <- abind::abind(abind::abind(data_train, along = 3),
+                     abind::abind(data_test, along = 3), along = 1)
+  # MS plot
+  idx_comparison$ms_all <- idx_test[msplot(dts = df, plot = F)$outliers]
+  # Sequential transformation
+  seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
+                          erld_type = "one_sided_right", save_data = F)
+  idx_comparison$seq_all <- idx_test[seqobj$outliers$O]
+
+    
   fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
     get_fdr(x, idx_outliers)
   })
@@ -224,10 +247,14 @@ for (b in 1:B) {
   })
 }
 
-res2 <- list(single = list(fdr = fdr_single,
-                           tpr = tpr_single),
-             bh = list(fdr = fdr_bh,
-                       tpr = tpr_bh))
+res2 <- list(
+  list(
+    fdr = cbind(fdr_bh,
+                fdr_comparison),
+    tpr = cbind(tpr_bh,
+                tpr_comparison)
+  )
+)
 lapply(res2, function(sim){
   sub <- paste0(
     rbind(fdr = colMeans(sim$fdr),
@@ -245,9 +272,13 @@ lapply(res2, function(sim){
   rownames(sub) <- c("FDR","TPR")
   colnames(sub) <- colnames(sim$fdr)
   sub <- data.frame(sub)
-  sub
+  # sub[, c("T_projdepth.marg","T_hdepth.marg","T_mbd.marg",
+  #         "esssup.marg","hdepth.marg","projdepth.marg",
+  #         "ms","seq","ms_all","seq_all")]
+  sub[, c("T_projdepth.marg","T_hdepth.marg",
+          "esssup.marg","hdepth.marg","projdepth.marg",
+          "seq","ms_all","seq_all")]
 })
-
 
 
 
@@ -336,7 +367,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     T_hdepth = fdr_res,
     T_mbd = fdr_res
   )
-  tpr_bh <- fdr_single
+  tpr_bh <- fdr_bh
   
   fdr_comparison <- data.frame(
     ms = rep(NA, B),
@@ -705,7 +736,7 @@ sim_ftn_list <- list(
 
 # Simulation
 res <- list()
-for (sim_model_idx in 2:length(sim_ftn_list)) {
+for (sim_model_idx in 1:length(sim_ftn_list)) {
   print(sim_model_idx)
   sim_ftn <- sim_ftn_list[[sim_model_idx]]   # generating function
   
