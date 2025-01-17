@@ -534,7 +534,7 @@ get_clean_null <- function(X, y = NULL,
   # idx_clean_null <- which(nonconform_score <= cutoff)
   
   # Find outliers using boxplot
-  cutoff <- max(boxplot(nonconform_score)$stats)
+  cutoff <- max(boxplot(nonconform_score, plot = FALSE)$stats)
   idx_clean_null <- which(nonconform_score <= cutoff)
   
   out <- list(
