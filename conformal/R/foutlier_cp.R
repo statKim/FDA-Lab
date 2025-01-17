@@ -28,16 +28,45 @@ get_tpr <- function(idx_reject, idx_true) {
 split_conformal_fd <- function(X, y = NULL, X_test, 
                                type = "esssup", type_depth = "projdepth",
                                transform = c("D0","D1","D2"),
-                               alpha = 0.1, rho = 0.5, 
+                               alpha = 0.1, 
+                               train_type = "clean",
+                               alpha_mixed = 0.2,
+                               rho = 0.5, n_calib = NULL,
                                ccv = TRUE, delta = 0.1, k = NULL,
                                n_cores = 1,
-                               seed = NULL, ...) {
+                               seed = NULL) {
   n <- nrow(X[[1]])  # number of training data
   m <- ncol(X[[1]])  # number of timepoints
   p <- length(X)   # number of functional covariates
   n_test <- nrow(X_test[[1]])   # number of test data
-  n_train <- round(n * rho)   # size of proper training set
-  n_calib <- n - n_train   # size of calibration set
+  
+  # Under zero-assumption, remove outliers from the mixed training set
+  if (train_type == "mixed") {
+    obj <- get_clean_null(X,  
+                          type = type, 
+                          type_depth = type_depth,
+                          transform = transform,
+                          alpha = alpha_mixed)
+    X <- lapply(X, function(x){ x[obj$idx_clean_null] })
+    n <- nrow(X[[1]])
+  }
+  
+  
+  if (is.null(n_calib)) {
+    n_train <- round(n * rho)   # size of proper training set
+    n_calib <- n - n_train   # size of calibration set
+  } else {
+    # Given number of calibration set
+    n_train <- n - n_calib
+  }
+  
+  # Depth options for `mfd`
+  if (p >= n_train) {
+    # High-dimensional case
+    depthOptions <- list(type = "Rotation")
+  } else {
+    depthOptions <- NULL
+  }
   
   if (!is.null(seed)) {
     set.seed(seed)
@@ -121,12 +150,12 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     # Multivariate functional depth for calibration set
     # Lower depth is outlier => we take "-" to make nonconformity score!
     depth_values <- mfd(arr_train, arr_calib, 
-                        type = type_depth, ...)
+                        type = type_depth, depthOptions = depthOptions)
     nonconform_score_calib <- -as.numeric(depth_values$MFDdepthZ)
     
     # Multivariate functional depth for test set
     depth_values <- mfd(arr_train, arr_test, 
-                        type = type_depth, ...)
+                        type = type_depth, depthOptions = depthOptions)
     nonconform_score_test <- -as.numeric(depth_values$MFDdepthZ)
     
     # Conformal p-value (marginal)
@@ -291,7 +320,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
         # Multivariate functional depth for calibration set
         # Lower depth is outlier => we take "-" to make nonconformity score
         depth_values <- mfd(arr_train_trans, arr_calib_trans, 
-                            type = type_depth, ...)
+                            type = type_depth, depthOptions = depthOptions)
         nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
         
         # D0
@@ -306,7 +335,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
         
         # Multivariate functional depth for test set
         depth_values <- mfd(arr_train_trans, arr_test_trans, 
-                            type = type_depth, ...)
+                            type = type_depth, depthOptions = depthOptions)
         nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
         
         # D0
@@ -321,18 +350,6 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       }
       
     }
-    
-    # for (i in 1:3) {
-    #   plot(nonconform_score_test[, i])
-    #   points(nonconform_score_calib[, i], col = 2)
-    # }
-    # plot(apply(nonconform_score_test, 1, mean))
-    # points(apply(nonconform_score_calib, 1, mean), col = 2)
-    # conf_pvalue_marg <- sapply(apply(nonconform_score_test, 1, mean), function(s){
-    #   (1 + sum(apply(nonconform_score_calib, 1, mean) >= s)) / (n_calib + 1)
-    # })
-    # which(p.adjust(conf_pvalue_marg, method = "BH") < 0.1)
-    
     
     # Aggregate scores from transformations
     nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)
@@ -416,236 +433,352 @@ ccv_conf_pvalue <- function(marg_conf_pvalue, method = "simes", delta = 0.1, n_c
 
 
 
+#' Get clean null training indices from the mixed training set
+get_clean_null <- function(X, y = NULL,  
+                           type = "depth_transform", type_depth = "projdepth",
+                           transform = c("D0","D1","D2"),
+                           alpha = 0.2) {
+  n <- nrow(X[[1]])  # number of training data
+  m <- ncol(X[[1]])  # number of timepoints
+  p <- length(X)   # number of functional covariates
+  
+  # Depth options for `mfd`
+  if (p >= n) {
+    # High-dimensional case
+    depthOptions <- list(type = "Rotation")
+  } else {
+    depthOptions <- NULL
+  }
+  
+  # Outlier detection using non-conformity scores (Not CP based method)
+  if (type == "esssup") {
+    # Point predictor
+    pred <- lapply(X, function(x){ colMeans(x) })
+    
+    # Modulation function (t-function)
+    abs_resid <- mapply(function(X_p, pred_p) {
+      apply(X_p, 1, function(x){ abs(x - pred_p) })  # timepoints x observation
+    }, X_train, pred, SIMPLIFY = F)
+    score_H <- sapply(abs_resid, function(resid_p) { 
+      apply(resid_p, 2, max)   # esssup_t resid
+    }) %>% 
+      apply(1, max)
+    gamma <- sort(score_H)[ ceiling((1 - alpha) * (n_train + 1)) ]
+    idx_H <- which(score_H <= gamma)   # index of H_1
+    s_ftn <- lapply(abs_resid, function(resid_p) {
+      apply(resid_p[, idx_H], 1, max)
+    }) 
+    
+    # Non-conformity score with modulation
+    nonconform_score <- mapply(function(X_p, pred_p, s_ftn_p){
+      apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
+    }, X_calib, pred, s_ftn) %>% 
+      apply(1, max)
+  } else if (type == "depth") {
+    # Transform data structure for `mrfDepth::mfd()`
+    arr_X <- array(NA, c(m, n, p))
+    for (i in 1:p) {
+      arr_X[, , i] <- t(X[[i]])
+    }
+    
+    # Multivariate functional depth
+    # Lower depth is outlier => we take "-" to make nonconformity score!
+    depth_values <- mfd(arr_X, type = type_depth, depthOptions = depthOptions)
+    nonconform_score <- -as.numeric(depth_values$MFDdepthZ)
+  } else if (type == "depth_transform") {
+    # Transform data structure for `mrfDepth::mfd()`
+    arr_X <- array(NA, c(m, n, p))
+    for (i in 1:p) {
+      arr_X[, , i] <- t(X[[i]])
+    }
+    
+    # Compute functional depth with transformations
+    nonconform_score <- matrix(NA, n, length(transform))
+    
+    for (s in 1:length(transform)) {
+      trans_type <- transform[s]  # transform type
+      
+      # Transform into 1st or 2nd derivatives
+      if (trans_type == "D0") {
+        # Raw curves
+        arr_X_trans <- arr_X
+      } else if (trans_type == "D1") {
+        # 1st derivatives
+        arr_X_trans <- array(NA, c(m-1, n, p))
+        for (i in 1:p) {
+          arr_X_trans[, , i] <- apply(arr_X[, , i], 2, diff)
+        }
+      } else if (trans_type == "D2") {
+        # 2nd derivatives
+        arr_X_trans <- array(NA, c(m-2, n, p))
+        for (i in 1:p) {
+          arr_X_trans[, , i] <- apply(arr_X[, , i], 2, function(x){ diff(diff(x)) })
+        }
+      } else {
+        stop("Not supproted for `transform`!")
+      }
+      
+      # Non-conformity scores for given data
+      # Multivariate functional depth
+      # Lower depth is outlier => we take "-" to make nonconformity score
+      depth_values <- mfd(arr_X_trans, type = type_depth, depthOptions = depthOptions)
+      nonconform_score[, s] <- -as.numeric(depth_values$MFDdepthZ)
+    }
+    
+    # Aggregate scores from transformations
+    nonconform_score <- apply(nonconform_score, 1, mean)
+  }
+  
+  # # Find outliers using alpha-quantile
+  # cutoff <- quantile(nonconform_score, 1-alpha)
+  # idx_clean_null <- which(nonconform_score <= cutoff)
+  
+  # Find outliers using boxplot
+  cutoff <- max(boxplot(nonconform_score)$stats)
+  idx_clean_null <- which(nonconform_score <= cutoff)
+  
+  out <- list(
+    idx_clean_null = idx_clean_null,
+    type = type,
+    type_depth = type_depth,
+    transform = transform,
+    nonconform_score = nonconform_score
+  )
+  
+  return(out)
+}
+
+
 
 #' CV+ Conformal Prediction for Multivariate Functional Data
 #' 
 #' @param alpha coverage level 
 #' @param K a number of folds for K-fold CV+
-cv_conformal_fd <- function(X, y = NULL, X_test, 
-                            type = "esssup", type_depth = "projdepth",
-                            transform = c("D0","D1","D2"),
-                            alpha = 0.1,
-                            ccv = TRUE, delta = 0.1, k = NULL,
-                            K = 10, n_cores = 1,
-                            seed = NULL) {
-  n <- nrow(X[[1]])  # number of training data
-  m <- ncol(X[[1]])  # number of timepoints
-  p <- length(X)   # number of functional covariates
-  n_test <- nrow(X_test[[1]])   # number of test data
-  
-  if (!is.null(seed)) {
-    set.seed(seed)
-  }
-  
-  # Make K folds
-  folds <- sample(1:K, n, replace = T)
-  
-  # Parallel computation
-  cl <- makeCluster(n_cores)
-  registerDoSNOW(cl)
-  
-  # Progress bar for `foreach`
-  pb <- progress_bar$new(
-    format = "[:bar] :percent [Execution time :elapsedfull || Estimated time remaining: :eta]",
-    total = K,   # total number of ticks to complete (default 100)
-    clear = FALSE,   # whether to clear the progress bar on completion (default TRUE)
-    width = 80   # width of the progress bar
-  )
-  progress <- function(n){
-    pb$tick()
-  } 
-  opts <- list(progress = progress)
-  
-  # For replication of `foreach`
-  if (!is.null(seed)) {
-    registerDoRNG(seed)
-  }
-  
-  # K-fold CV+
-  pkgs <- c("mrfDepth")
-  res_cv <- foreach(i = 1:K, .options.snow = opts, .packages = pkgs) %dopar% {
-    # SPlit data
-    idx_proper_train <- which(folds != i)   # indices of proper training set
-    idx_calib <- which(folds == i)   # indices of calibration set
-    X_train <- lapply(X, function(x){ x[idx_proper_train, ] })
-    X_calib <- lapply(X, function(x){ x[idx_calib, ] })
-    
-    n_train <- length(idx_proper_train)
-    n_calib <- length(idx_calib)
-    
-    if (type == "esssup") {
-      # Point predictor
-      pred <- lapply(X_train, function(x){ colMeans(x) })
-      
-      # Modulation function (t-function)
-      abs_resid_train <- mapply(function(X_p, pred_p) {
-        apply(X_p, 1, function(x){ abs(x - pred_p) })  # timepoints x observation
-      }, X_train, pred, SIMPLIFY = F)
-      score_H <- sapply(abs_resid_train, function(resid_p) { 
-        apply(resid_p, 2, max)   # esssup_t resid
-      })
-      score_H <- apply(score_H, 1, max)
-      gamma <- sort(score_H)[ ceiling((1 - alpha) * (n_train + 1)) ]
-      idx_H <- which(score_H <= gamma)   # index of H_1
-      s_ftn <- lapply(abs_resid_train, function(resid_p) {
-        apply(resid_p[, idx_H], 1, max)
-      }) 
-      
-      # Non-conformity score with modulation
-      nonconform_score_calib <- mapply(function(X_p, pred_p, s_ftn_p){
-        apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-      }, X_calib, pred, s_ftn)
-      nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
-      idx_cutoff <- ceiling((1 - alpha) * (n_calib + 1))
-      k_s <- sort(nonconform_score_calib)[idx_cutoff]
-      
-      # Non-conformity score for test set
-      nonconform_score_test <- mapply(function(X_p, pred_p, s_ftn_p){
-        apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-      }, X_test, pred, s_ftn)
-      nonconform_score_test <- apply(nonconform_score_test, 1, max)
-    } else if (type == "depth") {
-      # Transform data structure for `mrfDepth::mfd()`
-      arr_train <- array(NA, c(m, n_train, p))
-      arr_calib <- array(NA, c(m, n_calib, p))
-      arr_test <- array(NA, c(m, n_test, p))
-      for (i in 1:p) {
-        arr_train[, , i] <- t(X_train[[i]])
-        arr_calib[, , i] <- t(X_calib[[i]])
-        arr_test[, , i] <- t(X_test[[i]])
-      }
-      
-      # Multivariate functional depth for calibration set
-      # Lower depth is outlier => we take "-" to make nonconformity score
-      depth_values <- mfd(arr_train, arr_calib, 
-                          type = type_depth)
-      nonconform_score_calib <- -as.numeric(depth_values$MFDdepthZ)
-      
-      # Multivariate functional depth for test set
-      depth_values <- mfd(arr_train, arr_test, 
-                          type = type_depth)
-      nonconform_score_test <- -as.numeric(depth_values$MFDdepthZ)
-    } else if (type == "depth_transform") {
-      # Transform data structure for `mrfDepth::mfd()`
-      arr_train <- array(NA, c(m, n_train, p))
-      arr_calib <- array(NA, c(m, n_calib, p))
-      arr_test <- array(NA, c(m, n_test, p))
-      for (i in 1:p) {
-        arr_train[, , i] <- t(X_train[[i]])
-        arr_calib[, , i] <- t(X_calib[[i]])
-        arr_test[, , i] <- t(X_test[[i]])
-      }
-      
-      # Compute functional depth with transformations
-      nonconform_score_calib <- matrix(NA, n_calib, length(transform))
-      nonconform_score_test <- matrix(NA, n_test, length(transform))
-      
-      for (s in 1:length(transform)) {
-        trans_type <- transform[s]  # transform type
-        
-        # Transform into 1st or 2nd derivatives
-        if (trans_type == "D0") {
-          # Raw curves
-          arr_train_trans <- arr_train
-          arr_calib_trans <- arr_calib
-          arr_test_trans <- arr_test
-        } else if (trans_type == "D1") {
-          # 1st derivatives
-          arr_train_trans <- array(NA, c(m-1, n_train, p))
-          arr_calib_trans <- array(NA, c(m-1, n_calib, p))
-          arr_test_trans <- array(NA, c(m-1, n_test, p))
-          for (i in 1:p) {
-            arr_train_trans[, , i] <- apply(arr_train[, , i], 2, diff)
-            arr_calib_trans[, , i] <- apply(arr_calib[, , i], 2, diff)
-            arr_test_trans[, , i] <- apply(arr_test[, , i], 2, diff)
-          }
-        } else if (trans_type == "D2") {
-          # 2nd derivatives
-          arr_train_trans <- array(NA, c(m-2, n_train, p))
-          arr_calib_trans <- array(NA, c(m-2, n_calib, p))
-          arr_test_trans <- array(NA, c(m-2, n_test, p))
-          for (i in 1:p) {
-            arr_train_trans[, , i] <- apply(arr_train[, , i], 2, function(x){ diff(diff(x)) })
-            arr_calib_trans[, , i] <- apply(arr_calib[, , i], 2, function(x){ diff(diff(x)) })
-            arr_test_trans[, , i] <- apply(arr_test[, , i], 2, function(x){ diff(diff(x)) })
-          }
-        } else {
-          stop("Not supproted for `transform`!")
-        }
-        
-        # Multivariate functional depth for calibration set
-        # Lower depth is outlier => we take "-" to make nonconformity score
-        depth_values <- mfd(arr_train_trans, arr_calib_trans, 
-                            type = type_depth)
-        nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
-        
-        # Multivariate functional depth for test set
-        depth_values <- mfd(arr_train_trans, arr_test_trans, 
-                            type = type_depth)
-        nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
-      }
-      
-      # Aggregate scores from transformations
-      nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)
-      nonconform_score_test <- apply(nonconform_score_test, 1, mean)
-      # nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
-      # nonconform_score_test <- apply(nonconform_score_test, 1, max)
-    }
-    
-    obj <- list(
-      nonconform_score_calib = nonconform_score_calib,
-      nonconform_score_test = nonconform_score_test
-    )
-    
-    return(obj)    
-  }
-  
-  # End parallel backend
-  stopCluster(cl) 
-
-  # Conformal p-value (marginal)
-  nonconform_score_calib <- sapply(res_cv, function(x){ x$nonconform_score_calib }) %>% 
-    unlist()
-  nonconform_score_test <- sapply(res_cv, function(x){ x$nonconform_score_test}) %>% 
-    apply(1, median)
-  conf_pvalue_marg <- sapply(nonconform_score_test, function(s){
-    (1 + sum(nonconform_score_calib >= s)) / (n + 1)
-  })
-  
-  # conf_pvalue = data.frame(marginal = conf_pvalue_marg)
-  # idx_bh <- apply(conf_pvalue, 2, function(x){ 
-  #   if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-  #     return(NA)
-  #   } else {
-  #     order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
-  #   }
-  # }, simplify = F)
-  # get_fdr(idx_bh$marginal, idx_outliers)
-  # get_tpr(idx_bh$marginal, idx_outliers)
-  
-  
-  out <- list(
-    type = type,
-    type_depth = type_depth,
-    transform = transform,
-    nonconform_score_calib = nonconform_score_calib,
-    nonconform_score_test = nonconform_score_test,
-    conf_pvalue = data.frame(marginal = conf_pvalue_marg)
-  )
-  
-  
-  # Calibration-conditional valid (CCV) conformal p-value
-  if (isTRUE(ccv)) {
-    out$conf_pvalue$simes <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "simes", 
-                                             delta = delta, n_calib = n, k = k)
-    out$conf_pvalue$asymp <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "asymp", 
-                                             delta = delta, n_calib = n, k = k)
-  }
-  
-  class(out) <- "cv_conformal_fd"
-  
-  return(out)
-}
+# cv_conformal_fd <- function(X, y = NULL, X_test, 
+#                             type = "esssup", type_depth = "projdepth",
+#                             transform = c("D0","D1","D2"),
+#                             alpha = 0.1,
+#                             ccv = TRUE, delta = 0.1, k = NULL,
+#                             K = 10, n_cores = 1,
+#                             seed = NULL) {
+#   n <- nrow(X[[1]])  # number of training data
+#   m <- ncol(X[[1]])  # number of timepoints
+#   p <- length(X)   # number of functional covariates
+#   n_test <- nrow(X_test[[1]])   # number of test data
+#   
+#   if (!is.null(seed)) {
+#     set.seed(seed)
+#   }
+#   
+#   # Make K folds
+#   folds <- sample(1:K, n, replace = T)
+#   
+#   # Parallel computation
+#   cl <- makeCluster(n_cores)
+#   registerDoSNOW(cl)
+#   
+#   # Progress bar for `foreach`
+#   pb <- progress_bar$new(
+#     format = "[:bar] :percent [Execution time :elapsedfull || Estimated time remaining: :eta]",
+#     total = K,   # total number of ticks to complete (default 100)
+#     clear = FALSE,   # whether to clear the progress bar on completion (default TRUE)
+#     width = 80   # width of the progress bar
+#   )
+#   progress <- function(n){
+#     pb$tick()
+#   } 
+#   opts <- list(progress = progress)
+#   
+#   # For replication of `foreach`
+#   if (!is.null(seed)) {
+#     registerDoRNG(seed)
+#   }
+#   
+#   # K-fold CV+
+#   pkgs <- c("mrfDepth")
+#   res_cv <- foreach(i = 1:K, .options.snow = opts, .packages = pkgs) %dopar% {
+#     # SPlit data
+#     idx_proper_train <- which(folds != i)   # indices of proper training set
+#     idx_calib <- which(folds == i)   # indices of calibration set
+#     X_train <- lapply(X, function(x){ x[idx_proper_train, ] })
+#     X_calib <- lapply(X, function(x){ x[idx_calib, ] })
+#     
+#     n_train <- length(idx_proper_train)
+#     n_calib <- length(idx_calib)
+#     
+#     if (type == "esssup") {
+#       # Point predictor
+#       pred <- lapply(X_train, function(x){ colMeans(x) })
+#       
+#       # Modulation function (t-function)
+#       abs_resid_train <- mapply(function(X_p, pred_p) {
+#         apply(X_p, 1, function(x){ abs(x - pred_p) })  # timepoints x observation
+#       }, X_train, pred, SIMPLIFY = F)
+#       score_H <- sapply(abs_resid_train, function(resid_p) { 
+#         apply(resid_p, 2, max)   # esssup_t resid
+#       })
+#       score_H <- apply(score_H, 1, max)
+#       gamma <- sort(score_H)[ ceiling((1 - alpha) * (n_train + 1)) ]
+#       idx_H <- which(score_H <= gamma)   # index of H_1
+#       s_ftn <- lapply(abs_resid_train, function(resid_p) {
+#         apply(resid_p[, idx_H], 1, max)
+#       }) 
+#       
+#       # Non-conformity score with modulation
+#       nonconform_score_calib <- mapply(function(X_p, pred_p, s_ftn_p){
+#         apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
+#       }, X_calib, pred, s_ftn)
+#       nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
+#       idx_cutoff <- ceiling((1 - alpha) * (n_calib + 1))
+#       k_s <- sort(nonconform_score_calib)[idx_cutoff]
+#       
+#       # Non-conformity score for test set
+#       nonconform_score_test <- mapply(function(X_p, pred_p, s_ftn_p){
+#         apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
+#       }, X_test, pred, s_ftn)
+#       nonconform_score_test <- apply(nonconform_score_test, 1, max)
+#     } else if (type == "depth") {
+#       # Transform data structure for `mrfDepth::mfd()`
+#       arr_train <- array(NA, c(m, n_train, p))
+#       arr_calib <- array(NA, c(m, n_calib, p))
+#       arr_test <- array(NA, c(m, n_test, p))
+#       for (i in 1:p) {
+#         arr_train[, , i] <- t(X_train[[i]])
+#         arr_calib[, , i] <- t(X_calib[[i]])
+#         arr_test[, , i] <- t(X_test[[i]])
+#       }
+#       
+#       # Multivariate functional depth for calibration set
+#       # Lower depth is outlier => we take "-" to make nonconformity score
+#       depth_values <- mfd(arr_train, arr_calib, 
+#                           type = type_depth)
+#       nonconform_score_calib <- -as.numeric(depth_values$MFDdepthZ)
+#       
+#       # Multivariate functional depth for test set
+#       depth_values <- mfd(arr_train, arr_test, 
+#                           type = type_depth)
+#       nonconform_score_test <- -as.numeric(depth_values$MFDdepthZ)
+#     } else if (type == "depth_transform") {
+#       # Transform data structure for `mrfDepth::mfd()`
+#       arr_train <- array(NA, c(m, n_train, p))
+#       arr_calib <- array(NA, c(m, n_calib, p))
+#       arr_test <- array(NA, c(m, n_test, p))
+#       for (i in 1:p) {
+#         arr_train[, , i] <- t(X_train[[i]])
+#         arr_calib[, , i] <- t(X_calib[[i]])
+#         arr_test[, , i] <- t(X_test[[i]])
+#       }
+#       
+#       # Compute functional depth with transformations
+#       nonconform_score_calib <- matrix(NA, n_calib, length(transform))
+#       nonconform_score_test <- matrix(NA, n_test, length(transform))
+#       
+#       for (s in 1:length(transform)) {
+#         trans_type <- transform[s]  # transform type
+#         
+#         # Transform into 1st or 2nd derivatives
+#         if (trans_type == "D0") {
+#           # Raw curves
+#           arr_train_trans <- arr_train
+#           arr_calib_trans <- arr_calib
+#           arr_test_trans <- arr_test
+#         } else if (trans_type == "D1") {
+#           # 1st derivatives
+#           arr_train_trans <- array(NA, c(m-1, n_train, p))
+#           arr_calib_trans <- array(NA, c(m-1, n_calib, p))
+#           arr_test_trans <- array(NA, c(m-1, n_test, p))
+#           for (i in 1:p) {
+#             arr_train_trans[, , i] <- apply(arr_train[, , i], 2, diff)
+#             arr_calib_trans[, , i] <- apply(arr_calib[, , i], 2, diff)
+#             arr_test_trans[, , i] <- apply(arr_test[, , i], 2, diff)
+#           }
+#         } else if (trans_type == "D2") {
+#           # 2nd derivatives
+#           arr_train_trans <- array(NA, c(m-2, n_train, p))
+#           arr_calib_trans <- array(NA, c(m-2, n_calib, p))
+#           arr_test_trans <- array(NA, c(m-2, n_test, p))
+#           for (i in 1:p) {
+#             arr_train_trans[, , i] <- apply(arr_train[, , i], 2, function(x){ diff(diff(x)) })
+#             arr_calib_trans[, , i] <- apply(arr_calib[, , i], 2, function(x){ diff(diff(x)) })
+#             arr_test_trans[, , i] <- apply(arr_test[, , i], 2, function(x){ diff(diff(x)) })
+#           }
+#         } else {
+#           stop("Not supproted for `transform`!")
+#         }
+#         
+#         # Multivariate functional depth for calibration set
+#         # Lower depth is outlier => we take "-" to make nonconformity score
+#         depth_values <- mfd(arr_train_trans, arr_calib_trans, 
+#                             type = type_depth)
+#         nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
+#         
+#         # Multivariate functional depth for test set
+#         depth_values <- mfd(arr_train_trans, arr_test_trans, 
+#                             type = type_depth)
+#         nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
+#       }
+#       
+#       # Aggregate scores from transformations
+#       nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)
+#       nonconform_score_test <- apply(nonconform_score_test, 1, mean)
+#       # nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
+#       # nonconform_score_test <- apply(nonconform_score_test, 1, max)
+#     }
+#     
+#     obj <- list(
+#       nonconform_score_calib = nonconform_score_calib,
+#       nonconform_score_test = nonconform_score_test
+#     )
+#     
+#     return(obj)    
+#   }
+#   
+#   # End parallel backend
+#   stopCluster(cl) 
+# 
+#   # Conformal p-value (marginal)
+#   nonconform_score_calib <- sapply(res_cv, function(x){ x$nonconform_score_calib }) %>% 
+#     unlist()
+#   nonconform_score_test <- sapply(res_cv, function(x){ x$nonconform_score_test}) %>% 
+#     apply(1, median)
+#   conf_pvalue_marg <- sapply(nonconform_score_test, function(s){
+#     (1 + sum(nonconform_score_calib >= s)) / (n + 1)
+#   })
+#   
+#   # conf_pvalue = data.frame(marginal = conf_pvalue_marg)
+#   # idx_bh <- apply(conf_pvalue, 2, function(x){ 
+#   #   if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
+#   #     return(NA)
+#   #   } else {
+#   #     order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
+#   #   }
+#   # }, simplify = F)
+#   # get_fdr(idx_bh$marginal, idx_outliers)
+#   # get_tpr(idx_bh$marginal, idx_outliers)
+#   
+#   
+#   out <- list(
+#     type = type,
+#     type_depth = type_depth,
+#     transform = transform,
+#     nonconform_score_calib = nonconform_score_calib,
+#     nonconform_score_test = nonconform_score_test,
+#     conf_pvalue = data.frame(marginal = conf_pvalue_marg)
+#   )
+#   
+#   
+#   # Calibration-conditional valid (CCV) conformal p-value
+#   if (isTRUE(ccv)) {
+#     out$conf_pvalue$simes <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "simes", 
+#                                              delta = delta, n_calib = n, k = k)
+#     out$conf_pvalue$asymp <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "asymp", 
+#                                              delta = delta, n_calib = n, k = k)
+#   }
+#   
+#   class(out) <- "cv_conformal_fd"
+#   
+#   return(out)
+# }
 
 
 

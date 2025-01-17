@@ -291,14 +291,15 @@ alpha <- 0.2  # coverage level
 # n_test <- n - n_train   # size of test set
 
 # Split training and test data
-idx_train <- 1:70
-idx_test <- 71:122
+n_train <- 70
 idx_outliers <- which(y == 1)
+idx_train <- sample(setdiff(1:n, idx_outliers), n_train)
+idx_test <- setdiff(1:n, idx_train)
+# idx_train <- 1:70
+# idx_test <- 71:122
 n_test <- length(idx_test)
 # idx_train <- 1:77
 # idx_test <- 78:122
-# idx_train <- sample(setdiff(1:n, idx_outliers), n_train)
-# idx_test <- setdiff(1:n, idx_train)
 
 data_train <- lapply(data, function(x){ x[idx_train, ] })
 data_test <- lapply(data, function(x){ x[idx_test, ] })
