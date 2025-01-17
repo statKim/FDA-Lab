@@ -47,10 +47,12 @@ split_conformal_fd <- function(X, y = NULL, X_test,
                           type_depth = type_depth,
                           transform = transform,
                           alpha = alpha_mixed)
-    X <- lapply(X, function(x){ x[obj$idx_clean_null] })
+    idx_train_null <- obj$idx_clean_null
+    X <- lapply(X, function(x){ x[idx_train_null, ] })
     n <- nrow(X[[1]])
+  } else {
+    idx_train_null <- NULL
   }
-  
   
   if (is.null(n_calib)) {
     n_train <- round(n * rho)   # size of proper training set
@@ -364,6 +366,7 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     
     
     out <- list(
+      idx_train_null = idx_train_null,
       idx_proper_train = idx_proper_train,
       idx_calib = idx_calib,
       type = type,
@@ -458,12 +461,12 @@ get_clean_null <- function(X, y = NULL,
     # Modulation function (t-function)
     abs_resid <- mapply(function(X_p, pred_p) {
       apply(X_p, 1, function(x){ abs(x - pred_p) })  # timepoints x observation
-    }, X_train, pred, SIMPLIFY = F)
+    }, X, pred, SIMPLIFY = F)
     score_H <- sapply(abs_resid, function(resid_p) { 
       apply(resid_p, 2, max)   # esssup_t resid
     }) %>% 
       apply(1, max)
-    gamma <- sort(score_H)[ ceiling((1 - alpha) * (n_train + 1)) ]
+    gamma <- sort(score_H)[ ceiling((1 - alpha) * (n + 1)) ]
     idx_H <- which(score_H <= gamma)   # index of H_1
     s_ftn <- lapply(abs_resid, function(resid_p) {
       apply(resid_p[, idx_H], 1, max)
@@ -472,7 +475,7 @@ get_clean_null <- function(X, y = NULL,
     # Non-conformity score with modulation
     nonconform_score <- mapply(function(X_p, pred_p, s_ftn_p){
       apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
-    }, X_calib, pred, s_ftn) %>% 
+    }, X, pred, s_ftn) %>% 
       apply(1, max)
   } else if (type == "depth") {
     # Transform data structure for `mrfDepth::mfd()`
