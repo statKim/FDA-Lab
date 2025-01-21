@@ -321,13 +321,14 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
                                    type = type, type_depth = type_depth,
                                    train_type = "mixed",
+                                   alpha = alpha,
                                    seed = b)
       conf_pvalue <- cp_obj$conf_pvalue
       
       # BH procedure
       idx_bh <- apply(conf_pvalue, 2, function(x){ 
         if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-          return(NA)
+          return(integer(0))
         } else {
           order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
         }
@@ -368,7 +369,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     # })
     
     
-    ### CP for functional data 
+    ### CP bands for functional data 
     # esssup
     obj <- summary_CP_out_detect(type = "esssup")
     fdr_bh$esssup[b, ] <- sapply(obj$idx_bh, function(x){
@@ -410,34 +411,48 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     idx_ms_train <- msplot(dts = arr_train, plot = F, seed = b)$outliers
     idx_seq_train <- seq_transform(arr_train, sequence = "O", depth_method = "erld",
                                    erld_type = "one_sided_right", seed = b)$outliers$O
+    if (length(idx_ms_train) == 0) {
+      arr_train_ms <- arr_train
+    } else {
+      arr_train_ms <- arr_train[-idx_ms_train, , ]
+    }
+    if (length(idx_seq_train) == 0) {
+      arr_train_seq <- arr_train
+    } else {
+      arr_train_seq <- arr_train[-idx_seq_train, , ]
+    }
     
     # Parallel computation
     cl <- makeCluster(n_cores)
     registerDoSNOW(cl)
     pkgs <- c("fdaoutlier")
     res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
-      df <- array(NA, dim = c(n+1, m, p))
-      df[1:n, , ] <- arr_train
-      df[n+1, , ] <- arr_test[i, , ]
+      df_ms <- array(NA, dim = c(n+1-length(idx_ms_train), m, p))
+      df_ms[1:(n-length(idx_ms_train)), , ] <- arr_train_ms
+      df_ms[n+1-length(idx_ms_train), , ] <- arr_test[i, , ]
+      
+      df_seq <- array(NA, dim = c(n+1-length(idx_seq_train), m, p))
+      df_seq[1:(n-length(idx_seq_train)), , ] <- arr_train_seq
+      df_seq[n+1-length(idx_seq_train), , ] <- arr_test[i, , ]
       
       out <- list()
       
       # MS plot
-      outlier_ms <- msplot(dts = df[-idx_ms_train, , ], plot = F, seed = b)$outliers
-      if (length(outlier_ms) > 0 & ((n+1) %in% outlier_ms)) {
+      outlier_ms <- msplot(dts = df_ms, plot = F, seed = b)$outliers
+      if (length(outlier_ms) > 0 & (nrow(df_ms) %in% outlier_ms)) {
         out$ms <- i
       } else {
-        out$ms <- numeric(0)
+        out$ms <- integer(0)
       }
       
       # Sequential transformation
-      seqobj <- seq_transform(df[-idx_seq_train, , ], sequence = "O", depth_method = "erld",
+      seqobj <- seq_transform(df_seq, sequence = "O", depth_method = "erld",
                               erld_type = "one_sided_right", seed = b)
       outlier_seq <- seqobj$outliers$O
-      if (length(outlier_seq) > 0 & ((n+1) %in% outlier_seq)) {
+      if (length(outlier_seq) > 0 & (nrow(df_seq) %in% outlier_seq)) {
         out$seq <- i
       } else {
-        out$seq <- numeric(0)
+        out$seq <- integer(0)
       }
       
       return(out)
@@ -445,49 +460,9 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     # End parallel backend
     stopCluster(cl) 
     
+    # Indices of outliers
     idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
     idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
-    #   
-    # for (i in 1:n_test) {
-    #   # Each test data
-    #   df[n+1, , ] <- arr_test[i, , ]
-    #   
-    #   # MS plot
-    #   outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
-    #   if (length(outlier_ms) > 0 & ((n+1) %in% outlier_ms)) {
-    #     idx_comparison$ms <- c(idx_comparison$ms, i)
-    #   }
-    #   
-    #   # Sequential transformation
-    #   seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-    #                           erld_type = "one_sided_right", seed = b)
-    #   outlier_seq <- seqobj$outliers$O
-    #   if (length(outlier_seq) > 0 & ((n+1) %in% outlier_seq)) {
-    #     idx_comparison$seq <- c(idx_comparison$seq, i)
-    #   }
-    # }
-    
-    
-    # idx_comparison <- list()
-    # 
-    # ## Only use test set
-    # df <- abind::abind(data_test, along = 3)
-    # # MS plot
-    # idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
-    # # Sequential transformation
-    # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-    #                         erld_type = "one_sided_right", save_data = F)
-    # idx_comparison$seq <- seqobj$outliers$O
-    # 
-    # ## Use all data set (train + test)
-    # df <- abind::abind(abind::abind(data_train, along = 3),
-    #                    abind::abind(data_test, along = 3), along = 1)
-    # # MS plot
-    # idx_comparison$ms_all <- msplot(dts = df, plot = F)$outliers
-    # # Sequential transformation
-    # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-    #                         erld_type = "one_sided_right", save_data = F)
-    # idx_comparison$seq_all <- seqobj$outliers$O
     
     fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
       get_fdr(x, idx_outliers)

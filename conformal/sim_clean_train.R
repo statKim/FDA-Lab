@@ -113,6 +113,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       # Marginal and CCV conformal p-value
       cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
                                    type = type, type_depth = type_depth,
+                                   alpha = alpha,
                                    # n_calib = n_calib,
                                    seed = b)
       conf_pvalue <- cp_obj$conf_pvalue
@@ -130,7 +131,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       # BH procedure
       idx_bh <- apply(conf_pvalue, 2, function(x){ 
         if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-          return(NA)
+          return(integer(0))
         } else {
           order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
         }
@@ -231,7 +232,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       if (length(outlier_ms) > 0 & ((n+1) %in% outlier_ms)) {
         out$ms <- i
       } else {
-        out$ms <- numeric(0)
+        out$ms <- integer(0)
       }
       
       # Sequential transformation
@@ -241,7 +242,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       if (length(outlier_seq) > 0 & ((n+1) %in% outlier_seq)) {
         out$seq <- i
       } else {
-        out$seq <- numeric(0)
+        out$seq <- integer(0)
       }
       
       return(out)
@@ -355,83 +356,6 @@ lapply(res2, function(sim){
   #         "esssup.marg","projdepth.marg","hdepth.marg","ms","seq")]
   sub
 })
-
-# sim3
-# [[1]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.151 (0.260) 1.000 (0.000)  0.067 (0.073)  0.074 (0.077) 0.041 (0.048) 0.000 (0.005)
-# TPR 0.918 (0.272) 0.000 (0.000)  1.000 (0.000)  1.000 (0.000) 1.000 (0.000) 1.000 (0.000)
-# 
-# [[2]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.733 (0.393) 1.000 (0.000)  1.000 (0.000)  0.072 (0.081) 0.060 (0.096) 0.000 (0.000)
-# TPR 0.301 (0.442) 0.000 (0.000)  0.000 (0.000)  1.000 (0.000) 0.496 (0.199) 0.018 (0.030)
-# 
-# [[3]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.902 (0.257) 1.000 (0.000)  0.604 (0.436)  0.072 (0.081) 0.032 (0.045) 0.002 (0.015)
-# TPR 0.110 (0.288) 0.000 (0.000)  0.439 (0.479)  1.000 (0.000) 1.000 (0.000) 0.513 (0.153)
-# 
-# [[4]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.910 (0.247) 1.000 (0.000)  0.870 (0.301)  0.069 (0.078) 0.024 (0.038) 0.000 (0.000)
-# TPR 0.106 (0.289) 0.000 (0.000)  0.140 (0.323)  1.000 (0.000) 1.000 (0.000) 0.051 (0.044)
-
-# sim4
-# [[1]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.775 (0.374) 1.000 (0.000)  0.067 (0.074)  0.094 (0.151) 0.038 (0.046) 0.000 (0.005)
-# TPR 0.246 (0.408) 0.000 (0.000)  1.000 (0.000)  0.980 (0.141) 1.000 (0.005) 0.972 (0.034)
-# 
-# [[2]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.995 (0.050) 1.000 (0.000)  1.000 (0.000)  0.072 (0.081) 0.251 (0.376) 0.000 (0.000)
-# TPR 0.006 (0.055) 0.000 (0.000)  0.000 (0.000)  1.000 (0.000) 0.032 (0.049) 0.002 (0.009)
-# 
-# [[3]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 0.995 (0.052) 1.000 (0.000)  0.959 (0.165)  0.082 (0.123) 0.029 (0.044) 0.000 (0.000)
-# TPR 0.006 (0.060) 0.000 (0.000)  0.047 (0.187)  0.990 (0.100) 0.942 (0.066) 0.086 (0.072)
-# 
-# [[4]]
-#       esssup.marg   hdepth.marg projdepth.marg seq_trans.marg            ms           seq
-# FDR 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)  0.069 (0.078) 0.830 (0.378) 0.000 (0.000)
-# TPR 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)  1.000 (0.000) 0.000 (0.000) 0.000 (0.000)
-
-# sim5
-# [[1]]
-#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
-# FDR    0.061 (0.073) 1.000 (0.000) 0.068 (0.064) 0.852 (0.336) 1.000 (0.000)  0.057 (0.062)
-# TPR    1.000 (0.000) 0.000 (0.000) 1.000 (0.000) 0.153 (0.349) 0.000 (0.000)  1.000 (0.000)
-#               ms           seq        ms_all       seq_all
-# FDR 0.032 (0.042) 0.000 (0.000) 0.999 (0.008) 1.000 (0.000)
-# TPR 1.000 (0.000) 0.972 (0.039) 0.002 (0.009) 0.000 (0.000)
-# 
-# [[2]]
-#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
-# FDR    0.047 (0.054) 1.000 (0.000) 0.978 (0.119) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)
-# TPR    1.000 (0.000) 0.000 (0.000) 0.025 (0.137) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)
-#               ms           seq        ms_all       seq_all
-# FDR 0.112 (0.253) 0.000 (0.000) 0.933 (0.254) 0.000 (0.000)
-# TPR 0.032 (0.048) 0.003 (0.013) 0.000 (0.000) 0.000 (0.000)
-# 
-# [[3]]
-#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
-# FDR    0.047 (0.054) 1.000 (0.000) 0.727 (0.395) 1.000 (0.000) 1.000 (0.000)  0.977 (0.128)
-# TPR    1.000 (0.000) 0.000 (0.000) 0.315 (0.454) 0.000 (0.000) 0.000 (0.000)  0.023 (0.128)
-#               ms           seq        ms_all       seq_all
-# FDR 0.020 (0.039) 0.000 (0.000) 0.999 (0.007) 0.900 (0.305)
-# TPR 0.928 (0.077) 0.075 (0.082) 0.002 (0.009) 0.000 (0.000)
-# 
-# [[4]]
-#     T_projdepth.marg T_hdepth.marg    T_mbd.marg   esssup.marg   hdepth.marg projdepth.marg
-# FDR    0.045 (0.057) 1.000 (0.000) 0.068 (0.075) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)
-# TPR    1.000 (0.000) 0.000 (0.000) 1.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)
-#               ms           seq        ms_all       seq_all
-# FDR 0.700 (0.466) 0.000 (0.000) 0.877 (0.306) 0.000 (0.000)
-# TPR 0.000 (0.000) 0.000 (0.000) 0.005 (0.015) 0.000 (0.000)
-
-
 
 
 matplot(t(data_test[[1]]), type = "l", col = ifelse(1:n %in% idx_outliers, 2, 1))

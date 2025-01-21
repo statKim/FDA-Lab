@@ -11,22 +11,30 @@ library(foreach)
 
 # Get FDR (False discovery rate)
 get_fdr <- function(idx_reject, idx_true) {
-  sum(!(idx_reject %in% idx_true)) / max(1, length(idx_reject))
+  if (length(idx_reject) == 0) {
+    return(0)
+  } else {
+    sum(!(idx_reject %in% idx_true)) / length(idx_reject)
+  }
 }
 
 # Get TPR (True positive rate; Power)
 get_tpr <- function(idx_reject, idx_true) {
-  sum(idx_true %in% idx_reject) / length(idx_true)
+  if (length(idx_reject) == 0) {
+    return(0)
+  } else {
+    sum(idx_true %in% idx_reject) / length(idx_true)
+  }
 }
 
 
 #' Split Conformal Prediction for Multivariate Functional Data
 #' 
-#' @param alpha coverage level 
+#' @param alpha coverage level (Only used for `type = "esssup"`)
 #' @param rho a proportion of the proper training set for the split conformal prediction
 #' @param ... additional options for `mrfDepth::mfd()`
 split_conformal_fd <- function(X, y = NULL, X_test, 
-                               type = "esssup", type_depth = "projdepth",
+                               type = "depth_transform", type_depth = "projdepth",
                                transform = c("D0","D1","D2"),
                                alpha = 0.1, 
                                train_type = "clean",

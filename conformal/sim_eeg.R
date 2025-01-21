@@ -121,14 +121,14 @@ for (b in 1:B) {
     #                           seed = b)
     cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
                                  type = type, type_depth = type_depth,
-                                 depthOptions = list(type = "Rotation"),
+                                 alpha = alpha,
                                  seed = b)
     conf_pvalue <- cp_obj$conf_pvalue
     
     # BH procedure
     idx_bh <- apply(conf_pvalue, 2, function(x){ 
       if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-        return(NA)
+        return(integer(0))
       } else {
         order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
       }
@@ -217,7 +217,7 @@ for (b in 1:B) {
     if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
       out$ms <- idx_test[i]
     } else {
-      out$ms <- numeric(0)
+      out$ms <- integer(0)
     }
     
     # Sequential transformation
@@ -227,7 +227,7 @@ for (b in 1:B) {
     if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
       out$seq <- idx_test[i]
     } else {
-      out$seq <- numeric(0)
+      out$seq <- integer(0)
     }
     
     return(out)

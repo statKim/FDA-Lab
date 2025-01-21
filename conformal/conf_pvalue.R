@@ -146,7 +146,7 @@ points(cp_obj$nonconform_score_test, col = 2)
 # BH procedure - Not reject
 idx_bh <- apply(conf_pvalue, 2, function(x){ 
   if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-    return(NA)
+    return(integer(0))
   } else {
     order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
   }
@@ -314,7 +314,7 @@ conf_pvalue
 # BH procedure
 idx_bh <- apply(conf_pvalue, 2, function(x){ 
   if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-    return(NA)
+    return(integer(0))
   } else {
     order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
   }
