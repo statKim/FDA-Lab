@@ -49,7 +49,7 @@ for (i in 1:p) {
   X_fft_sm[, , i] <- t(X_i_fft_sm)
 }
 X <- X_fft
-# X <- X_fft_sm
+X <- X_fft_sm
 
 
 n <- dim(X)[1]   # number of curves
@@ -61,7 +61,7 @@ gr <- seq(0, 1, length.out = m)
 
 ### CV+ CP instead of split CP because of the high-dimensionality issue!!
 ### Outlier detection with diffrent B splits
-B <- 30
+B <- 100
 fdr_res <- data.frame(
   marg = rep(NA, B),
   simes = rep(NA, B),
@@ -80,12 +80,6 @@ fdr_comparison <- data.frame(
   ms = rep(NA, B),
   seq = rep(NA, B)
 )
-# fdr_comparison <- data.frame(
-#   # ms = rep(NA, B),
-#   seq = rep(NA, B),
-#   ms_all = rep(NA, B),
-#   seq_all = rep(NA, B)
-# )
 tpr_comparison <- fdr_comparison
 
 # Progress bar
@@ -99,8 +93,8 @@ progress <- function(n){
   pb$tick()
 } 
 
-# # Parallel computations
-# n_cores <- 10
+# Parallel computations
+n_cores <- 10
 
 # Repetitions
 for (b in 1:B) {
@@ -150,12 +144,8 @@ for (b in 1:B) {
   
   
   ### Outlier detection based on CV+ CP
-  summary_CP_out_detect <- function(type = "depth", type_depth = "projdepth") {
+  summary_CP_out_detect <- function(type = "depth_transform", type_depth = "projdepth") {
     # Marginal and CCV conformal p-value
-    # cp_obj <- cv_conformal_fd(X = data_train, X_test = data_test,
-    #                           type = type, type_depth = type_depth,
-    #                           n_cores = n_cores,
-    #                           seed = b)
     cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
                                  type = type, type_depth = type_depth,
                                  alpha = alpha,
@@ -170,12 +160,6 @@ for (b in 1:B) {
         order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
       }
     }, simplify = F)
-    # fdr_bh$projdepth[b, ] <- sapply(idx_bh, function(x){
-    #   sum(!(x %in% idx_outliers)) / max(1, length(x))
-    # })
-    # tpr_bh$projdepth[b, ] <- sapply(idx_bh, function(x){
-    #   get_tpr(x, idx_outliers)
-    # })
     
     out <- list(
       idx_bh = lapply(idx_bh, function(x){ idx_test[x] })
@@ -212,7 +196,7 @@ for (b in 1:B) {
   })
   
   # projdepth
-  obj <- summary_CP_out_detect(type_depth = "projdepth")
+  obj <- summary_CP_out_detect(type = "depth", type_depth = "projdepth")
   fdr_bh$projdepth[b, ] <- sapply(obj$idx_bh, function(x){
     get_fdr(x, idx_outliers)
   })
@@ -221,7 +205,7 @@ for (b in 1:B) {
   })
   
   # hdepth
-  obj <- summary_CP_out_detect(type_depth = "hdepth")
+  obj <- summary_CP_out_detect(type = "depth", type_depth = "hdepth")
   fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
     get_fdr(x, idx_outliers)
   })
@@ -237,7 +221,7 @@ for (b in 1:B) {
   )
   arr_train <- abind::abind(data_train, along = 3)
   arr_test <- abind::abind(data_test, along = 3)
-  
+
   # Parallel computation
   cl <- makeCluster(n_cores)
   registerDoSNOW(cl)
@@ -246,9 +230,9 @@ for (b in 1:B) {
     df <- array(NA, dim = c(n_train+1, m, p))
     df[1:n_train, , ] <- arr_train
     df[n_train+1, , ] <- arr_test[i, , ]
-    
+
     out <- list()
-    
+
     # MS plot
     outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
     if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
@@ -256,7 +240,7 @@ for (b in 1:B) {
     } else {
       out$ms <- integer(0)
     }
-    
+
     # Sequential transformation
     seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
                             erld_type = "one_sided_right", seed = b)
@@ -266,64 +250,16 @@ for (b in 1:B) {
     } else {
       out$seq <- integer(0)
     }
-    
+
     return(out)
   }
   # End parallel backend
   stopCluster(cl)
-  
+
   idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
   idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
-  
-  # for (i in 1:n_test) {
-  #   df <- array(NA, dim = c(n_train+1, m, p))
-  #   df[1:n_train, , ] <- arr_train
-  #   df[n_train+1, , ] <- arr_test[i, , ]
-  # 
-  #   # MS plot
-  #   outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
-  #   if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
-  #     idx_comparison$ms <- c(idx_comparison$ms, 
-  #                            idx_test[i])
-  #   }
-  # 
-  #   # Sequential transformation
-  #   seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-  #                           erld_type = "one_sided_right", seed = b)
-  #   outlier_seq <- seqobj$outliers$O
-  #   if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
-  #     idx_comparison$seq <- c(idx_comparison$seq, 
-  #                             idx_test[i])
-  #   }
-  # }
-  
-  
-  
-  # idx_comparison <- list()
-  # ### Only use test set
-  # df <- abind::abind(data_test, along = 3)
-  # 
-  # # # MS plot 
-  # # # - Error occurs because of high-dimensionality
-  # # idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
-  # 
-  # # Sequential method
-  # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-  #                         erld_type = "one_sided_right", save_data = F)
-  # idx_comparison$seq <- idx_test[seqobj$outliers$O]
-  # 
-  # 
-  # ## Use all data set (train + test)
-  # df <- abind::abind(abind::abind(data_train, along = 3),
-  #                    abind::abind(data_test, along = 3), along = 1)
-  # # MS plot
-  # idx_comparison$ms_all <- idx_test[msplot(dts = df, plot = F)$outliers]
-  # # Sequential transformation
-  # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-  #                         erld_type = "one_sided_right", save_data = F)
-  # idx_comparison$seq_all <- idx_test[seqobj$outliers$O]
-  
-  
+
+
   fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
     get_fdr(x, idx_outliers)
   })
@@ -363,7 +299,9 @@ lapply(res2, function(sim){
   # sub[, c("T_projdepth.marg","T_hdepth.marg",
   #         "esssup.marg","hdepth.marg","projdepth.marg",
   #         "seq","ms_all","seq_all")]
-  sub[, c("T_projdepth.marg","T_hdepth.marg",
-          "esssup.marg","projdepth.marg","hdepth.marg",
-          "ms","seq")]
+  # sub[, c("T_projdepth.marg","T_hdepth.marg",
+  #         "esssup.marg","projdepth.marg","hdepth.marg",
+  #         "ms","seq")]
+  sub[, c("T_projdepth.marg",
+          "esssup.marg","projdepth.marg")]
 })
