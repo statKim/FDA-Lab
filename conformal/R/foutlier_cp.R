@@ -315,8 +315,8 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       weight_calib <- t( apply(nonconform_score_calib, 1, function(x){ exp(x) / sum(exp(x)) }) )
       weight_test <- t( apply(nonconform_score_test, 1, function(x){ exp(x) / sum(exp(x)) }) )
     } else {
-      weight_calib <- 1
-      weight_test <- 1
+      weight_calib <- 1/n_test
+      weight_test <- 1/n_test
     }
     
     # Aggregate scores from transformations
