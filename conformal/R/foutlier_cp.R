@@ -54,7 +54,8 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     obj <- get_clean_null(X,  
                           type = type, 
                           type_depth = type_depth,
-                          transform = transform)
+                          transform = transform,
+                          weight = weight)
     idx_train_null <- obj$idx_clean_null
     X <- lapply(X, function(x){ x[idx_train_null, ] })
     n <- nrow(X[[1]])
@@ -409,7 +410,8 @@ ccv_conf_pvalue <- function(marg_conf_pvalue, method = "simes", delta = 0.1, n_c
 get_clean_null <- function(X, y = NULL,  
                            type = "depth_transform", type_depth = "projdepth",
                            transform = c("D0","D1","D2"),
-                           alpha = 0.2) {
+                           # alpha = 0.2,
+                           weight = TRUE) {
   n <- nrow(X[[1]])  # number of training data
   m <- ncol(X[[1]])  # number of timepoints
   p <- length(X)   # number of functional covariates
@@ -497,8 +499,16 @@ get_clean_null <- function(X, y = NULL,
       nonconform_score[, s] <- -as.numeric(depth_values$MFDdepthZ)
     }
     
+    # Weights for weighted average
+    if (isTRUE(weight)) {
+      weights <- t( apply(nonconform_score, 1, function(x){ exp(x) / sum(exp(x)) }) )
+    } else {
+      weights <- 1/n
+    }
+    
     # Aggregate scores from transformations
-    nonconform_score <- apply(nonconform_score, 1, mean)
+    weights <- rowSums(nonconform_score * weights)
+    # nonconform_score <- apply(nonconform_score, 1, mean)
   }
   
   # # Find outliers using alpha-quantile
