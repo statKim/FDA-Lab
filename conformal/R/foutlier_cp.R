@@ -299,34 +299,40 @@ split_conformal_fd <- function(X, y = NULL, X_test,
       
     }
     
-    # Scaling depths for each transformed curves
-    mean_calib <- colMeans(nonconform_score_calib)
-    sd_calib <- apply(nonconform_score_calib, 2, sd)
-    nonconform_score_calib <- t( (t(nonconform_score_calib) - mean_calib) / sd_calib )
-    nonconform_score_test <- t( (t(nonconform_score_test) - mean_calib) / sd_calib )
-    
-    # Weights for weighted average
-    if (isTRUE(weight)) {
-      # weight_calib <- t( apply(nonconform_score_calib, 1, function(x){ (1+x) / sum(1+x) }) )
-      # weight_test <- t( apply(nonconform_score_test, 1, function(x){ (1+x) / sum(1+x) }) )
-      # weight_calib <- t( apply( apply(nonconform_score_calib, 1, function(x){ exp(x) / (1+exp(x)) }),
-      #                          2, function(x){ x / sum(x) }) )
-      # weight_test <- t( apply( apply(nonconform_score_test, 1, function(x){ exp(x) / (1+exp(x)) }),
-      #                          2, function(x){ x / sum(x) }) )
-      weight_calib <- t( apply(nonconform_score_calib, 1, function(x){ exp(x) / sum(exp(x)) }) )
-      weight_test <- t( apply(nonconform_score_test, 1, function(x){ exp(x) / sum(exp(x)) }) )
+    if (length(transform) > 1) {
+      # Scaling depths for each transformed curves
+      mean_calib <- colMeans(nonconform_score_calib)
+      sd_calib <- apply(nonconform_score_calib, 2, sd)
+      nonconform_score_calib <- t( (t(nonconform_score_calib) - mean_calib) / sd_calib )
+      nonconform_score_test <- t( (t(nonconform_score_test) - mean_calib) / sd_calib )
+      
+      # Weights for weighted average
+      if (isTRUE(weight)) {
+        # weight_calib <- t( apply(nonconform_score_calib, 1, function(x){ (1+x) / sum(1+x) }) )
+        # weight_test <- t( apply(nonconform_score_test, 1, function(x){ (1+x) / sum(1+x) }) )
+        # weight_calib <- t( apply( apply(nonconform_score_calib, 1, function(x){ exp(x) / (1+exp(x)) }),
+        #                          2, function(x){ x / sum(x) }) )
+        # weight_test <- t( apply( apply(nonconform_score_test, 1, function(x){ exp(x) / (1+exp(x)) }),
+        #                          2, function(x){ x / sum(x) }) )
+        weight_calib <- t( apply(nonconform_score_calib, 1, function(x){ exp(x) / sum(exp(x)) }) )
+        weight_test <- t( apply(nonconform_score_test, 1, function(x){ exp(x) / sum(exp(x)) }) )
+      } else {
+        weight_calib <- 1/length(transform)
+        weight_test <- 1/length(transform)
+      }
+      
+      # Aggregate scores from transformations
+      nonconform_score_calib <- rowSums(nonconform_score_calib * weight_calib)
+      nonconform_score_test <- rowSums(nonconform_score_test * weight_test)
+      # nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)
+      # nonconform_score_test <- apply(nonconform_score_test, 1, mean)
+      # # nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
+      # # nonconform_score_test <- apply(nonconform_score_test, 1, max)
     } else {
-      weight_calib <- 1/n_test
-      weight_test <- 1/n_test
+      nonconform_score_calib <- as.numeric(nonconform_score_calib)
+      nonconform_score_test <- as.numeric(nonconform_score_test)
     }
     
-    # Aggregate scores from transformations
-    nonconform_score_calib <- rowSums(nonconform_score_calib * weight_calib)
-    nonconform_score_test <- rowSums(nonconform_score_test * weight_test)
-    # nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)
-    # nonconform_score_test <- apply(nonconform_score_test, 1, mean)
-    # # nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
-    # # nonconform_score_test <- apply(nonconform_score_test, 1, max)
     
     # Conformal p-value (marginal)
     conf_pvalue_marg <- sapply(nonconform_score_test, function(s){
@@ -343,8 +349,8 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     transform = transform,
     nonconform_score_calib = nonconform_score_calib,
     nonconform_score_test = nonconform_score_test,
-    weight_calib = weight_calib,
-    weight_test = weight_test,
+    # weight_calib = weight_calib,
+    # weight_test = weight_test,
     conf_pvalue = data.frame(marginal = conf_pvalue_marg)
   )
   
@@ -507,7 +513,7 @@ get_clean_null <- function(X, y = NULL,
     }
     
     # Aggregate scores from transformations
-    weights <- rowSums(nonconform_score * weights)
+    nonconform_score <- rowSums(nonconform_score * weights)
     # nonconform_score <- apply(nonconform_score, 1, mean)
   }
   
