@@ -40,9 +40,10 @@ split_conformal_fd <- function(X, y = NULL, X_test,
                                alpha = 0.1, 
                                train_type = "clean",
                                rho = 0.5, n_calib = NULL,
-                               weight = TRUE,
+                               weight = FALSE,
                                ccv = TRUE, delta = 0.1, k = NULL,
-                               n_cores = 1,
+                               individual = TRUE,
+                               # n_cores = 1,
                                seed = NULL) {
   n <- nrow(X[[1]])  # number of training data
   m <- ncol(X[[1]])  # number of timepoints
@@ -153,8 +154,8 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     }
     
     # Compute functional depth with transformations
-    nonconform_score_calib <- matrix(NA, n_calib, length(transform))
-    nonconform_score_test <- matrix(NA, n_test, length(transform))
+    nonconform_score_calib_indiv <- matrix(NA, n_calib, length(transform))
+    nonconform_score_test_indiv <- matrix(NA, n_test, length(transform))
     
     for (s in 1:length(transform)) {
       trans_type <- transform[s]  # transform type
@@ -189,122 +190,133 @@ split_conformal_fd <- function(X, y = NULL, X_test,
         stop("Not supproted for `transform`!")
       }
       
-      # Non-conformity scores for calibration and test set
-      if (type_depth == "mbd") {
-        # ### Averaged modifed band depth for univariate functional data for each variable
-        # # Calibration scores
-        # depth_values <- sapply(1:p, function(i){
-        #   MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]), ...)
-        # })
-        # nonconform_score_calib[, s] <- -apply(depth_values, 1, mean)
-        # 
-        # # Test scores
-        # depth_values <- sapply(1:p, function(i){
-        #   MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]), ...)
-        # })
-        # nonconform_score_test[, s] <- -apply(depth_values, 1, mean)
-        
-        ## Depthgram based non-conformity scores
-        # Get MEI for reference data
-        MEI_relative <- function(Data_target, Data_reference) {
-          n_target <- nrow(Data_target)
-          n_reference <- nrow(Data_reference)
-          sapply(1:n_target, function(j){
-            MEI(rbind(Data_reference, Data_target[j, ]))[n_reference+1]
-          })
-        }
-        
-        # Get depthgram score
-        get_depthgram_score <- function(mbd_mat, mei_mat) {
-          n_targ <- nrow(mbd_mat)
-          mei_mbd <- MEI(mbd_mat)
-          mbd_mei <- MBD(mei_mat)
-          g <- function(z) {
-            2/n + z -n/(2*(n-1))*z^2
-          }
-          return(mbd_mei - g(1-mei_mbd))
-        }
-        
-        # Parallel computation
-        cl <- makeCluster(n_cores)
-        registerDoSNOW(cl)
-        
-        pkgs <- c("roahd")
-        ftns <- c("MEI_relative")
-        scores_parallel <- foreach(i = 1:p, .packages = pkgs, .export = ftns) %dopar% {
-          # Calibration set
-          mbd_calib <- MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
-          mei_calib <- MEI_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
-          
-          # Test set
-          mbd_test <- MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
-          mei_test <- MEI_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
-          
-          out <- list(
-            mbd_calib = mbd_calib,
-            mei_calib = mei_calib,
-            mbd_test = mbd_test,
-            mei_test = mei_test
-          )
-          
-          return(out)
-        }
-        
-        # End parallel backend
-        stopCluster(cl) 
-        
-        mbd_calib <- matrix(NA, n_calib, p)
-        mei_calib <- matrix(NA, n_calib, p)
-        mbd_test <- matrix(NA, n_test, p)
-        mei_test <- matrix(NA, n_test, p)
-        for (i in 1:p) {
-          # Calibration set
-          mbd_calib[, i] <- scores_parallel[[i]]$mbd_calib
-          mei_calib[, i] <- scores_parallel[[i]]$mei_calib
-          
-          # Test set
-          mbd_test[, i] <- scores_parallel[[i]]$mbd_test
-          mei_test[, i] <- scores_parallel[[i]]$mei_test
-        }
-        
-        # mbd_calib <- matrix(NA, n_calib, p)
-        # mei_calib <- matrix(NA, n_calib, p)
-        # mbd_test <- matrix(NA, n_test, p)
-        # mei_test <- matrix(NA, n_test, p)
-        # for (i in 1:p) {
-        #   # Calibration set
-        #   mbd_calib[, i] <- MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
-        #   mei_calib[, i] <- MEI_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
-        #   
-        #   # Test set
-        #   mbd_test[, i] <- MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
-        #   mei_test[, i] <- MEI_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
-        # }
-        nonconform_score_calib[, s] <- get_depthgram_score(mbd_calib, mei_calib)
-        nonconform_score_test[, s] <- get_depthgram_score(mbd_test, mei_test)
-        # plot(get_depthgram_score(mbd_test, mei_test))
-        # points(get_depthgram_score(mbd_calib, mei_calib), col = 2)
-      } else {
-        # Multivariate functional depth for calibration set
-        # Lower depth is outlier => we take "-" to make nonconformity score
-        depth_values <- mfd(arr_train_trans, arr_calib_trans, 
-                            type = type_depth, depthOptions = depthOptions)
-        nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
-        
-        # Multivariate functional depth for test set
-        depth_values <- mfd(arr_train_trans, arr_test_trans, 
-                            type = type_depth, depthOptions = depthOptions)
-        nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
-      }
+      # # Non-conformity scores for calibration and test set
+      # if (type_depth == "mbd") {
+      #   # ### Averaged modifed band depth for univariate functional data for each variable
+      #   # # Calibration scores
+      #   # depth_values <- sapply(1:p, function(i){
+      #   #   MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]), ...)
+      #   # })
+      #   # nonconform_score_calib[, s] <- -apply(depth_values, 1, mean)
+      #   # 
+      #   # # Test scores
+      #   # depth_values <- sapply(1:p, function(i){
+      #   #   MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]), ...)
+      #   # })
+      #   # nonconform_score_test[, s] <- -apply(depth_values, 1, mean)
+      #   
+      #   ## Depthgram based non-conformity scores
+      #   # Get MEI for reference data
+      #   MEI_relative <- function(Data_target, Data_reference) {
+      #     n_target <- nrow(Data_target)
+      #     n_reference <- nrow(Data_reference)
+      #     sapply(1:n_target, function(j){
+      #       MEI(rbind(Data_reference, Data_target[j, ]))[n_reference+1]
+      #     })
+      #   }
+      #   
+      #   # Get depthgram score
+      #   get_depthgram_score <- function(mbd_mat, mei_mat) {
+      #     n_targ <- nrow(mbd_mat)
+      #     mei_mbd <- MEI(mbd_mat)
+      #     mbd_mei <- MBD(mei_mat)
+      #     g <- function(z) {
+      #       2/n + z -n/(2*(n-1))*z^2
+      #     }
+      #     return(mbd_mei - g(1-mei_mbd))
+      #   }
+      #   
+      #   # Parallel computation
+      #   cl <- makeCluster(n_cores)
+      #   registerDoSNOW(cl)
+      #   
+      #   pkgs <- c("roahd")
+      #   ftns <- c("MEI_relative")
+      #   scores_parallel <- foreach(i = 1:p, .packages = pkgs, .export = ftns) %dopar% {
+      #     # Calibration set
+      #     mbd_calib <- MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+      #     mei_calib <- MEI_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+      #     
+      #     # Test set
+      #     mbd_test <- MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+      #     mei_test <- MEI_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+      #     
+      #     out <- list(
+      #       mbd_calib = mbd_calib,
+      #       mei_calib = mei_calib,
+      #       mbd_test = mbd_test,
+      #       mei_test = mei_test
+      #     )
+      #     
+      #     return(out)
+      #   }
+      #   
+      #   # End parallel backend
+      #   stopCluster(cl) 
+      #   
+      #   mbd_calib <- matrix(NA, n_calib, p)
+      #   mei_calib <- matrix(NA, n_calib, p)
+      #   mbd_test <- matrix(NA, n_test, p)
+      #   mei_test <- matrix(NA, n_test, p)
+      #   for (i in 1:p) {
+      #     # Calibration set
+      #     mbd_calib[, i] <- scores_parallel[[i]]$mbd_calib
+      #     mei_calib[, i] <- scores_parallel[[i]]$mei_calib
+      #     
+      #     # Test set
+      #     mbd_test[, i] <- scores_parallel[[i]]$mbd_test
+      #     mei_test[, i] <- scores_parallel[[i]]$mei_test
+      #   }
+      #   
+      #   # mbd_calib <- matrix(NA, n_calib, p)
+      #   # mei_calib <- matrix(NA, n_calib, p)
+      #   # mbd_test <- matrix(NA, n_test, p)
+      #   # mei_test <- matrix(NA, n_test, p)
+      #   # for (i in 1:p) {
+      #   #   # Calibration set
+      #   #   mbd_calib[, i] <- MBD_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+      #   #   mei_calib[, i] <- MEI_relative(t(arr_calib_trans[, , i]), t(arr_train_trans[, , i]))
+      #   #   
+      #   #   # Test set
+      #   #   mbd_test[, i] <- MBD_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+      #   #   mei_test[, i] <- MEI_relative(t(arr_test_trans[, , i]), t(arr_train_trans[, , i]))
+      #   # }
+      #   nonconform_score_calib[, s] <- get_depthgram_score(mbd_calib, mei_calib)
+      #   nonconform_score_test[, s] <- get_depthgram_score(mbd_test, mei_test)
+      #   # plot(get_depthgram_score(mbd_test, mei_test))
+      #   # points(get_depthgram_score(mbd_calib, mei_calib), col = 2)
+      # } else {
+      #   # Multivariate functional depth for calibration set
+      #   # Lower depth is outlier => we take "-" to make nonconformity score
+      #   depth_values <- mfd(arr_train_trans, arr_calib_trans, 
+      #                       type = type_depth, depthOptions = depthOptions)
+      #   nonconform_score_calib[, s] <- -as.numeric(depth_values$MFDdepthZ)
+      #   
+      #   # Multivariate functional depth for test set
+      #   depth_values <- mfd(arr_train_trans, arr_test_trans, 
+      #                       type = type_depth, depthOptions = depthOptions)
+      #   nonconform_score_test[, s] <- -as.numeric(depth_values$MFDdepthZ)
+      # }
       
+      
+      # Non-conformity scores using multivariate functional depths for calibration and test set
+      # Lower depth is outlier => we take "-" to make nonconformity score
+      depth_values <- mfd(arr_train_trans, arr_calib_trans, 
+                          type = type_depth, depthOptions = depthOptions)
+      nonconform_score_calib_indiv[, s] <- -as.numeric(depth_values$MFDdepthZ)
+      
+      # Multivariate functional depth for test set
+      depth_values <- mfd(arr_train_trans, arr_test_trans, 
+                          type = type_depth, depthOptions = depthOptions)
+      nonconform_score_test_indiv[, s] <- -as.numeric(depth_values$MFDdepthZ)
     }
     
     if (length(transform) > 1) {
-      # Scaling depths for each transformed curves
-      mean_calib <- colMeans(nonconform_score_calib)
-      sd_calib <- apply(nonconform_score_calib, 2, sd)
-      nonconform_score_calib <- t( (t(nonconform_score_calib) - mean_calib) / sd_calib )
-      nonconform_score_test <- t( (t(nonconform_score_test) - mean_calib) / sd_calib )
+      # # Scaling depths for each transformed curves
+      # mean_calib <- colMeans(nonconform_score_calib)
+      # sd_calib <- apply(nonconform_score_calib, 2, sd)
+      # nonconform_score_calib <- t( (t(nonconform_score_calib) - mean_calib) / sd_calib )
+      # nonconform_score_test <- t( (t(nonconform_score_test) - mean_calib) / sd_calib )
       
       # Weights for weighted average
       if (isTRUE(weight)) {
@@ -314,23 +326,23 @@ split_conformal_fd <- function(X, y = NULL, X_test,
         #                          2, function(x){ x / sum(x) }) )
         # weight_test <- t( apply( apply(nonconform_score_test, 1, function(x){ exp(x) / (1+exp(x)) }),
         #                          2, function(x){ x / sum(x) }) )
-        weight_calib <- t( apply(nonconform_score_calib, 1, function(x){ exp(x) / sum(exp(x)) }) )
-        weight_test <- t( apply(nonconform_score_test, 1, function(x){ exp(x) / sum(exp(x)) }) )
+        weight_calib <- t( apply(nonconform_score_calib_indiv, 1, function(x){ exp(x) / sum(exp(x)) }) )
+        weight_test <- t( apply(nonconform_score_test_indiv, 1, function(x){ exp(x) / sum(exp(x)) }) )
       } else {
         weight_calib <- 1/length(transform)
         weight_test <- 1/length(transform)
       }
       
       # Aggregate scores from transformations
-      nonconform_score_calib <- rowSums(nonconform_score_calib * weight_calib)
-      nonconform_score_test <- rowSums(nonconform_score_test * weight_test)
-      # nonconform_score_calib <- apply(nonconform_score_calib, 1, mean)
-      # nonconform_score_test <- apply(nonconform_score_test, 1, mean)
-      # # nonconform_score_calib <- apply(nonconform_score_calib, 1, max)
-      # # nonconform_score_test <- apply(nonconform_score_test, 1, max)
+      nonconform_score_calib <- rowSums(nonconform_score_calib_indiv * weight_calib)
+      nonconform_score_test <- rowSums(nonconform_score_test_indiv * weight_test)
+      # nonconform_score_calib <- apply(nonconform_score_calib_indiv, 1, mean)
+      # nonconform_score_test <- apply(nonconform_score_test_indiv, 1, mean)
+      # nonconform_score_calib <- apply(nonconform_score_calib_indiv, 1, max)
+      # nonconform_score_test <- apply(nonconform_score_test_indiv, 1, max)
     } else {
-      nonconform_score_calib <- as.numeric(nonconform_score_calib)
-      nonconform_score_test <- as.numeric(nonconform_score_test)
+      nonconform_score_calib <- as.numeric(nonconform_score_calib_indiv)
+      nonconform_score_test <- as.numeric(nonconform_score_test_indiv)
     }
     
     
@@ -347,8 +359,8 @@ split_conformal_fd <- function(X, y = NULL, X_test,
     type = type,
     type_depth = type_depth,
     transform = transform,
-    nonconform_score_calib = nonconform_score_calib,
-    nonconform_score_test = nonconform_score_test,
+    nonconform_score = list(calib = nonconform_score_calib,
+                            test = nonconform_score_test),
     # weight_calib = weight_calib,
     # weight_test = weight_test,
     conf_pvalue = data.frame(marginal = conf_pvalue_marg)
@@ -360,6 +372,30 @@ split_conformal_fd <- function(X, y = NULL, X_test,
                                              delta = delta, n_calib = n_calib, k = k)
     out$conf_pvalue$asymp <- ccv_conf_pvalue(out$conf_pvalue$marginal, method = "asymp", 
                                              delta = delta, n_calib = n_calib, k = k)
+  }
+  
+  # Conformal p-values for each transformation
+  if (isTRUE(individual) & type == "depth_transform") {
+    out$nonconform_score_indiv <- list(calib = nonconform_score_calib_indiv,
+                                       test = nonconform_score_test_indiv)
+    out$conf_pvalue_indiv <- lapply(1:length(transform), function(i){
+      # marginal p-value
+      df <- data.frame(
+        marginal = sapply(nonconform_score_test_indiv[, i], function(s){
+          (1 + sum(nonconform_score_calib_indiv[, i] >= s)) / (n_calib + 1)
+        })
+      )
+      
+      # CCV p-value
+      if (isTRUE(ccv)) {
+        df$simes <- ccv_conf_pvalue(df$marginal, method = "simes", 
+                                    delta = delta, n_calib = n_calib, k = k)
+        df$asymp <- ccv_conf_pvalue(df$marginal, method = "asymp", 
+                                    delta = delta, n_calib = n_calib, k = k)
+      }
+      
+      return(df)
+    })
   }
   
   class(out) <- "split_conformal_fd"
@@ -768,5 +804,171 @@ get_clean_null <- function(X, y = NULL,
 #   return(out)
 # }
 
+
+# Generate simulated data from Dai et al. (2020)
+# - Functional outlier detection and taxonomy by sequential transformations (2020), CSDA
+generate_sim_data <- function(n, p, outlier_rate, model = 1) {
+  if (model == 1) {
+    obj <- simulation_model3(n = n,
+                             p = p, 
+                             outlier_rate = outlier_rate,
+                             mu = 4, 
+                             q = 3, 
+                             a = 0,
+                             b = 1,
+                             kprob = 0,
+                             cov_alpha = 1,
+                             cov_beta = 1,
+                             cov_nu = 1, 
+                             plot = FALSE)
+  } else if (model == 2) {
+    obj <- simulation_model2(n = n, 
+                             p = p, 
+                             outlier_rate = outlier_rate,
+                             mu = 4, 
+                             q = 3, 
+                             kprob = 0,
+                             a = 0,
+                             b = 1,
+                             l = 0.04,
+                             cov_alpha = 1,
+                             cov_beta = 1,
+                             cov_nu = 1,
+                             plot = FALSE)
+  } else if (model == 3) {
+    obj <- simulation_model5(n = n, 
+                             p = p, 
+                             outlier_rate = outlier_rate,
+                             cov_alpha = 1,
+                             cov_beta = 1,
+                             # cov_nu = 2,
+                             cov_nu = 1,
+                             cov_alpha2 = 1,
+                             cov_beta2 = 1,
+                             cov_nu2 = 0.2,
+                             plot = FALSE)
+  } else if (model == 4) {
+    obj <- simulation_model4(n = n, 
+                             p = p, 
+                             outlier_rate = outlier_rate,
+                             mu = 30,
+                             m = 3/2,
+                             cov_alpha = 0.3,
+                             cov_beta = (1/0.3),
+                             cov_nu = 1,
+                             plot = FALSE)
+  } else {
+    gr <- seq(0, 1, length.out = p)
+    
+    # number of outliers
+    true_outliers <- sort(sample(1:n, round(n*outlier_rate)))
+    n_outliers <- length(true_outliers)
+    
+    if (model == 5) {
+      # null samples
+      A <- rnorm(n, 0, 2)
+      B <- rexp(n)
+      data <- sapply(1:n, function(i){
+        A[1] + B[1]*atan(gr)
+      })
+      
+      # outlier samples
+      if (length(n_outliers) > 0) {
+        data[, true_outliers] <- 1 - 2*atan(gr)
+      }
+      
+      # epsilon term
+      d_matrix <- as.matrix(dist(gr, upper = T, diag = T))
+      covfun <- 0.1*exp(-1/0.3*(d_matrix))
+      L <- chol(covfun)
+      e <- matrix(rnorm(n*p), nrow = p, ncol = n)
+      data <- data + t(L)%*%e
+    } else if (model == 6) {
+      # null samples
+      u <- matrix(runif(n*2, 0, 0.1), nrow = n, ncol = 2)
+      data <- sapply(1:n, function(i){
+        u[i, 1]*cos(2*pi*gr) + u[i, 2]*sin(2*pi*gr)
+      })
+      
+      # outlier samples
+      if (length(n_outliers) > 0) {
+        u <- matrix(runif(n_outliers*2, 0.1, 0.12), nrow = n, ncol = 2)
+        data[, true_outliers] <- sapply(1:n_outliers, function(i){
+          u[i, 1]*cos(2*pi*gr) + u[i, 2]*sin(2*pi*gr)
+        })
+      }
+    }
+    
+    
+    obj <- list(
+      data = t(data),
+      true_outliers = true_outliers
+    )
+  }
+  
+  class(obj) <- "foutlier_sim_data"
+  
+  return(obj)
+}
+
+
+# Plot for simulated data
+plot.foutlier_sim_data <- function(obj, xlabel = "timepoints", ylabel = "", plot_title = NULL, 
+                                   show_legend = TRUE, legend_pos = "bottomright") {
+  data <- obj$data
+  true_outliers <- obj$true_outliers
+  
+  n <- nrow(data)
+  p <- ncol(data)
+  gr <- seq(0, 1, length.out = p)
+  
+  if (length(true_outliers) > 0) {
+    data_null <- t(data[-true_outliers, , drop = F])
+    data_out <- t(data[true_outliers, , drop = F])
+    
+    plot(x = gr, type = "n", ylab = ylabel, xlab = xlabel,
+         ylim = range(data) + c(-.5*sd(data[, p]), .5*sd(data[, p])),
+         col.lab = "gray20", axes = F)
+    grid(col = "grey75", lwd = .3)
+    matlines(data_null,
+             col = "grey61",
+             lty = "solid",
+             lwd = .4)
+    matlines(data_out,
+             col = "#D55E00",
+             lty = "solid",
+             lwd = 1.3)
+  } else {
+    plot(x = gr, type = "n", ylab = ylabel, xlab = xlabel,
+         ylim = range(data) + c(-.5*sd(data[, p]), .5*sd(data[, p])),
+         col.lab = "gray20", axes = F)
+    grid(col = "grey75", lwd = .3)
+    matlines(t(data),
+             col = "grey61",
+             lty = "solid",
+             lwd = .4)
+  }
+  
+  axis(1, col = "white", col.ticks = "grey61",
+       lwd.ticks = .5, tck = -0.025,
+       cex.axis = 0.9, col.axis = "gray30")
+  axis(2, col = "white", col.ticks = "grey61",
+       lwd.ticks = .5, tck = -0.025,
+       cex.axis = 0.9, col.axis = "gray30")
+  
+  box(col = "grey51")
+  if(show_legend){
+    legend(legend_pos, legend = c("normal", "outlier"),
+           lty = c("solid", "solid"),
+           lwd = c(.4, 1.3),
+           col = c("grey61", "#D55E00"),
+           text.col = "gray40", bty = "n",
+           box.lwd = .1, xjust = 0, inset = .01)
+  }
+  if (!is.null(plot_title)) {
+    mtext(plot_title, 3, adj = 0.5, line = 1, cex = title_cex,
+          col = "gray20")
+  }
+}
 
 

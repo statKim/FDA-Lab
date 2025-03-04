@@ -12,7 +12,8 @@ n_test <- 500
 m <- 51
 p <- 20
 
-B <- 10   # number of repetitions
+B <- 30   # number of repetitions
+outlier_rate <- 0.1
 alpha <- 0.1  # coverage level
 
 # Function for simulated data from `fdaoutlier` package
@@ -60,8 +61,15 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     asymp = rep(NA, B)
   )
   fdr_bh <- list(
-    T_projdepth = fdr_res
-    # T_hdepth = fdr_res
+    T_projdepth = fdr_res,
+    T_hdepth = fdr_res,
+    esssup = fdr_res,
+    projdepth = fdr_res,
+    projdepth_1d = fdr_res,
+    projdepth_2d = fdr_res,
+    hdepth = fdr_res,
+    hdepth_1d = fdr_res,
+    hdepth_2d = fdr_res
   )
   tpr_bh <- fdr_bh
   
@@ -117,19 +125,96 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       out <- list(
         idx_bh = idx_bh
       )
+      
+      if (type == "depth_transform") {
+        out$idx_bh_indiv <- lapply(cp_obj$conf_pvalue_indiv, function(pvalue){
+          idx <- apply(pvalue, 2, function(x){ 
+            if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
+              return(integer(0))
+            } else {
+              order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
+            }
+          }, simplify = F)
+          return(idx)
+        })
+      }
+      
       return(out)
     }
     
-    ### Transformations + Depth based scores
-    # projdepth
-    obj <- summary_CP_out_detect(type = "depth_transform", type_depth = "projdepth")
-    fdr_bh$T_projdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    # Transformations + projdepth
+    obj_T_projdepth <- summary_CP_out_detect(type = "depth_transform", type_depth = "projdepth")
+    fdr_bh$T_projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh, function(x){
       get_fdr(x, idx_outliers)
     })
-    tpr_bh$T_projdepth[b, ] <- sapply(obj$idx_bh, function(x){
+    tpr_bh$T_projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh, function(x){
       get_tpr(x, idx_outliers)
     })
     
+    # Transformations + hdepth
+    obj_T_hdepth <- summary_CP_out_detect(type = "depth_transform", type_depth = "hdepth")
+    fdr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh, function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh, function(x){
+      get_tpr(x, idx_outliers)
+    })
+    
+    
+    # esssup
+    obj_esssup <- summary_CP_out_detect(type = "esssup")
+    fdr_bh$esssup[b, ] <- sapply(obj_esssup$idx_bh, function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$esssup[b, ] <- sapply(obj_esssup$idx_bh, function(x){
+      get_tpr(x, idx_outliers)
+    })
+    
+    # projdepth
+    # raw
+    fdr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[1]], function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[1]], function(x){
+      get_tpr(x, idx_outliers)
+    })
+    # 1st derivative
+    fdr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[2]], function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[2]], function(x){
+      get_tpr(x, idx_outliers)
+    })
+    # 2nd derivative
+    fdr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[3]], function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[3]], function(x){
+      get_tpr(x, idx_outliers)
+    })
+    
+    # hdepth
+    # raw
+    fdr_bh$hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[1]], function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[1]], function(x){
+      get_tpr(x, idx_outliers)
+    })
+    # 1st derivative
+    fdr_bh$hdepth_1d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[2]], function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$hdepth_1d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[2]], function(x){
+      get_tpr(x, idx_outliers)
+    })
+    # 2nd derivative
+    fdr_bh$hdepth_2d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[3]], function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_bh$hdepth_2d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[3]], function(x){
+      get_tpr(x, idx_outliers)
+    })
   }
   
   # Results
@@ -170,6 +255,52 @@ lapply(res2, function(sim){
 })
 
 
+
+
+
+# res2 <- list()
+res2 <- res
+for (i in 1:length(res)) {
+  res2[[i]]$comparison <- list(
+    fdr = data.frame(
+      ms = rep(NA, B),
+      seq = rep(NA, B)
+    ),
+    tpr = data.frame(
+      ms = rep(NA, B),
+      seq = rep(NA, B)
+    )  
+  )
+  res2[[i]] <- list(
+    fdr = cbind(res[[i]]$bh$fdr,
+                res2[[i]]$comparison$fdr),
+    tpr = cbind(res[[i]]$bh$tpr,
+                res2[[i]]$comparison$tpr)
+  )
+}
+
+lapply(res2, function(sim){
+  sub <- paste0(
+    rbind(fdr = colMeans(sim$fdr),
+          tpr = colMeans(sim$tpr)) %>% 
+      round(3) %>% 
+      format(nsmall = 3),
+    " (",
+    rbind(fdr = apply(sim$fdr, 2, sd),
+          tpr = apply(sim$tpr, 2, sd)) %>% 
+      round(3) %>% 
+      format(nsmall = 3),
+    ")"
+  )
+  dim(sub) <- c(2, ncol(sim$fdr))
+  rownames(sub) <- c("FDR","TPR")
+  colnames(sub) <- colnames(sim$fdr)
+  sub <- data.frame(sub)
+  sub[, paste0(c("T_projdepth","T_hdepth","esssup",
+                 "projdepth","projdepth_1d","projdepth_2d",
+                 "hdepth","hdepth_1d","hdepth_2d"),
+               ".marg")]
+})
 
 
 
