@@ -58,170 +58,6 @@ X <- X_fft
 X <- X_fft_sm
 
 
-
-
-
-# 1st, 2nd derivatives
-X_deriv_1 <- array(NA, c(m-1, n, p))
-X_deriv_2 <- array(NA, c(m-2, n, p))
-for (i in 1:p) {
-  X_deriv_1[, , i] <- apply(X[, , i], 1, diff)
-  X_deriv_2[, , i] <- apply(X[, , i], 1, function(x){ diff(diff(x)) })
-}
-
-
-
-
-
-
-par(mfrow = c(3, 1))
-matplot(t(X[which(y == 0)[1:5], , 1]), type = "l")
-matlines(t(X[c(33, 123), , 1]), type = "l", lwd = 2)
-matplot(X_deriv_1[, which(y == 0)[1:5], 1], type = "l")
-matlines(X_deriv_1[, c(33, 123), 1], type = "l", lwd = 2)
-matplot(X_deriv_2[, which(y == 0)[1:5], 1], type = "l")
-matlines(X_deriv_2[, c(33, 123), 1], type = "l", lwd = 2)
-
-
-
-
-type_depth <- "projdepth"
-type_depth <- "hdepth"
-
-depth_values_1 <- mfd(aperm(X, c(2,1,3)), type = type_depth, 
-                      depthOptions = list(type = "Rotation"))
-depth_values_1$MFDdepthX[c(33, 123)]
-obj <- boxplot(depth_values_1$MFDdepthX, plot = FALSE)
-idx_1 <- which(depth_values_1$MFDdepthX < obj$stats[1, 1])
-
-depth_values_2 <- mfd(X_deriv_1, type = type_depth, 
-                      depthOptions = list(type = "Rotation"))
-depth_values_2$MFDdepthX[c(33, 123)]
-obj <- boxplot(depth_values_2$MFDdepthX, plot = FALSE)
-idx_2 <- which(depth_values_2$MFDdepthX < obj$stats[1, 1])
-
-depth_values_3 <- mfd(X_deriv_2, type = type_depth, 
-                      depthOptions = list(type = "Rotation"))
-depth_values_3$MFDdepthX[c(33, 123)]
-obj <- boxplot(depth_values_3$MFDdepthX, plot = FALSE)
-idx_3 <- which(depth_values_3$MFDdepthX < obj$stats[1, 1])
-
-par(mfrow = c(1, 3))
-plot(depth_values_1$MFDdepthX, col = y+1, ylab = "")
-points(idx_adhd_cand, depth_values_1$MFDdepthX[idx_adhd_cand], col = "blue", pch = 10)
-points(c(33, 123), depth_values_1$MFDdepthX[c(33, 123)], col = "green", pch = 10)
-
-plot(depth_values_2$MFDdepthX, col = y+1, ylab = "")
-points(idx_adhd_cand, depth_values_2$MFDdepthX[idx_adhd_cand], col = "blue", pch = 10)
-points(c(33, 123), depth_values_2$MFDdepthX[c(33, 123)], col = "green", pch = 10)
-
-plot(depth_values_3$MFDdepthX, col = y+1, ylab = "")
-points(idx_adhd_cand, depth_values_3$MFDdepthX[idx_adhd_cand], col = "blue", pch = 10)
-points(c(33, 123), depth_values_3$MFDdepthX[c(33, 123)], col = "green", pch = 10)
-
-
-cor(cbind(depth_values_1$MFDdepthX,
-          depth_values_2$MFDdepthX,
-          depth_values_3$MFDdepthX))
-
-cbind(
-  order(depth_values_1$MFDdepthX),
-  order(depth_values_2$MFDdepthX),
-  order(depth_values_3$MFDdepthX),
-  order((depth_values_1$MFDdepthX + depth_values_2$MFDdepthX + depth_values_3$MFDdepthX)/3)
-) %>% 
-  head(20) %>% 
-  apply(2, sort)
-
-cbind(
-  order(depth_values_1$MFDdepthX),
-  order(depth_values_2$MFDdepthX),
-  order(depth_values_3$MFDdepthX),
-  order((depth_values_1$MFDdepthX + depth_values_2$MFDdepthX + depth_values_3$MFDdepthX)/3)
-) %>% 
-  head(20) %>% 
-  as.integer() %>% 
-  unique() %>% 
-  length()
-
-
-cbind(
-  summary(depth_values_1$MFDdepthX),
-  summary(depth_values_2$MFDdepthX),
-  summary(depth_values_3$MFDdepthX)
-)
-cbind(
-  sd(depth_values_1$MFDdepthX),
-  sd(depth_values_2$MFDdepthX),
-  sd(depth_values_3$MFDdepthX)
-)
-
-
-idx_1
-idx_2
-idx_3
-
-obj <- boxplot(depth_values$MFDdepthX, plot = FALSE)
-cand <- which(depth_values$MFDdepthX > obj$stats[5, 1])
-cand[cand %in% idx_adhd]
-
-c(idx_1, idx_2, idx_3) %>% unique()
-
-
-
-
-
-depth_values <- c(
-  mfd(aperm(X[y == 0, , ], c(2,1,3)), type = type_depth, 
-      depthOptions = list(type = "Rotation"))$MFDdepthX,
-  mfd(aperm(X[y == 1, , ], c(2,1,3)), type = type_depth, 
-      depthOptions = list(type = "Rotation"))$MFDdepthX
-)
-plot(depth_values, col = c(rep(1, sum(y == 0)), rep(2, sum(y == 1))))
-# abline(h = mean(depth_values[y == 0]), col = 1)
-# abline(h = mean(depth_values[y == 1]), col = 2)
-abline(h = median(depth_values[y == 0]), col = 1)
-abline(h = median(depth_values[y == 1]), col = 2)
-
-depth_values <- c(
-  mfd(X_deriv_1[, y == 0, ], type = type_depth, 
-      depthOptions = list(type = "Rotation"))$MFDdepthX,
-  mfd(X_deriv_1[, y == 1, ], type = type_depth, 
-      depthOptions = list(type = "Rotation"))$MFDdepthX
-)
-plot(depth_values, col = c(rep(1, sum(y == 0)), rep(2, sum(y == 1))))
-# abline(h = mean(depth_values[y == 0]), col = 1)
-# abline(h = mean(depth_values[y == 1]), col = 2)
-abline(h = median(depth_values[y == 0]), col = 1)
-abline(h = median(depth_values[y == 1]), col = 2)
-
-depth_values <- c(
-  mfd(X_deriv_2[, y == 0, ], type = type_depth, 
-      depthOptions = list(type = "Rotation"))$MFDdepthX,
-  mfd(X_deriv_2[, y == 1, ], type = type_depth, 
-      depthOptions = list(type = "Rotation"))$MFDdepthX
-)
-plot(depth_values, col = c(rep(1, sum(y == 0)), rep(2, sum(y == 1))))
-# abline(h = mean(depth_values[y == 0]), col = 1)
-# abline(h = mean(depth_values[y == 1]), col = 2)
-abline(h = median(depth_values[y == 0]), col = 1)
-abline(h = median(depth_values[y == 1]), col = 2)
-
-
-x <- X[, 2, ]
-dim(x)
-obj <- hdepth(x[1:70, ], options = list(type = "Rotation"))
-obj <- hdepth(x)
-obj <- hdepth(x, options = list(type = "Rotation"))
-summary(obj$depthX)
-plot(obj$depthX)
-
-
-
-
-
-
-
 ### Make additional outliers from ADHD group
 # 1st, 2nd derivatives
 X_deriv_1 <- array(NA, c(m-1, n, p))
@@ -237,8 +73,8 @@ df <- data.frame(
   y = y
 ) %>%
   filter(y == 0)
-idx_outliers <- which(df$id %in% c(33, 123))
-# idx_outliers <- integer(0)
+idx_outliers_control <- which(df$id %in% c(33, 123))
+# idx_outliers_control <- integer(0)
 data_control <- lapply(1:p, function(i){ X[y == 0, , i] })   # Control group
 
 # Candidates of outliers from ADHD group
@@ -272,7 +108,7 @@ idx_adhd_cand <- idx_adhd[unique(idx_adhd_idx)]
 
 
 ### Outlier detection with diffrent B splits
-B <- 30
+B <- 100
 fdr_res <- data.frame(
   marg = rep(NA, B),
   simes = rep(NA, B),
@@ -309,7 +145,7 @@ progress <- function(n){
 } 
 
 # Parallel computations
-n_cores <- 10
+n_cores <- 40
 
 # Repetitions
 for (b in 1:B) {
@@ -318,11 +154,11 @@ for (b in 1:B) {
   # Show the progress bar
   progress(b)
   # print(b)
-
+  
   # Add the 10 ADHD labels as outliers
   idx_adhd_selected <- sample(idx_adhd_cand, 10)   # 10 sampled ADHD curves
   data <- lapply(1:p, function(i){ rbind(data_control[[i]], X[idx_adhd_selected, , i]) })
-  idx_outliers <- c(idx_outliers,
+  idx_outliers <- c(idx_outliers_control,
                     (nrow(data[[1]])-9):nrow(data[[1]]))
   idx_outliers  # 12 outliers
   
@@ -355,7 +191,7 @@ for (b in 1:B) {
     conf_pvalue <- cp_obj$conf_pvalue
     
     # BH procedure
-    idx_bh <- apply(conf_pvalue, 2, function(x){ 
+    idx_bh <- apply(conf_pvalue, 2, function(x){
       if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
         return(integer(0))
       } else {
@@ -369,7 +205,7 @@ for (b in 1:B) {
     
     if (type == "depth_transform") {
       out$idx_bh_indiv <- lapply(cp_obj$conf_pvalue_indiv, function(pvalue){
-        idx <- apply(pvalue, 2, function(x){ 
+        idx <- apply(pvalue, 2, function(x){
           if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
             return(integer(0))
           } else {
@@ -379,7 +215,7 @@ for (b in 1:B) {
         lapply(idx, function(x){ idx_test[x] })
       })
     }
-
+    
     return(out)
   }
   
@@ -400,8 +236,8 @@ for (b in 1:B) {
   tpr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh, function(x){
     get_tpr(x, idx_outliers)
   })
-
-
+  
+  
   # esssup
   obj_esssup <- summary_CP_out_detect(type = "esssup")
   fdr_bh$esssup[b, ] <- sapply(obj_esssup$idx_bh, function(x){
@@ -463,60 +299,66 @@ for (b in 1:B) {
   # tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
   #   get_tpr(x, idx_outliers)
   # })
-
-
-  ### Existing functional outlier detection (Coverage guarantee X)
-  idx_comparison <- list(
-    ms = c(),
-    seq = c()
-  )
-  arr_train <- abind::abind(data_train, along = 3)
-  arr_test <- abind::abind(data_test, along = 3)
-
-  # Parallel computation
-  cl <- makeCluster(n_cores)
-  registerDoSNOW(cl)
-  pkgs <- c("fdaoutlier")
-  res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
-    df <- array(NA, dim = c(n_train+1, m, p))
-    df[1:n_train, , ] <- arr_train
-    df[n_train+1, , ] <- arr_test[i, , ]
-
-    out <- list()
-
-    # MS plot
-    outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
-    if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
-      out$ms <- idx_test[i]
-    } else {
-      out$ms <- integer(0)
-    }
-
-    # Sequential transformation
-    seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-                            erld_type = "one_sided_right", seed = b)
-    outlier_seq <- seqobj$outliers$O
-    if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
-      out$seq <- idx_test[i]
-    } else {
-      out$seq <- integer(0)
-    }
-
-    return(out)
-  }
-  # End parallel backend
-  stopCluster(cl)
-
-  idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
-  idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
-
-
-  fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
-    get_fdr(x, idx_outliers)
-  })
-  tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
-    get_tpr(x, idx_outliers)
-  })
+  
+  
+  # ### Existing functional outlier detection (Coverage guarantee X)
+  # idx_comparison <- list(
+  #   ms = c(),
+  #   seq = c()
+  # )
+  # arr_train <- abind::abind(data_train, along = 3)
+  # arr_test <- abind::abind(data_test, along = 3)
+  # 
+  # # Parallel computation
+  # cl <- makeCluster(n_cores)
+  # registerDoSNOW(cl)
+  # pkgs <- c("fdaoutlier")
+  # res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
+  #   df <- array(NA, dim = c(n_train+1, m, p))
+  #   df[1:n_train, , ] <- arr_train
+  #   df[n_train+1, , ] <- arr_test[i, , ]
+  #   
+  #   out <- list()
+  #   
+  #   # MS plot
+  #   outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
+  #   if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
+  #     out$ms <- idx_test[i]
+  #   } else {
+  #     out$ms <- integer(0)
+  #   }
+  #   
+  #   # Sequential transformation
+  #   seqobj <- seq_transform(df, 
+  #                           # sequence = "O"
+  #                           sequence = c("O","D1","D2"),
+  #                           depth_method = "erld",
+  #                           erld_type = "one_sided_right", 
+  #                           seed = b)
+  #   # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
+  #   #                         erld_type = "one_sided_right", seed = b)
+  #   outlier_seq <- unlist(seqobj$outliers)
+  #   if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
+  #     out$seq <- idx_test[i]
+  #   } else {
+  #     out$seq <- integer(0)
+  #   }
+  #   
+  #   return(out)
+  # }
+  # # End parallel backend
+  # stopCluster(cl)
+  # 
+  # idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
+  # idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
+  # 
+  # 
+  # fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
+  #   get_fdr(x, idx_outliers)
+  # })
+  # tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
+  #   get_tpr(x, idx_outliers)
+  # })
 }
 
 res2 <- list(
@@ -555,5 +397,6 @@ lapply(res2, function(sim){
   #         "ms","seq")]
   sub[, c("T_projdepth.marg","projdepth.marg","projdepth_1d.marg","projdepth_2d.marg",
           "T_hdepth.marg","hdepth.marg","hdepth_1d.marg","hdepth_2d.marg",
-          "esssup.marg")]
+          "esssup.marg",
+          "ms","seq")]
 })

@@ -11,7 +11,7 @@ n_test <- 500
 m <- 51
 p <- 20
 
-B <- 100   # number of repetitions
+B <- 30   # number of repetitions
 outlier_rate <- 0.1
 alpha <- 0.1  # coverage level
 n_cores <- 10   # number of cores for competing methods
@@ -41,6 +41,7 @@ sim_ftn_list <- list(
 
 # Simulation
 res <- list()
+model_obj <- list()
 for (sim_model_idx in 1:length(sim_ftn_list)) {
   print(sim_model_idx)
   sim_ftn <- sim_ftn_list[[sim_model_idx]]   # generating function
@@ -88,6 +89,9 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     seq = rep(NA, B)
   )  
   tpr_comparison <- fdr_comparison
+  
+  # Fitted objects
+  fit_obj <- list()
   
   for (b in 1:B) {
     # print(b)
@@ -139,6 +143,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       }, simplify = F)
       
       out <- list(
+        cp_obj = cp_obj,
         idx_bh = idx_bh
         # idx_bh = lapply(idx_bh, function(x){ idx_test[x] })
       )
@@ -243,6 +248,14 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     # })
     
     
+    # Save fitted CP objects
+    fit_obj[[b]] <- list(
+      T_projdepth = obj_T_projdepth$cp_obj,
+      T_hdepth = obj_T_hdepth$cp_obj,
+      esssup = obj_esssup$cp_obj 
+    )
+    
+    
     ### Existing functional outlier detection (Coverage guarantee X)
     idx_comparison <- list(
       ms = c(),
@@ -272,9 +285,13 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       }
       
       # Sequential transformation
-      seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-                              erld_type = "one_sided_right", seed = b)
-      outlier_seq <- seqobj$outliers$O
+      seqobj <- seq_transform(df, 
+                              # sequence = "O", 
+                              sequence = c("O","D1","D2"),
+                              depth_method = "erld",
+                              erld_type = "one_sided_right", 
+                              seed = b)
+      outlier_seq <- unlist(seqobj$outliers)
       if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
         out$seq <- idx_test[i]
       } else {
@@ -305,6 +322,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     comparison = list(fdr = fdr_comparison,
                       tpr = tpr_comparison)
   )
+  model_obj[[sim_model_idx]] <- fit_obj
   
   # Check results
   df <- data.frame(
@@ -322,7 +340,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
                      round(mean(tpr_bh$esssup$marg), 3)),
     seq = paste(round(mean(fdr_comparison$seq), 3), 
                 "/",
-                round(mean(fdr_comparison$seq), 3))
+                round(mean(tpr_comparison$seq), 3))
   )
   print(df)
 }
@@ -333,7 +351,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
 # save(res, file = "RData/sim_4_mean.RData")
 # save(res, file = "RData/sim_5.RData")
 # save(res, file = paste0("RData/sim_p", p, "_ncal_", n_calib, "_n_", n, ".RData"))
-save(res, file = paste0("RData/sim_p", p, "_n_", n, "_ntest_", n_test, ".RData"))
+save(res, model_obj, file = paste0("RData/sim_p", p, "_n_", n, "_ntest_", n_test, ".RData"))
 
 
 # Summary the results

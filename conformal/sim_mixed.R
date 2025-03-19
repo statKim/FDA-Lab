@@ -143,9 +143,13 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     # MS plot
     idx_comparison$ms <- msplot(dts = df, plot = F)$outliers
     # Sequential transformation
-    seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-                            erld_type = "one_sided_right", save_data = F)
-    idx_comparison$seq <- seqobj$outliers$O
+    seqobj <- seq_transform(df, 
+                            # sequence = "O",
+                            sequence = c("O","D1","D2"),
+                            depth_method = "erld",
+                            erld_type = "one_sided_right", 
+                            save_data = F)
+    idx_comparison$seq <- unlist(seqobj$outliers)
 
     
     fdr[b, c("ms","seq")] <- sapply(idx_comparison, function(x){
@@ -409,8 +413,13 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     
     # Outlier detection for mixed training set
     idx_ms_train <- msplot(dts = arr_train, plot = F, seed = b)$outliers
-    idx_seq_train <- seq_transform(arr_train, sequence = "O", depth_method = "erld",
-                                   erld_type = "one_sided_right", seed = b)$outliers$O
+    idx_seq_train <- seq_transform(arr_train, 
+                                   # sequence = "O",
+                                   sequence = c("O","D1","D2"),
+                                   depth_method = "erld",
+                                   erld_type = "one_sided_right",
+                                   seed = b)$outliers %>% 
+      unlist()
     if (length(idx_ms_train) == 0) {
       arr_train_ms <- arr_train
     } else {
@@ -446,9 +455,13 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       }
       
       # Sequential transformation
-      seqobj <- seq_transform(df_seq, sequence = "O", depth_method = "erld",
-                              erld_type = "one_sided_right", seed = b)
-      outlier_seq <- seqobj$outliers$O
+      seqobj <- seq_transform(df_seq, 
+                              # sequence = "O",
+                              sequence = c("O","D1","D2"),
+                              depth_method = "erld",
+                              erld_type = "one_sided_right", 
+                              seed = b)
+      outlier_seq <- unlist(seqobj$outliers)
       if (length(outlier_seq) > 0 & (nrow(df_seq) %in% outlier_seq)) {
         out$seq <- i
       } else {

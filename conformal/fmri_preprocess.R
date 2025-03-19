@@ -15,7 +15,7 @@ n <- 191
 m <- 232
 p <- 82
 X <- array(0, dim = c(n, m, p))
-dir_name <- "../classif_fmri/fMRI_data/PekingUniv/Clean_fMRI_PekingUniversity/"
+dir_name <- "../fMRI_classification/fMRI_data/PekingUniv/Clean_fMRI_PekingUniversity/"
 f_list <- list.files(dir_name)
 # substr(f_list, 4, 6)
 idx_order <- sapply(strsplit(f_list, c(".csv")), function(x){ strsplit(x, "sub")[[1]][2] }) %>% 
@@ -90,7 +90,9 @@ for (i in 1:length(f_list)) {
     
     # Remove all 0 signals
     idx <- setdiff(idx, idx[which(apply(x, 1, sum) == 0)])
-    x <- x[-which(apply(x, 1, sum) == 0), ]
+    if (length(which(apply(x, 1, sum) == 0)) > 0) {
+      x <- x[-which(apply(x, 1, sum) == 0), ]
+    }
     
     # Randomly selected curve from i-th patient
     set.seed(i*j)
@@ -126,7 +128,8 @@ for (i in 1:length(f_list)) {
             matrix(x[idx_selected, ], nrow = 1),
             matrix(x[k, ], nrow = 1),
             # rotation = F,
-            scale = F
+            # scale = F
+            scale = T
           )$beta2n
         }
         

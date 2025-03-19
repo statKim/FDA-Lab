@@ -223,40 +223,33 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 
 ##### derivative가 도움이 되는지 확인
 
-### fMRI (30번) - 기존 outlier 방법
+### fMRI (30번) - 기존 outlier 방법 (seq는 c("O","D1","D2"))
 #     T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
-# FDR    0.115 (0.120)  0.099 (0.110)     0.117 (0.120)     0.114 (0.130) 0.125 (0.109) 0.113 (0.108)
-# TPR    0.597 (0.364)  0.719 (0.268)     0.583 (0.343)     0.472 (0.336) 0.569 (0.313) 0.647 (0.293)
-#     hdepth_1d.marg hdepth_2d.marg   esssup.marg
-# FDR  0.139 (0.122)  0.131 (0.128) 0.116 (0.103)
-# TPR  0.553 (0.321)  0.408 (0.281) 0.683 (0.287)
+# FDR    0.121 (0.124)  0.107 (0.110)     0.125 (0.117)     0.111 (0.127) 0.138 (0.106) 0.121 (0.114)
+# TPR    0.606 (0.318)  0.753 (0.219)     0.619 (0.296)     0.472 (0.325) 0.586 (0.254) 0.631 (0.307)
+#     hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.124 (0.117)  0.144 (0.133) 0.127 (0.116) 0.024 (0.093) 0.072 (0.082)
+# TPR  0.478 (0.340)  0.394 (0.254) 0.686 (0.268) 0.100 (0.091) 0.486 (0.124)
 
-### fMRI (30번) - raw, 1st, 2nd derivative를 depth 기준으로 20개
+
+### fMRI (30번) - raw, 1st, 2nd derivative를 depth 기준으로 20개 (seq는 c("O","D1","D2"))
 #     T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
 # FDR    0.094 (0.094)  0.093 (0.092)     0.100 (0.093)     0.102 (0.109) 0.105 (0.096) 0.091 (0.095)
-# TPR    0.601 (0.349)  0.710 (0.319)     0.558 (0.362)     0.435 (0.332) 0.607 (0.383) 0.714 (0.338)
-#     hdepth_1d.marg hdepth_2d.marg   esssup.marg
-# FDR  0.108 (0.112)  0.111 (0.119) 0.108 (0.092)
-# TPR  0.530 (0.369)  0.402 (0.326) 0.646 (0.260)
-### - score 계산시 max로 함
-#     T_projdepth.marg T_hdepth.marg
-# FDR    0.091 (0.088) 0.115 (0.089)
-# TPR    0.648 (0.312) 0.642 (0.348)
-#         ms           seq-c("O","D1","D2")
-# FDR  0.033 (0.183) 0.056 (0.094)
-# TPR  0.066 (0.064) 0.372 (0.139)
+# TPR    0.628 (0.353)  0.731 (0.321)     0.581 (0.367)     0.475 (0.339) 0.575 (0.355) 0.686 (0.321)
+#     hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.108 (0.112)  0.111 (0.119) 0.108 (0.092) 0.033 (0.183) 0.078 (0.099)
+# TPR  0.506 (0.344)  0.394 (0.307) 0.692 (0.236) 0.072 (0.072) 0.478 (0.118)
+
+### fMRI (100번) - raw, 1st, 2nd derivative를 depth 기준으로 20개 (seq는 c("O","D1","D2"))
+#     T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.105 (0.091)  0.104 (0.087)     0.108 (0.096)     0.114 (0.111) 0.111 (0.098) 0.101 (0.097)
+# TPR    0.684 (0.319)  0.807 (0.237)     0.637 (0.335)     0.507 (0.321) 0.618 (0.301) 0.708 (0.289)
+#     hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.103 (0.108)  0.116 (0.120) 0.111 (0.101) 0.033 (0.159) 0.070 (0.095)
+# TPR  0.492 (0.325)  0.428 (0.280) 0.672 (0.254) 0.086 (0.076) 0.504 (0.114)
 
 
-### fMRI (100번) - raw, 1st, 2nd derivative를 depth 기준으로 20개
-# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg hdepth_1d.marg
-# FDR    0.105 (0.091)  0.104 (0.087)     0.108 (0.096)     0.114 (0.111) 0.111 (0.098) 0.101 (0.097)  0.103 (0.108)
-# TPR    0.654 (0.323)  0.785 (0.241)     0.608 (0.337)     0.462 (0.320) 0.652 (0.330) 0.744 (0.305)  0.512 (0.353)
-# hdepth_2d.marg   esssup.marg            ms           seq
-# FDR  0.116 (0.120) 0.111 (0.101) 0.033 (0.159) 0.055 (0.088)
-# TPR  0.431 (0.299) 0.622 (0.275) 0.071 (0.072) 0.390 (0.135)
-
-
-### fMRI (30번) - align 새로 한 것 - raw, 1st, 2nd derivative를 depth 기준으로 20개
+### fMRI (30번) - align 새로 한 것(scale = F) - raw, 1st, 2nd derivative를 depth 기준으로 20개
 # T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg hdepth_1d.marg
 # FDR    0.094 (0.127)  0.101 (0.123)     0.107 (0.138)     0.094 (0.135) 0.102 (0.131) 0.103 (0.137)  0.105 (0.134)
 # TPR    0.347 (0.353)  0.463 (0.379)     0.327 (0.345)     0.277 (0.294) 0.387 (0.367) 0.427 (0.384)  0.367 (0.345)
@@ -264,7 +257,13 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # FDR  0.085 (0.133) 0.065 (0.111) 0.172 (0.351) 0.182 (0.207)
 # TPR  0.237 (0.305) 0.257 (0.385) 0.073 (0.069) 0.300 (0.136)
 
-
+### fMRI (30번) - align 새로 한 것(scale = T) - raw, 1st, 2nd derivative를 depth 기준으로 20개
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.080 (0.123)  0.093 (0.132)     0.090 (0.125)     0.080 (0.134) 0.079 (0.133) 0.107 (0.129)
+# TPR    0.350 (0.436)  0.377 (0.434)     0.350 (0.414)     0.210 (0.309) 0.273 (0.365) 0.363 (0.373)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.104 (0.149)  0.090 (0.149) 0.080 (0.159) 0.113 (0.251) 0.165 (0.133)
+# TPR  0.237 (0.345)  0.167 (0.266) 0.123 (0.242) 0.153 (0.086) 0.483 (0.178)
 
 
 ### 시뮬레이션 (30번) - max로 aggregate
@@ -335,74 +334,74 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # TPR 0.000 (0.000)  1.000 (0.000)  1.000 (0.000)
 
 
-### 시뮬레이션 (30번) - average (ccv도 포함한 결과; marginal은 위와 동일)
+### 시뮬레이션 (10번) - average
 # [[1]]
 #     T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
-# FDR    0.081 (0.053)     0.033 (0.033)     0.033 (0.033) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
+# FDR    0.068 (0.050)     0.027 (0.022)     0.027 (0.022) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
 # TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
-#       esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp projdepth_1d.marg
-# FDR 0.082 (0.045) 0.000 (0.000) 0.002 (0.009)  0.097 (0.068)   0.018 (0.035)   0.017 (0.031)     0.000 (0.000)
-# TPR 0.729 (0.216) 0.000 (0.000) 0.026 (0.142)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000)     0.000 (0.000)
-# projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes projdepth_2d.asymp   hdepth.marg
-# FDR      0.000 (0.000)      0.000 (0.000)     0.027 (0.146)      0.000 (0.000)      0.000 (0.000) 0.000 (0.000)
-# TPR      0.000 (0.000)      0.000 (0.000)     0.001 (0.007)      0.000 (0.000)      0.000 (0.000) 0.000 (0.000)
-# hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes
-# FDR 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)
-# TPR 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)
-# hdepth_2d.asymp            ms           seq
-# FDR   0.000 (0.000)    NA (   NA)    NA (   NA)
-# TPR   0.000 (0.000)    NA (   NA)    NA (   NA)
+#       esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.098 (0.051) 0.000 (0.000) 0.005 (0.015)  0.094 (0.068)   0.012 (0.016)   0.012 (0.016)
+# TPR 0.744 (0.181) 0.000 (0.000) 0.078 (0.247)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000)
+#     projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.000 (0.000)      0.000 (0.000)      0.000 (0.000)     0.080 (0.253)      0.000 (0.000)
+# TPR     0.000 (0.000)      0.000 (0.000)      0.000 (0.000)     0.004 (0.013)      0.000 (0.000)
+#     projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)
+# TPR      0.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)
+#     hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 1.000 (0.000)
+# TPR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
 # 
 # [[2]]
-# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
-# FDR    0.069 (0.047)     0.025 (0.032)     0.023 (0.024) 0.053 (0.087)  0.000 (0.000)  0.000 (0.000)
-# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.112 (0.148)  0.000 (0.000)  0.000 (0.000)
-# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp projdepth_1d.marg
-# FDR 0.045 (0.105) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)     0.080 (0.060)
-# TPR 0.063 (0.125) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)     1.000 (0.000)
-# projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes projdepth_2d.asymp   hdepth.marg
-# FDR      0.015 (0.025)      0.015 (0.025)     0.081 (0.057)      0.018 (0.025)      0.018 (0.025) 0.000 (0.000)
-# TPR      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)      1.000 (0.000) 0.000 (0.000)
-# hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes
-# FDR 0.000 (0.000) 0.000 (0.000)  0.034 (0.088)   0.000 (0.000)   0.000 (0.000)  0.055 (0.081)   0.000 (0.000)
-# TPR 0.000 (0.000) 0.000 (0.000)  0.036 (0.083)   0.000 (0.000)   0.000 (0.000)  0.212 (0.210)   0.000 (0.000)
-# hdepth_2d.asymp            ms           seq
-# FDR   0.000 (0.000)    NA (   NA)    NA (   NA)
-# TPR   0.000 (0.000)    NA (   NA)    NA (   NA)
+#     T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.078 (0.035)     0.023 (0.019)     0.023 (0.019) 0.034 (0.074)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.056 (0.120)  0.000 (0.000)  0.000 (0.000)
+#       esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.070 (0.120) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+# TPR 0.114 (0.157) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+#     projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.085 (0.074)      0.020 (0.033)      0.020 (0.033)     0.070 (0.054)      0.021 (0.030)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+#     projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.021 (0.030) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.101 (0.132)   0.000 (0.000)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.086 (0.113)   0.000 (0.000)
+#     hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.067 (0.094)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 0.200 (0.422)
+# TPR   0.000 (0.000)  0.192 (0.194)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
 # 
 # [[3]]
-# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
-# FDR    0.069 (0.047)     0.025 (0.032)     0.023 (0.024) 0.037 (0.103)  0.000 (0.000)  0.000 (0.000)
-# TPR    1.000 (0.000)     0.999 (0.004)     0.999 (0.004) 0.022 (0.057)  0.000 (0.000)  0.000 (0.000)
-# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp projdepth_1d.marg
-# FDR 0.039 (0.090) 0.000 (0.000) 0.000 (0.000)  0.086 (0.052)   0.000 (0.000)   0.004 (0.022)     0.080 (0.060)
-# TPR 0.057 (0.120) 0.000 (0.000) 0.000 (0.000)  0.618 (0.114)   0.000 (0.000)   0.025 (0.135)     1.000 (0.000)
-# projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes projdepth_2d.asymp   hdepth.marg
-# FDR      0.015 (0.025)      0.015 (0.025)     0.081 (0.057)      0.018 (0.025)      0.018 (0.025) 0.000 (0.000)
-# TPR      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)      1.000 (0.000) 0.000 (0.000)
-# hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes
-# FDR 0.000 (0.000) 0.000 (0.000)  0.013 (0.073)   0.000 (0.000)   0.000 (0.000)  0.023 (0.090)   0.000 (0.000)
-# TPR 0.000 (0.000) 0.000 (0.000)  0.004 (0.022)   0.000 (0.000)   0.000 (0.000)  0.015 (0.060)   0.000 (0.000)
-# hdepth_2d.asymp            ms           seq
-# FDR   0.000 (0.000)    NA (   NA)    NA (   NA)
-# TPR   0.000 (0.000)    NA (   NA)    NA (   NA)
+#     T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.078 (0.035)     0.023 (0.019)     0.023 (0.019) 0.033 (0.105)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.016 (0.051)  0.000 (0.000)  0.000 (0.000)
+#       esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.075 (0.111) 0.000 (0.000) 0.000 (0.000)  0.107 (0.061)   0.000 (0.000)   0.000 (0.000)
+# TPR 0.120 (0.165) 0.000 (0.000) 0.000 (0.000)  0.614 (0.106)   0.000 (0.000)   0.000 (0.000)
+#     projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.085 (0.074)      0.020 (0.033)      0.020 (0.033)     0.070 (0.054)      0.021 (0.030)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+#     projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.021 (0.030) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.040 (0.126)   0.000 (0.000)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.012 (0.038)   0.000 (0.000)
+#     hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.030 (0.095)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 1.000 (0.000)
+# TPR   0.000 (0.000)  0.014 (0.044)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
 # 
 # [[4]]
-# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
-# FDR    0.076 (0.050)     0.023 (0.028)     0.023 (0.028) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
+#     T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.052 (0.030)     0.012 (0.016)     0.012 (0.016) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
 # TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
-# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp projdepth_1d.marg
-# FDR 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)     0.078 (0.049)
-# TPR 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)     1.000 (0.000)
-# projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes projdepth_2d.asymp   hdepth.marg
-# FDR      0.008 (0.017)      0.008 (0.017)     0.083 (0.058)      0.015 (0.027)      0.015 (0.027) 0.000 (0.000)
-# TPR      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)      1.000 (0.000) 0.000 (0.000)
-# hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes
-# FDR 0.000 (0.000) 0.000 (0.000)  0.062 (0.046)   0.016 (0.026)   0.016 (0.026)  0.062 (0.056)   0.012 (0.018)
-# TPR 0.000 (0.000) 0.000 (0.000)  1.000 (0.000)   0.967 (0.183)   0.967 (0.183)  1.000 (0.000)   0.900 (0.305)
-# hdepth_2d.asymp            ms           seq
-# FDR   0.012 (0.018)    NA (   NA)    NA (   NA)
-# TPR   0.900 (0.305)    NA (   NA)    NA (   NA)
+#       esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+# TPR 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+#     projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.089 (0.055)      0.010 (0.016)      0.010 (0.016)     0.068 (0.054)      0.027 (0.041)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+#     projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.027 (0.041) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.079 (0.073)   0.027 (0.041)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  1.000 (0.000)   1.000 (0.000)
+#     hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.027 (0.041)  0.039 (0.034)   0.006 (0.009)   0.006 (0.009) 1.000 (0.000) 0.000 (0.000)
+# TPR   1.000 (0.000)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000) 0.000 (0.000) 0.000 (0.000)
 
 
 
@@ -410,3 +409,197 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 ### 2025.03.04 ~
 ##############################
 
+### Sequential transformation 논문의 세팅에 적용한 결과 (10번 반복; 단, 여기서는 multivariate)
+# [[1]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.068 (0.050)     0.027 (0.022)     0.027 (0.022) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.032 (0.101)  0.000 (0.000)  0.000 (0.000)
+# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.094 (0.047) 0.014 (0.016) 0.014 (0.016)  0.094 (0.068)   0.012 (0.016)   0.012 (0.016)
+# TPR 0.996 (0.008) 0.880 (0.310) 0.880 (0.310)  1.000 (0.000)   0.998 (0.006)   0.998 (0.006)
+# projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.097 (0.059)      0.006 (0.013)      0.006 (0.013)     0.073 (0.047)      0.024 (0.041)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+# projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.024 (0.041) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.098 (0.209)   0.000 (0.000)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.028 (0.062)   0.000 (0.000)
+# hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 1.000 (0.000)
+# TPR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# 
+# [[2]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.068 (0.050)     0.027 (0.022)     0.027 (0.022) 0.010 (0.032)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.156 (0.165)  0.000 (0.000)  0.000 (0.000)
+# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.090 (0.052) 0.004 (0.014) 0.009 (0.019)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+# TPR 0.914 (0.128) 0.088 (0.278) 0.174 (0.367)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+# projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.097 (0.059)      0.006 (0.013)      0.006 (0.013)     0.073 (0.047)      0.024 (0.041)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+# projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.024 (0.041) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.091 (0.123)   0.000 (0.000)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.134 (0.175)   0.000 (0.000)
+# hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.036 (0.052)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 0.300 (0.483)
+# TPR   0.000 (0.000)  0.370 (0.288)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# 
+# [[3]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.052 (0.030)     0.012 (0.016)     0.012 (0.016) 0.061 (0.093)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.414 (0.091)  0.000 (0.000)  0.000 (0.000)
+# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+# TPR 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000)
+# projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.089 (0.055)      0.010 (0.016)      0.010 (0.016)     0.068 (0.054)      0.027 (0.041)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+# projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.027 (0.041) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.079 (0.073)   0.027 (0.041)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  1.000 (0.000)   1.000 (0.000)
+# hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.027 (0.041)  0.039 (0.034)   0.006 (0.009)   0.006 (0.009) 1.000 (0.000) 0.000 (0.000)
+# TPR   1.000 (0.000)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# 
+# [[4]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.077 (0.046)     0.015 (0.022)     0.015 (0.022) 0.033 (0.081)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.040 (0.085)  0.000 (0.000)  0.000 (0.000)
+# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.102 (0.067) 0.034 (0.052) 0.021 (0.024)  0.048 (0.035)   0.014 (0.016)   0.014 (0.016)
+# TPR 1.000 (0.000) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000)
+# projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.081 (0.058)      0.013 (0.030)      0.013 (0.030)     0.000 (0.000)      0.000 (0.000)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     0.000 (0.000)      0.000 (0.000)
+# projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.053 (0.069)   0.000 (0.000)
+# TPR      0.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.442 (0.157)   0.000 (0.000)
+# hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 1.000 (0.000)
+# TPR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# 
+# [[5]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.900 (0.000)     0.900 (0.000)     0.900 (0.000) 0.532 (0.369)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.140 (0.121)  0.000 (0.000)  0.000 (0.000)
+# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.900 (0.000) 0.900 (0.000) 0.900 (0.000)  0.900 (0.000)   0.900 (0.000)   0.900 (0.000)
+# TPR 1.000 (0.000) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000)
+# projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.430 (0.182)      0.229 (0.220)      0.230 (0.202)     0.000 (0.000)      0.000 (0.000)
+# TPR     0.896 (0.114)      0.500 (0.448)      0.578 (0.419)     0.000 (0.000)      0.000 (0.000)
+# projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.000 (0.000) 0.900 (0.000) 0.720 (0.379) 0.720 (0.379)  0.053 (0.142)   0.000 (0.000)
+# TPR      0.000 (0.000) 1.000 (0.000) 0.800 (0.422) 0.800 (0.422)  0.066 (0.148)   0.000 (0.000)
+# hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 1.000 (0.000)
+# TPR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# 
+# [[6]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp T_hdepth.marg T_hdepth.simes T_hdepth.asymp
+# FDR    0.097 (0.078)     0.015 (0.020)     0.015 (0.020) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
+# TPR    1.000 (0.000)     1.000 (0.000)     1.000 (0.000) 0.000 (0.000)  0.000 (0.000)  0.000 (0.000)
+# esssup.marg  esssup.simes  esssup.asymp projdepth.marg projdepth.simes projdepth.asymp
+# FDR 0.072 (0.049) 0.010 (0.016) 0.010 (0.016)  0.100 (0.082)   0.017 (0.019)   0.017 (0.019)
+# TPR 1.000 (0.000) 1.000 (0.000) 1.000 (0.000)  1.000 (0.000)   1.000 (0.000)   1.000 (0.000)
+# projdepth_1d.marg projdepth_1d.simes projdepth_1d.asymp projdepth_2d.marg projdepth_2d.simes
+# FDR     0.090 (0.072)      0.015 (0.020)      0.015 (0.020)     0.105 (0.102)      0.016 (0.015)
+# TPR     1.000 (0.000)      1.000 (0.000)      1.000 (0.000)     1.000 (0.000)      1.000 (0.000)
+# projdepth_2d.asymp   hdepth.marg  hdepth.simes  hdepth.asymp hdepth_1d.marg hdepth_1d.simes
+# FDR      0.016 (0.015) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)
+# TPR      1.000 (0.000) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)  0.000 (0.000)   0.000 (0.000)
+# hdepth_1d.asymp hdepth_2d.marg hdepth_2d.simes hdepth_2d.asymp            ms           seq
+# FDR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 1.000 (0.000)
+# TPR   0.000 (0.000)  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+
+
+### ADHD-200 (100 regions) raw; FFT; FFT-sm (30번 반복; ms는 seq 결과임)
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.112 (0.153)  0.102 (0.141)     0.118 (0.145)     0.134 (0.166) 0.097 (0.149) 0.096 (0.147)
+# TPR    0.367 (0.317)  0.397 (0.362)     0.353 (0.304)     0.290 (0.252) 0.313 (0.340) 0.353 (0.350)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.109 (0.156)  0.098 (0.165) 0.094 (0.136) 0.153 (0.156) 0.153 (0.156)
+# TPR  0.287 (0.315)  0.177 (0.242) 0.287 (0.345) 0.490 (0.158) 0.490 (0.158)
+# 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.118 (0.113)  0.125 (0.130)     0.108 (0.108)     0.113 (0.119) 0.134 (0.121) 0.074 (0.180)
+# TPR    0.543 (0.331)  0.447 (0.310)     0.593 (0.339)     0.523 (0.353) 0.543 (0.352) 0.090 (0.254)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.110 (0.120)  0.122 (0.122) 0.133 (0.143) 0.214 (0.113) 0.214 (0.113)
+# TPR  0.480 (0.377)  0.473 (0.342) 0.307 (0.305) 0.590 (0.149) 0.590 (0.149)
+
+## 10번 반복 raw; FFT; FFT-sm
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.081 (0.162)  0.088 (0.165)     0.134 (0.181)     0.113 (0.178) 0.091 (0.164) 0.092 (0.167)
+# TPR    0.400 (0.371)  0.460 (0.372)     0.400 (0.327)     0.300 (0.275) 0.400 (0.389) 0.440 (0.357)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.113 (0.189)  0.121 (0.202) 0.096 (0.164)    NA (   NA)    NA (   NA)
+# TPR  0.320 (0.379)  0.190 (0.269) 0.310 (0.373)    NA (   NA)    NA (   NA)
+# 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.134 (0.137)  0.149 (0.151)     0.131 (0.117)     0.123 (0.139) 0.161 (0.108) 0.050 (0.158)
+# TPR    0.560 (0.347)  0.520 (0.290)     0.610 (0.351)     0.550 (0.363) 0.630 (0.353) 0.090 (0.285)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.096 (0.109)  0.124 (0.119) 0.090 (0.132)    NA (   NA)    NA (   NA)
+# TPR  0.470 (0.395)  0.520 (0.365) 0.260 (0.334)    NA (   NA)    NA (   NA)
+# 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.045 (0.075)  0.052 (0.089)     0.063 (0.134)     0.000 (0.000) 0.066 (0.117) 0.000 (0.000)
+# TPR    0.340 (0.375)  0.400 (0.327)     0.410 (0.307)     0.140 (0.227) 0.410 (0.303) 0.100 (0.211)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.104 (0.109)  0.038 (0.060) 0.058 (0.101)    NA (   NA)    NA (   NA)
+# TPR  0.620 (0.278)  0.400 (0.353) 0.250 (0.344)    NA (   NA)    NA (   NA)
+
+### ADHD-200 (82 regions) 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.112 (0.156)  0.110 (0.144)     0.114 (0.149)     0.137 (0.170) 0.103 (0.151) 0.135 (0.150)
+# TPR    0.280 (0.306)  0.387 (0.366)     0.263 (0.299)     0.240 (0.242) 0.380 (0.370) 0.387 (0.388)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.092 (0.152)  0.101 (0.170) 0.104 (0.141) 0.083 (0.265) 0.142 (0.140)
+# TPR  0.270 (0.301)  0.197 (0.243) 0.333 (0.348) 0.033 (0.055) 0.493 (0.134)
+
+## 10번 반복 raw; FFT; FFT-sm
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.082 (0.156)  0.092 (0.168)     0.104 (0.158)     0.090 (0.159) 0.096 (0.178) 0.142 (0.168)
+# TPR    0.340 (0.320)  0.460 (0.372)     0.290 (0.318)     0.240 (0.267) 0.390 (0.335) 0.430 (0.400)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.096 (0.178)  0.107 (0.189) 0.097 (0.144)    NA (   NA)    NA (   NA)
+# TPR  0.330 (0.316)  0.250 (0.242) 0.450 (0.381)    NA (   NA)    NA (   NA)
+# 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.080 (0.118)  0.097 (0.141)     0.083 (0.093)     0.104 (0.099) 0.081 (0.109) 0.044 (0.141)
+# TPR    0.500 (0.371)  0.530 (0.316)     0.470 (0.347)     0.550 (0.317) 0.480 (0.379) 0.050 (0.158)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.072 (0.098)  0.067 (0.102) 0.041 (0.095)    NA (   NA)    NA (   NA)
+# TPR  0.400 (0.435)  0.380 (0.377) 0.300 (0.275)    NA (   NA)    NA (   NA)
+# 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.042 (0.100)  0.068 (0.114)     0.036 (0.077)     0.043 (0.092) 0.107 (0.100) 0.020 (0.063)
+# TPR    0.400 (0.365)  0.490 (0.373)     0.350 (0.392)     0.270 (0.330) 0.550 (0.389) 0.090 (0.191)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.037 (0.060)  0.089 (0.118) 0.084 (0.115)    NA (   NA)    NA (   NA)
+# TPR  0.480 (0.349)  0.520 (0.374) 0.360 (0.344)    NA (   NA)    NA (   NA)
+
+# ### ADHD-200 (400 regions) raw; FFT
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.124 (0.142)  0.119 (0.136)     0.111 (0.138)     0.101 (0.148) 0.118 (0.146) 0.126 (0.144)
+# TPR    0.343 (0.330)  0.440 (0.355)     0.313 (0.335)     0.217 (0.257) 0.273 (0.316) 0.427 (0.375)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.085 (0.129)  0.069 (0.137) 0.091 (0.130) 0.157 (0.164) 0.157 (0.164)
+# TPR  0.223 (0.275)  0.140 (0.227) 0.287 (0.385) 0.410 (0.142) 0.410 (0.142)
+
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.116 (0.124)  0.104 (0.132)     0.122 (0.136)     0.130 (0.139) 0.094 (0.110) 0.112 (0.157)
+# TPR    0.570 (0.310)  0.547 (0.257)     0.613 (0.292)     0.567 (0.341) 0.473 (0.269) 0.230 (0.305)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.098 (0.130)  0.100 (0.124) 0.104 (0.142) 0.159 (0.134) 0.159 (0.134)
+# TPR  0.413 (0.331)  0.350 (0.325) 0.320 (0.339) 0.520 (0.145) 0.520 (0.145)
+
+
+# ### ADHD-200 (200 regions) 
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.100 (0.162)  0.095 (0.155)     0.084 (0.147)     0.086 (0.157) 0.059 (0.140) 0.098 (0.178)
+# TPR    0.183 (0.235)  0.213 (0.271)     0.147 (0.218)     0.133 (0.197) 0.123 (0.237) 0.153 (0.264)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.049 (0.123)  0.083 (0.179) 0.056 (0.117) 0.199 (0.228) 0.199 (0.228)
+# TPR  0.093 (0.176)  0.073 (0.144) 0.127 (0.249) 0.340 (0.138) 0.340 (0.138)

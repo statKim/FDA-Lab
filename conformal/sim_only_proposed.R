@@ -110,6 +110,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
                                    type = type, type_depth = type_depth,
                                    alpha = alpha,
+                                   # mfd_alpha = 1/8,
                                    seed = b)
       conf_pvalue <- cp_obj$conf_pvalue
       
