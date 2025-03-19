@@ -580,7 +580,7 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # FDR  0.037 (0.060)  0.089 (0.118) 0.084 (0.115)    NA (   NA)    NA (   NA)
 # TPR  0.480 (0.349)  0.520 (0.374) 0.360 (0.344)    NA (   NA)    NA (   NA)
 
-# ### ADHD-200 (400 regions) raw; FFT
+# ### ADHD-200 (400 regions) raw; FFT; FFT-sm
 # T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
 # FDR    0.124 (0.142)  0.119 (0.136)     0.111 (0.138)     0.101 (0.148) 0.118 (0.146) 0.126 (0.144)
 # TPR    0.343 (0.330)  0.440 (0.355)     0.313 (0.335)     0.217 (0.257) 0.273 (0.316) 0.427 (0.375)
@@ -594,6 +594,13 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
 # FDR  0.098 (0.130)  0.100 (0.124) 0.104 (0.142) 0.159 (0.134) 0.159 (0.134)
 # TPR  0.413 (0.331)  0.350 (0.325) 0.320 (0.339) 0.520 (0.145) 0.520 (0.145)
+
+# T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
+# FDR    0.096 (0.128)  0.119 (0.130)     0.090 (0.130)     0.086 (0.119) 0.095 (0.122) 0.058 (0.129)
+# TPR    0.623 (0.253)  0.613 (0.213)     0.583 (0.270)     0.410 (0.354) 0.590 (0.220) 0.163 (0.261)
+# hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
+# FDR  0.093 (0.125)  0.109 (0.141) 0.133 (0.150) 0.207 (0.121) 0.207 (0.121)
+# TPR  0.443 (0.346)  0.487 (0.336) 0.303 (0.347) 0.600 (0.134) 0.600 (0.134)
 
 
 # ### ADHD-200 (200 regions) 

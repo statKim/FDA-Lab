@@ -1,5 +1,5 @@
-library(tidyverse)
 # devtools::install_github("statKim/mrfDepth")
+library(tidyverse)
 library(mrfDepth)
 library(roahd)
 library(progress)  # show progress bar
@@ -27,18 +27,102 @@ get_tpr <- function(idx_reject, idx_true) {
   }
 }
 
+# BH procedure
+BH <- function(pvalue, alpha = 0.1) {
+  x <- pvalue
+  n_test <- length(pvalue)
+  
+  if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
+    idx_rej <- integer(0)
+  } else {
+    idx_rej <- order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
+  }
+  
+  return(idx_rej)
+}
+
+
+#' Conformal Outlier Detection for Multivariate Functional Data
+#' 
+#' @param X n-m-p dimensional training data (n: # of observations, m: # of timepoints, p: # of variables)
+#' @param X_test n_test-m-p dimensional test data
+#' @param type the option for computing nonconformity scores. 3 optons are supported. ("depth_transform" (default), "depth", "esssup")
+#' @param type_depth depth for multivariate functional depth. See `mrfDepth::mfd()` for available depth functions.
+#' @param transform a vector containing the curve transformations for `type = "depth_transform"`. Only available on "D0", "D1" and "D2". Default is c("D0","D1","D2")
+#' @param train_type if it is set "mixed", initial outlier detection is performed for input training set. "clean" (default) and "mixed" are available.
+#' @param alpha the given FDR level (also be coverage level for "esssup"). Default is 0.1.
+#' @param ccv CCV (calibration-conditional valid) adjustments are performed for marginal conformal p-values. It performs Simes, asymptotic adjustments. Default is TRUE.
+#' @param individual conformal p-values for each individual transformation are computed. (Default is FALSE)
+#' @param n_cores number of cores for parallel computing in `type = "depth_transform"`. Default is 1.
+#' @param seed random seed number. Default is NULL.
+#' @param ... See additional options for `split_conformal_fd()`
+foutlier_cp <- function(X, X_test, 
+                        type = "depth_transform", 
+                        type_depth = "projdepth",
+                        transform = c("D0","D1","D2"),
+                        alpha = 0.1, 
+                        train_type = "clean",
+                        ccv = TRUE, 
+                        individual = FALSE,
+                        n_cores = 1,
+                        seed = NULL, ...) {
+  # Marginal and CCV conformal p-values
+  cp_obj <- split_conformal_fd(X = X, 
+                               X_test = X_test, 
+                               type = type, 
+                               type_depth = type_depth,
+                               transform = transform,
+                               alpha = alpha, 
+                               train_type = train_type,
+                               ccv = ccv, 
+                               individual = individual,
+                               n_cores = n_cores,
+                               seed = seed, ...)
+  
+  # BH procedure for marginal and CCV p-values
+  idx_bh <- apply(cp_obj$conf_pvalue, 2, BH, alpha = alpha, simplify = F)
+  
+  out <- list(
+    cp_obj = cp_obj,
+    idx_out = idx_bh
+  )
+  
+  # BH procedure for each individual transformation
+  if (isTRUE(individual) & type == "depth_transform") {
+    out$idx_out_indiv <- lapply(cp_obj$conf_pvalue_indiv, function(pvalue){
+      apply(pvalue, 2, BH, alpha = alpha, simplify = F)
+    })
+  }
+  
+  return(out)
+}
+
 
 #' Split Conformal Prediction for Multivariate Functional Data
 #' 
+#' @param X n-m-p dimensional training data (n: # of observations, m: # of timepoints, p: # of variables)
+#' @param X_test n_test-m-p dimensional test data
+#' @param type the option for computing nonconformity scores. 3 optons are supported. ("depth_transform" (default), "depth", "esssup")
+#' @param type_depth depth for multivariate functional depth. See `mrfDepth::mfd()` for available depth functions.
+#' @param transform a vector containing the curve transformations for `type = "depth_transform"`. Only available on "D0", "D1" and "D2". Default is c("D0","D1","D2")
+#' @param train_type if it is set "mixed", initial outlier detection is performed for input training set. "clean" (default) and "mixed" are available.
 #' @param alpha coverage level (Only used for `type = "esssup"`)
-#' @param rho a proportion of the proper training set for the split conformal prediction
-#' @param ... additional options for `mrfDepth::mfd()`
-split_conformal_fd <- function(X, y = NULL, X_test, 
+#' @param rho a proportion of the proper training set for the split conformal prediction. Default is 0.5.
+#' @param n_calib a number of calibration set (If it is set, `rho` is ignored.)
+#' @param weight 
+#' @param ccv CCV (calibration-conditional valid) adjustments are performed for marginal conformal p-values. It performs Simes, asymptotic adjustments. Default is TRUE.
+#' @param delta parmeters for CCV adjustments.
+#' @param k parmeters for CCV adjustments.
+#' @param individual conformal p-values for each individual transformation are computed. (Default is TRUE)
+#' @param n_cores number of cores for parallel computing in `type = "depth_transform"`. Default is 1.
+#' @param mfd_alpha alpha for `mrfDepth::mfd()`. See `mrfDepth::mfd()` for details.
+#' @param seed random seed number. Default is NULL.
+split_conformal_fd <- function(X, X_test, 
                                type = "depth_transform", 
                                type_depth = "projdepth",
                                transform = c("D0","D1","D2"),
-                               alpha = 0.1, 
                                train_type = "clean",
+                               alpha = 0.1, 
                                rho = 0.5, n_calib = NULL,
                                weight = FALSE,
                                ccv = TRUE, delta = 0.1, k = NULL,
@@ -533,18 +617,31 @@ get_clean_null <- function(X,
                            transform = c("D0","D1","D2"),
                            # alpha = 0.2,
                            mfd_alpha = 0,
+                           n_cores = 1,
                            weight = FALSE) {
   n <- nrow(X[[1]])  # number of training data
   m <- ncol(X[[1]])  # number of timepoints
   p <- length(X)   # number of functional covariates
   
+  # Check supported transformations
+  if (sum(transform %in% c("D0","D1","D2")) < length(transform)) {
+    stop("Not supproted for `transform`!")
+  }
+  
   # Depth options for `mfd`
-  if (p >= n) {
+  if (p >= n_train) {
     # High-dimensional case
     depthOptions <- list(type = "Rotation")
   } else {
     depthOptions <- NULL
   }
+  
+  # Only use raw curves for type == "depth"
+  if (type == "depth") {
+    type <- "depth_transform"
+    transform <- "D0"
+  }
+  
   
   # Outlier detection using non-conformity scores (Not CP based method)
   if (type == "esssup") {
@@ -572,20 +669,6 @@ get_clean_null <- function(X,
       apply(X_p, 1, function(x){ max(abs(x - pred_p) / s_ftn_p) })
     }, X, pred, s_ftn) %>% 
       apply(1, max)
-  } else if (type == "depth") {
-    # Transform data structure for `mrfDepth::mfd()`
-    arr_X <- array(NA, c(m, n, p))
-    for (i in 1:p) {
-      arr_X[, , i] <- t(X[[i]])
-    }
-    
-    # Multivariate functional depth
-    # Lower depth is outlier => we take "-" to make nonconformity score!
-    depth_values <- mfd(arr_X, 
-                        type = type_depth, 
-                        alpha = mfd_alpha,
-                        depthOptions = depthOptions)
-    nonconform_score <- -as.numeric(depth_values$MFDdepthZ)
   } else if (type == "depth_transform") {
     # Transform data structure for `mrfDepth::mfd()`
     arr_X <- array(NA, c(m, n, p))
@@ -596,37 +679,81 @@ get_clean_null <- function(X,
     # Compute functional depth with transformations
     nonconform_score <- matrix(NA, n, length(transform))
     
-    for (s in 1:length(transform)) {
-      trans_type <- transform[s]  # transform type
-      
-      # Transform into 1st or 2nd derivatives
-      if (trans_type == "D0") {
-        # Raw curves
-        arr_X_trans <- arr_X
-      } else if (trans_type == "D1") {
-        # 1st derivatives
-        arr_X_trans <- array(NA, c(m-1, n, p))
-        for (i in 1:p) {
-          arr_X_trans[, , i] <- apply(arr_X[, , i], 2, diff)
+    if (n_cores > 1) {
+      # Using parallel computation
+      n_cores <- min(length(transform), n_cores)
+      cl <- makeCluster(n_cores)
+      registerDoSNOW(cl)
+      pkgs <- c("mrfDepth")
+      res_cv <- foreach(s = 1:length(transform), .packages = pkgs) %dopar% {
+        trans_type <- transform[s]  # transform type
+        
+        # Transform into 1st or 2nd derivatives
+        if (trans_type == "D0") {
+          # Raw curves
+          arr_X_trans <- arr_X
+        } else if (trans_type == "D1") {
+          # 1st derivatives
+          arr_X_trans <- array(NA, c(m-1, n, p))
+          for (i in 1:p) {
+            arr_X_trans[, , i] <- apply(arr_X[, , i], 2, diff)
+          }
+        } else if (trans_type == "D2") {
+          # 2nd derivatives
+          arr_X_trans <- array(NA, c(m-2, n, p))
+          for (i in 1:p) {
+            arr_X_trans[, , i] <- apply(arr_X[, , i], 2, function(x){ diff(diff(x)) })
+          }
         }
-      } else if (trans_type == "D2") {
-        # 2nd derivatives
-        arr_X_trans <- array(NA, c(m-2, n, p))
-        for (i in 1:p) {
-          arr_X_trans[, , i] <- apply(arr_X[, , i], 2, function(x){ diff(diff(x)) })
-        }
-      } else {
-        stop("Not supproted for `transform`!")
+        
+        # Non-conformity scores for given data
+        # Multivariate functional depth
+        # Lower depth is outlier => we take "-" to make nonconformity score
+        depth_values <- mfd(arr_X_trans,
+                            type = type_depth,
+                            alpha = mfd_alpha,
+                            depthOptions = depthOptions)
+        out <- -as.numeric(depth_values$MFDdepthZ)
+        
+        return(out)
       }
+      # End parallel backend
+      stopCluster(cl)
       
-      # Non-conformity scores for given data
-      # Multivariate functional depth
-      # Lower depth is outlier => we take "-" to make nonconformity score
-      depth_values <- mfd(arr_X_trans,
-                          type = type_depth,
-                          alpha = mfd_alpha,
-                          depthOptions = depthOptions)
-      nonconform_score[, s] <- -as.numeric(depth_values$MFDdepthZ)
+      for (s in 1:length(transform)) {
+        nonconform_score[, s] <- res_cv[[s]]
+      }
+    } else {
+      for (s in 1:length(transform)) {
+        trans_type <- transform[s]  # transform type
+        
+        # Transform into 1st or 2nd derivatives
+        if (trans_type == "D0") {
+          # Raw curves
+          arr_X_trans <- arr_X
+        } else if (trans_type == "D1") {
+          # 1st derivatives
+          arr_X_trans <- array(NA, c(m-1, n, p))
+          for (i in 1:p) {
+            arr_X_trans[, , i] <- apply(arr_X[, , i], 2, diff)
+          }
+        } else if (trans_type == "D2") {
+          # 2nd derivatives
+          arr_X_trans <- array(NA, c(m-2, n, p))
+          for (i in 1:p) {
+            arr_X_trans[, , i] <- apply(arr_X[, , i], 2, function(x){ diff(diff(x)) })
+          }
+        }
+        
+        # Non-conformity scores for given data
+        # Multivariate functional depth
+        # Lower depth is outlier => we take "-" to make nonconformity score
+        depth_values <- mfd(arr_X_trans,
+                            type = type_depth,
+                            alpha = mfd_alpha,
+                            depthOptions = depthOptions)
+        nonconform_score[, s] <- -as.numeric(depth_values$MFDdepthZ)
+      }
     }
     
     # Weights for weighted average

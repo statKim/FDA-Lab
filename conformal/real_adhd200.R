@@ -176,12 +176,14 @@ depth_values <- list(
       depthOptions = list(type = "Rotation"))$MFDdepthX
 )
 idx_adhd_idx <- lapply(depth_values, function(x){ order(x)[1:20] }) %>% 
-  unlist()
-idx_adhd_cand <- idx_adhd[unique(idx_adhd_idx)]
+  unlist() %>% 
+  unique()
+idx_adhd_cand <- idx_adhd[idx_adhd_idx]
 
 
 
 ### Outlier detection with diffrent B splits
+alpha <- 0.2   # coverage level
 B <- 100
 fdr_res <- data.frame(
   marg = rep(NA, B),
@@ -227,21 +229,19 @@ for (b in 1:B) {
   
   # Show the progress bar
   progress(b)
-  # print(b)
   
   # Add the 10 ADHD labels as outliers
   idx_adhd_selected <- sample(idx_adhd_cand, 10)   # 10 sampled ADHD curves
   data <- lapply(1:p, function(i){ rbind(data_control[[i]], X[idx_adhd_selected, , i]) })
   idx_outliers <- c(idx_outliers_control,
                     (nrow(data[[1]])-9):nrow(data[[1]]))
-  idx_outliers  # 12 outliers
+  idx_outliers  # 10 outliers
   
   
   ### Split data into training and test set
   n <- nrow(data[[1]])
   p <- length(data)
   
-  alpha <- 0.2  # coverage level
   prop_train <- 0.8  # proportion of training set
   
   n_train <- round(n * prop_train)   # size of training set
@@ -255,125 +255,99 @@ for (b in 1:B) {
   data_test <- lapply(data, function(x){ x[idx_test, ] })
   
   
-  ### Outlier detection based on CP
-  summary_CP_out_detect <- function(type = "depth_transform", type_depth = "projdepth") {
-    # Marginal and CCV conformal p-value
-    cp_obj <- split_conformal_fd(X = data_train, X_test = data_test,
-                                 type = type, type_depth = type_depth,
+  ### Conformal outlier detection
+  # Transformations + projdepth
+  obj_T_projdepth <- foutlier_cp(X = data_train, 
+                                 X_test = data_test,
+                                 type = "depth_transform", 
+                                 type_depth = "projdepth",
                                  alpha = alpha,
                                  n_cores = n_cores,
+                                 individual = TRUE,
                                  seed = b)
-    conf_pvalue <- cp_obj$conf_pvalue
-    
-    # BH procedure
-    idx_bh <- apply(conf_pvalue, 2, function(x){
-      if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-        return(integer(0))
-      } else {
-        order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
-      }
-    }, simplify = F)
-    
-    out <- list(
-      idx_bh = lapply(idx_bh, function(x){ idx_test[x] })
-    )
-    
-    if (type == "depth_transform") {
-      out$idx_bh_indiv <- lapply(cp_obj$conf_pvalue_indiv, function(pvalue){
-        idx <- apply(pvalue, 2, function(x){
-          if (sum(sort(x) < (1:n_test)/n_test * alpha) == 0) {
-            return(integer(0))
-          } else {
-            order(x)[1:max(which(sort(x) < (1:n_test)/n_test * alpha))]
-          }
-        }, simplify = F)
-        lapply(idx, function(x){ idx_test[x] })
-      })
-    }
-    
-    return(out)
-  }
-  
-  # Transformations + projdepth
-  obj_T_projdepth <- summary_CP_out_detect(type = "depth_transform", type_depth = "projdepth")
-  fdr_bh$T_projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh, function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$T_projdepth[b, ] <- sapply(obj_T_projdepth$idx_out, function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$T_projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh, function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$T_projdepth[b, ] <- sapply(obj_T_projdepth$idx_out, function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   
   # Transformations + hdepth
-  obj_T_hdepth <- summary_CP_out_detect(type = "depth_transform", type_depth = "hdepth")
-  fdr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh, function(x){
-    get_fdr(x, idx_outliers)
+  obj_T_hdepth <- foutlier_cp(X = data_train, 
+                              X_test = data_test,
+                              type = "depth_transform", 
+                              type_depth = "hdepth",
+                              alpha = alpha,
+                              n_cores = n_cores,
+                              individual = TRUE,
+                              seed = b)
+  fdr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_out, function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh, function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$T_hdepth[b, ] <- sapply(obj_T_hdepth$idx_out, function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
-  
   
   # esssup
-  obj_esssup <- summary_CP_out_detect(type = "esssup")
-  fdr_bh$esssup[b, ] <- sapply(obj_esssup$idx_bh, function(x){
-    get_fdr(x, idx_outliers)
+  obj_esssup <-  foutlier_cp(X = data_train, 
+                             X_test = data_test,
+                             type = "esssup",
+                             alpha = alpha,
+                             n_cores = n_cores,
+                             individual = TRUE,
+                             seed = b)
+  fdr_bh$esssup[b, ] <- sapply(obj_esssup$idx_out, function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$esssup[b, ] <- sapply(obj_esssup$idx_bh, function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$esssup[b, ] <- sapply(obj_esssup$idx_out, function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   
   # projdepth
   # raw
-  fdr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[1]], function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[1]], function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[1]], function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[1]], function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   # 1st derivative
-  fdr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[2]], function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[2]], function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[2]], function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[2]], function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   # 2nd derivative
-  fdr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[3]], function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[3]], function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_bh_indiv[[3]], function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[3]], function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   
   # hdepth
   # raw
-  fdr_bh$hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[1]], function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$hdepth[b, ] <- sapply(obj_T_hdepth$idx_out_indiv[[1]], function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$hdepth[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[1]], function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$hdepth[b, ] <- sapply(obj_T_hdepth$idx_out_indiv[[1]], function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   # 1st derivative
-  fdr_bh$hdepth_1d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[2]], function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$hdepth_1d[b, ] <- sapply(obj_T_hdepth$idx_out_indiv[[2]], function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$hdepth_1d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[2]], function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$hdepth_1d[b, ] <- sapply(obj_T_hdepth$idx_out_indiv[[2]], function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
   # 2nd derivative
-  fdr_bh$hdepth_2d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[3]], function(x){
-    get_fdr(x, idx_outliers)
+  fdr_bh$hdepth_2d[b, ] <- sapply(obj_T_hdepth$idx_out_indiv[[3]], function(x){
+    get_fdr(idx_test[x], idx_outliers)
   })
-  tpr_bh$hdepth_2d[b, ] <- sapply(obj_T_hdepth$idx_bh_indiv[[3]], function(x){
-    get_tpr(x, idx_outliers)
+  tpr_bh$hdepth_2d[b, ] <- sapply(obj_T_hdepth$idx_out_indiv[[3]], function(x){
+    get_tpr(idx_test[x], idx_outliers)
   })
-  # obj <- summary_CP_out_detect(type = "depth", type_depth = "hdepth")
-  # fdr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
-  #   get_fdr(x, idx_outliers)
-  # })
-  # tpr_bh$hdepth[b, ] <- sapply(obj$idx_bh, function(x){
-  #   get_tpr(x, idx_outliers)
-  # })
   
   
   # ### Existing functional outlier detection (Coverage guarantee X)
@@ -405,13 +379,10 @@ for (b in 1:B) {
   #   
   #   # Sequential transformation
   #   seqobj <- seq_transform(df, 
-  #                           # sequence = "O"
   #                           sequence = c("O","D1","D2"),
   #                           depth_method = "erld",
   #                           erld_type = "one_sided_right", 
   #                           seed = b)
-  #   # seqobj <- seq_transform(df, sequence = "O", depth_method = "erld",
-  #   #                         erld_type = "one_sided_right", seed = b)
   #   outlier_seq <- unlist(seqobj$outliers)
   #   if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
   #     out$seq <- idx_test[i]
