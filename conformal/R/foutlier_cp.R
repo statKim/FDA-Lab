@@ -2,6 +2,8 @@
 library(tidyverse)
 library(mrfDepth)
 library(roahd)
+library(fda)
+library(e1071)
 library(progress)  # show progress bar
 
 # Parallel computation
@@ -42,11 +44,83 @@ BH <- function(pvalue, alpha = 0.1) {
 }
 
 
+# Functional One-class SVM
+# - return score which indicates otuliers when less than 0
+FOCSVM <- function(X, X_test, kernel = "radial", type = "bspline", n_basis = 10, lambda = 0.01) {
+  n <- nrow(X[[1]])
+  m <- ncol(X[[1]])
+  p <- length(X)
+  n_test <- nrow(X_test[[1]])
+  gr <- seq(0, 1, length.out = m)   # time points
+  
+  # Basis expansions for each functional variables
+  if (type == "bspline") {
+    # B-spline basis functions
+    basis <- create.bspline.basis(rangeval = c(0, 1), nbasis = n_basis)
+    basis_inprod <- inprod(basis, basis)
+    L <- chol(basis_inprod)
+    
+    # Roughness Penalty with 2nd derivatives
+    fdPar_obj <- fdPar(basis, Lfdobj = 2, lambda = lambda)
+    
+    X_coef_train <- matrix(NA, n, n_basis*p)
+    X_coef_test <- matrix(NA, n_test, n_basis*p)
+    for (i in 1:p) {
+      # Smoothing with roughness penalty for training set
+      smoothed_fd <- smooth.basis(gr, t(X[[i]]), fdPar_obj)$fd
+      X_coef_train[, ((i-1)*n_basis+1):(i*n_basis)] <- t(L %*% smoothed_fd$coefs)
+      
+      # Smoothing with roughness penalty for test set
+      smoothed_fd <- smooth.basis(gr, t(X_test[[i]]), fdPar_obj)$fd
+      X_coef_test[, ((i-1)*n_basis+1):(i*n_basis)] <- t(L %*% smoothed_fd$coefs)
+    }
+  } else if (type == "fpca") {
+    # Transform input data
+    X <- lapply(X, function(x){
+      MakeFPCAInputs(tVec = gr, 
+                     yVec = x)
+    })
+    X_test <- lapply(X_test, function(x){
+      MakeFPCAInputs(tVec = gr, 
+                     yVec = x)
+    })
+    
+    # Functional PCA
+    X_coef_train <- matrix(NA, n, n_basis*p)
+    X_coef_test <- matrix(NA, n_test, n_basis*p)
+    for (i in 1:p) {
+      # print(i)
+      
+      # FPCA
+      obj_fpca <- FPCA(X[[i]]$Ly, X[[i]]$Lt, optns = list(maxK = n_basis))
+      
+      # FPC scores for training set
+      X_coef_train[, ((i-1)*n_basis+1):(i*n_basis)] <- obj_fpca$xiEst
+      
+      # FPC score for test set
+      X_coef_test[, ((i-1)*n_basis+1):(i*n_basis)] <- predict(obj_fpca, X_test[[i]]$Ly, X_test[[i]]$Lt)$scores
+    }
+  }
+  
+  # Fit one-class SVM and obtain scores
+  fit_ocsvm <-  tune.svm(x = X_coef_train, 
+                         y = rep(TRUE, n),
+                         type = "one-classification",
+                         kernel = kernel,
+                         scale = TRUE)
+  pred <- predict(fit_ocsvm$best.model, X_coef_test, decision.values = T)
+  pred <- as.numeric(attr(pred, "decision.values"))
+  
+  return(pred)
+}
+
+
+
 #' Conformal Outlier Detection for Multivariate Functional Data
 #' 
 #' @param X n-m-p dimensional training data (n: # of observations, m: # of timepoints, p: # of variables)
 #' @param X_test n_test-m-p dimensional test data
-#' @param type the option for computing nonconformity scores. 3 optons are supported. ("depth_transform" (default), "depth", "esssup")
+#' @param type the option for computing nonconformity scores. 4 optons are supported. ("depth_transform" (default), "depth", "esssup", "focsvm")
 #' @param type_depth depth for multivariate functional depth. See `mrfDepth::mfd()` for available depth functions.
 #' @param transform a vector containing the curve transformations for `type = "depth_transform"`. Only available on "D0", "D1" and "D2". Default is c("D0","D1","D2")
 #' @param train_type if it is set "mixed", initial outlier detection is performed for input training set. "clean" (default) and "mixed" are available.
@@ -102,7 +176,7 @@ foutlier_cp <- function(X, X_test,
 #' 
 #' @param X n-m-p dimensional training data (n: # of observations, m: # of timepoints, p: # of variables)
 #' @param X_test n_test-m-p dimensional test data
-#' @param type the option for computing nonconformity scores. 3 optons are supported. ("depth_transform" (default), "depth", "esssup")
+#' @param type the option for computing nonconformity scores. 4 optons are supported. ("depth_transform" (default), "depth", "esssup", "focsvm")
 #' @param type_depth depth for multivariate functional depth. See `mrfDepth::mfd()` for available depth functions.
 #' @param transform a vector containing the curve transformations for `type = "depth_transform"`. Only available on "D0", "D1" and "D2". Default is c("D0","D1","D2")
 #' @param train_type if it is set "mixed", initial outlier detection is performed for input training set. "clean" (default) and "mixed" are available.
@@ -117,6 +191,7 @@ foutlier_cp <- function(X, X_test,
 #' @param n_cores number of cores for parallel computing in `type = "depth_transform"`. Default is 1.
 #' @param mfd_alpha alpha for `mrfDepth::mfd()`. See `mrfDepth::mfd()` for details.
 #' @param seed random seed number. Default is NULL.
+#' @param ... additional options for `FOCSVM()`
 split_conformal_fd <- function(X, X_test, 
                                type = "depth_transform", 
                                type_depth = "projdepth",
@@ -129,7 +204,7 @@ split_conformal_fd <- function(X, X_test,
                                individual = TRUE,
                                n_cores = 1,
                                mfd_alpha = 0,
-                               seed = NULL) {
+                               seed = NULL, ...) {
   n <- nrow(X[[1]])  # number of training data
   m <- ncol(X[[1]])  # number of timepoints
   p <- length(X)   # number of functional covariates
@@ -186,7 +261,17 @@ split_conformal_fd <- function(X, X_test,
     transform <- "D0"
   }
   
-  if (type == "esssup") {
+  if (type == "focsvm") {
+    # One-class functional SVM
+    # - take negative values for nonconformity scores
+    nonconform_score_calib <- -FOCSVM(X = X_train, X_test = X_calib, ...)
+    nonconform_score_test <- -FOCSVM(X = X_train, X_test = X_test, ...)
+    
+    # Conformal p-value (marginal)
+    conf_pvalue_marg <- sapply(nonconform_score_test, function(s){
+      (1 + sum(nonconform_score_calib >= s)) / (n_calib + 1)
+    })
+  } else if (type == "esssup") {
     # Point predictor
     pred <- lapply(X_train, function(x){ colMeans(x) })
     
@@ -215,13 +300,13 @@ split_conformal_fd <- function(X, X_test,
     # # Coverage check
     # sum(nonconform_score_calib <= k_s) / n_calib
     
-    # Conformal prediction band
-    lb <- mapply(function(pred_p, s_ftn_p){
-      pred_p - k_s*s_ftn_p
-    }, pred, s_ftn, SIMPLIFY = F)
-    ub <- mapply(function(pred_p, s_ftn_p){
-      pred_p + k_s*s_ftn_p
-    }, pred, s_ftn, SIMPLIFY = F)
+    # # Conformal prediction band
+    # lb <- mapply(function(pred_p, s_ftn_p){
+    #   pred_p - k_s*s_ftn_p
+    # }, pred, s_ftn, SIMPLIFY = F)
+    # ub <- mapply(function(pred_p, s_ftn_p){
+    #   pred_p + k_s*s_ftn_p
+    # }, pred, s_ftn, SIMPLIFY = F)
     
     
     # Conformal p-value (marginal)
@@ -506,7 +591,6 @@ split_conformal_fd <- function(X, X_test,
       nonconform_score_calib <- as.numeric(nonconform_score_calib_indiv)
       nonconform_score_test <- as.numeric(nonconform_score_test_indiv)
     }
-    
     
     # Conformal p-value (marginal)
     conf_pvalue_marg <- sapply(nonconform_score_test, function(s){

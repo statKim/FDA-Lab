@@ -587,6 +587,12 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
 # FDR  0.085 (0.129)  0.069 (0.137) 0.091 (0.130) 0.157 (0.164) 0.157 (0.164)
 # TPR  0.223 (0.275)  0.140 (0.227) 0.287 (0.385) 0.410 (0.142) 0.410 (0.142)
+# focsvm.marg (n_basis=10) n_basis=5      n_basis=30    <- scaling 안한 경우
+# FDR 0.115 (0.111)       0.117 (0.108)   0.114 (0.111)
+# TPR 0.667 (0.361)       0.690 (0.338)   0.670 (0.362)
+# focsvm_5.marg focsvm_10.marg focsvm_20.marg focsvm_30.marg    <- scaling한 경우
+# FDR 0.106 (0.115)  0.120 (0.120)  0.116 (0.115)  0.113 (0.117)
+# TPR 0.757 (0.280)  0.783 (0.328)  0.800 (0.325)  0.800 (0.325)
 
 # T_projdepth.marg projdepth.marg projdepth_1d.marg projdepth_2d.marg T_hdepth.marg   hdepth.marg
 # FDR    0.116 (0.124)  0.104 (0.132)     0.122 (0.136)     0.130 (0.139) 0.094 (0.110) 0.112 (0.157)
@@ -601,6 +607,9 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # hdepth_1d.marg hdepth_2d.marg   esssup.marg            ms           seq
 # FDR  0.093 (0.125)  0.109 (0.141) 0.133 (0.150) 0.207 (0.121) 0.207 (0.121)
 # TPR  0.443 (0.346)  0.487 (0.336) 0.303 (0.347) 0.600 (0.134) 0.600 (0.134)
+# focsvm.marg (n_basis=20)
+# FDR 0.111 (0.176)
+# TPR 0.190 (0.287)
 
 
 # ### ADHD-200 (200 regions) 

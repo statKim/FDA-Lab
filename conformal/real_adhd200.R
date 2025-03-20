@@ -194,6 +194,7 @@ fdr_bh <- list(
   T_projdepth = fdr_res,
   T_hdepth = fdr_res,
   esssup = fdr_res,
+  focsvm = fdr_res,
   projdepth = fdr_res,
   projdepth_1d = fdr_res,
   projdepth_2d = fdr_res,
@@ -289,19 +290,31 @@ for (b in 1:B) {
   })
   
   # esssup
-  obj_esssup <-  foutlier_cp(X = data_train, 
-                             X_test = data_test,
-                             type = "esssup",
-                             alpha = alpha,
-                             n_cores = n_cores,
-                             individual = TRUE,
-                             seed = b)
+  obj_esssup <- foutlier_cp(X = data_train, 
+                            X_test = data_test,
+                            type = "esssup",
+                            alpha = alpha,
+                            seed = b)
   fdr_bh$esssup[b, ] <- sapply(obj_esssup$idx_out, function(x){
     get_fdr(idx_test[x], idx_outliers)
   })
   tpr_bh$esssup[b, ] <- sapply(obj_esssup$idx_out, function(x){
     get_tpr(idx_test[x], idx_outliers)
   })
+  
+  # focsvm
+  obj_focsvm <- foutlier_cp(X = data_train, 
+                            X_test = data_test,
+                            type = "focsvm",
+                            alpha = alpha,
+                            seed = b)
+  fdr_bh$focsvm[b, ] <- sapply(obj_focsvm$idx_out, function(x){
+    get_fdr(idx_test[x], idx_outliers)
+  })
+  tpr_bh$focsvm[b, ] <- sapply(obj_focsvm$idx_out, function(x){
+    get_tpr(idx_test[x], idx_outliers)
+  })
+  
   
   # projdepth
   # raw
@@ -432,8 +445,10 @@ lapply(res2, function(sim){
   rownames(sub) <- c("FDR","TPR")
   colnames(sub) <- colnames(sim$fdr)
   sub <- data.frame(sub)
-  sub[, c("T_projdepth.marg","projdepth.marg","projdepth_1d.marg","projdepth_2d.marg",
-          "T_hdepth.marg","hdepth.marg","hdepth_1d.marg","hdepth_2d.marg",
-          "esssup.marg",
+  sub[, c("T_projdepth.marg","projdepth.marg",
+          "projdepth_1d.marg","projdepth_2d.marg",
+          "T_hdepth.marg","hdepth.marg",
+          "hdepth_1d.marg","hdepth_2d.marg",
+          "esssup.marg","focsvm.marg",
           "ms","seq")]
 })
