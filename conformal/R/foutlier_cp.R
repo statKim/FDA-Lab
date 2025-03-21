@@ -46,12 +46,17 @@ BH <- function(pvalue, alpha = 0.1) {
 
 # Functional One-class SVM
 # - return score which indicates otuliers when less than 0
-FOCSVM <- function(X, X_test, kernel = "radial", type = "bspline", n_basis = 10, lambda = 0.01) {
+FOCSVM <- function(X, X_test, kernel = "radial", type = "bspline", n_basis = NULL, lambda = 0.01) {
   n <- nrow(X[[1]])
   m <- ncol(X[[1]])
   p <- length(X)
   n_test <- nrow(X_test[[1]])
   gr <- seq(0, 1, length.out = m)   # time points
+  
+  # Number of basis functions
+  if (is.null(n_basis)) {
+    n_basis <- min(round(m/2), 50)
+  }
   
   # Basis expansions for each functional variables
   if (type == "bspline") {
