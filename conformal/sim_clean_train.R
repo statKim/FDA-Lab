@@ -17,26 +17,28 @@ alpha <- 0.1  # coverage level
 n_cores <- 10   # number of cores for competing methods
 
 
-# Function for simulated data from `fdaoutlier` package
+# # Function for simulated data from `fdaoutlier` package
+# # sim_ftn_list <- list(
+# #   function(...){ generate_sim_data(model = 1, ...) },
+# #   function(...){ generate_sim_data(model = 2, ...) },
+# #   function(...){ generate_sim_data(model = 3, ...) },
+# #   function(...){ generate_sim_data(model = 4, ...) },
+# #   function(...){ generate_sim_data(model = 5, ...) },
+# #   function(...){ generate_sim_data(model = 6, ...) }
+# # )
 # sim_ftn_list <- list(
-#   function(...){ generate_sim_data(model = 1, ...) },
-#   function(...){ generate_sim_data(model = 2, ...) },
-#   function(...){ generate_sim_data(model = 3, ...) },
-#   function(...){ generate_sim_data(model = 4, ...) },
-#   function(...){ generate_sim_data(model = 5, ...) },
-#   function(...){ generate_sim_data(model = 6, ...) }
+#   # function(...){ simulation_model1(q = 3, ...) },
+#   # function(...){ simulation_model2(q = 3, ...) },
+#   # function(...){ simulation_model3(q = 2, ...) },
+#   # function(...){ simulation_model5(cov_alpha2 = 2, ...) }
+#   function(...){ simulation_model1(q = 2, ...) },
+#   function(...){ simulation_model2(q = 2, ...) },
+#   function(...){ simulation_model3(q = 1.5, ...) },
+#   function(...){ simulation_model5(cov_alpha2 = 0.5, ...) }
 # )
-sim_ftn_list <- list(
-  # function(...){ simulation_model1(q = 3, ...) },
-  # function(...){ simulation_model2(q = 3, ...) },
-  # function(...){ simulation_model3(q = 2, ...) },
-  # function(...){ simulation_model5(cov_alpha2 = 2, ...) }
-  function(...){ simulation_model1(q = 2, ...) },
-  function(...){ simulation_model2(q = 2, ...) },
-  function(...){ simulation_model3(q = 1.5, ...) },
-  function(...){ simulation_model5(cov_alpha2 = 0.5, ...) }
-)
 
+rho_list <- c(0, 0, 0, 0,
+              0, 0.2, 0.3, 0.4, 0.5, 0.6)
 
 
 # Simulation
@@ -44,7 +46,7 @@ res <- list()
 model_obj <- list()
 for (sim_model_idx in 1:length(sim_ftn_list)) {
   print(sim_model_idx)
-  sim_ftn <- sim_ftn_list[[sim_model_idx]]   # generating function
+  # sim_ftn <- sim_ftn_list[[sim_model_idx]]   # generating function
   
   # Progress bar
   pb <- progress_bar$new(
@@ -68,7 +70,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     T_projdepth = fdr_res,
     T_hdepth = fdr_res,
     esssup = fdr_res,
-    focsvm = fdr_res,
+    # focsvm = fdr_res,
     projdepth = fdr_res,
     projdepth_1d = fdr_res,
     projdepth_2d = fdr_res,
@@ -96,26 +98,39 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     
     ### Data generation
     # Generate multivariate functional data without outliers (training set)
-    data_train <- list()
-    for (j in 1:p) {
-      sim_obj <- sim_ftn(n = n, p = m, outlier_rate = 0)
-      data_train[[j]] <- sim_obj$data
-    }
+    data_obj <- foutlier_sim_mfd(n = n, m = m, p = p, outlier_rate = 0, 
+                                 model = sim_model_idx)
+    data_train <- data_obj$data
     
     # Generate multivariate functional data with outliers (test set)
-    idx_outliers <- (n_test - n_test*outlier_rate + 1):n_test
-    data_test <- list()
-    for (j in 1:p) {
-      sim_obj <- sim_ftn(n = n_test, p = m, outlier_rate = outlier_rate)
-      sim_data_p <- sim_obj$data
-      
-      data_test[[j]] <- matrix(0, n_test, m)
-      # non-outliers
-      data_test[[j]][-idx_outliers, ] <- sim_data_p[-sim_obj$true_outliers, ]
-      # outliers
-      data_test[[j]][idx_outliers, ] <- sim_data_p[sim_obj$true_outliers, ]
-    }
-    # matplot(t(data_test[[1]]), type = "l", col = ifelse(1:n %in% idx_outliers, "red", "gray"))
+    data_obj <- foutlier_sim_mfd(n = n, m = m, p = p, outlier_rate = outlier_rate, 
+                                 model = sim_model_idx, rho = 0.3)
+    # data_obj$idx_outliers
+    # plot(data_obj, p = 1)
+    data_test <- data_obj$data
+    idx_outliers <- data_obj$idx_outliers
+    
+    # # Generate multivariate functional data without outliers (training set)
+    # data_train <- list()
+    # for (j in 1:p) {
+    #   sim_obj <- sim_ftn(n = n, p = m, outlier_rate = 0)
+    #   data_train[[j]] <- sim_obj$data
+    # }
+    # 
+    # # Generate multivariate functional data with outliers (test set)
+    # idx_outliers <- (n_test - n_test*outlier_rate + 1):n_test
+    # data_test <- list()
+    # for (j in 1:p) {
+    #   sim_obj <- sim_ftn(n = n_test, p = m, outlier_rate = outlier_rate)
+    #   sim_data_p <- sim_obj$data
+    #   
+    #   data_test[[j]] <- matrix(0, n_test, m)
+    #   # non-outliers
+    #   data_test[[j]][-idx_outliers, ] <- sim_data_p[-sim_obj$true_outliers, ]
+    #   # outliers
+    #   data_test[[j]][idx_outliers, ] <- sim_data_p[sim_obj$true_outliers, ]
+    # }
+    # # matplot(t(data_test[[1]]), type = "l", col = ifelse(1:n %in% idx_outliers, "red", "gray"))
     
     
     ### Conformal outlier detection
@@ -164,19 +179,18 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
       get_tpr(x, idx_outliers)
     })
     
-    # focsvm
-    obj_focsvm <- foutlier_cp(X = data_train, 
-                              X_test = data_test,
-                              type = "focsvm",
-                              alpha = alpha,
-                              n_basis = 20,
-                              seed = b)
-    fdr_bh$focsvm[b, ] <- sapply(obj_focsvm$idx_out, function(x){
-      get_fdr(x, idx_outliers)
-    })
-    tpr_bh$focsvm[b, ] <- sapply(obj_focsvm$idx_out, function(x){
-      get_tpr(x, idx_outliers)
-    })
+    # # focsvm
+    # obj_focsvm <- foutlier_cp(X = data_train, 
+    #                           X_test = data_test,
+    #                           type = "focsvm",
+    #                           alpha = alpha,
+    #                           seed = b)
+    # fdr_bh$focsvm[b, ] <- sapply(obj_focsvm$idx_out, function(x){
+    #   get_fdr(x, idx_outliers)
+    # })
+    # tpr_bh$focsvm[b, ] <- sapply(obj_focsvm$idx_out, function(x){
+    #   get_tpr(x, idx_outliers)
+    # })
     
     
     # projdepth
@@ -230,67 +244,66 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     fit_obj[[b]] <- list(
       T_projdepth = obj_T_projdepth$cp_obj,
       # T_hdepth = obj_T_hdepth$cp_obj,
-      esssup = obj_esssup$cp_obj,
-      focsvm = obj_focsvm$cp_obj
+      esssup = obj_esssup$cp_obj
     )
     
     
-    ### Existing functional outlier detection (Coverage guarantee X)
-    idx_comparison <- list(
-      ms = c(),
-      seq = c()
-    )
-    arr_train <- abind::abind(data_train, along = 3)
-    arr_test <- abind::abind(data_test, along = 3)
-    n_train <- n
-    
-    # Parallel computation
-    cl <- makeCluster(n_cores)
-    registerDoSNOW(cl)
-    pkgs <- c("fdaoutlier")
-    res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
-      df <- array(NA, dim = c(n_train+1, m, p))
-      df[1:n_train, , ] <- arr_train
-      df[n_train+1, , ] <- arr_test[i, , ]
-      
-      out <- list()
-      
-      # MS plot
-      outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
-      if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
-        out$ms <- idx_test[i]
-      } else {
-        out$ms <- integer(0)
-      }
-      
-      # Sequential transformation
-      seqobj <- seq_transform(df, 
-                              sequence = c("O","D1","D2"),
-                              depth_method = "erld",
-                              erld_type = "one_sided_right", 
-                              seed = b)
-      outlier_seq <- unlist(seqobj$outliers)
-      if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
-        out$seq <- idx_test[i]
-      } else {
-        out$seq <- integer(0)
-      }
-      
-      return(out)
-    }
-    # End parallel backend
-    stopCluster(cl)
-    
-    idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
-    idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
-    
-    
-    fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
-      get_fdr(x, idx_outliers)
-    })
-    tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
-      get_tpr(x, idx_outliers)
-    })
+    # ### Existing functional outlier detection (Coverage guarantee X)
+    # idx_comparison <- list(
+    #   ms = c(),
+    #   seq = c()
+    # )
+    # arr_train <- abind::abind(data_train, along = 3)
+    # arr_test <- abind::abind(data_test, along = 3)
+    # n_train <- n
+    # 
+    # # Parallel computation
+    # cl <- makeCluster(n_cores)
+    # registerDoSNOW(cl)
+    # pkgs <- c("fdaoutlier")
+    # res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
+    #   df <- array(NA, dim = c(n_train+1, m, p))
+    #   df[1:n_train, , ] <- arr_train
+    #   df[n_train+1, , ] <- arr_test[i, , ]
+    #   
+    #   out <- list()
+    #   
+    #   # MS plot
+    #   outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
+    #   if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
+    #     out$ms <- idx_test[i]
+    #   } else {
+    #     out$ms <- integer(0)
+    #   }
+    #   
+    #   # Sequential transformation
+    #   seqobj <- seq_transform(df, 
+    #                           sequence = c("O","D1","D2"),
+    #                           depth_method = "erld",
+    #                           erld_type = "one_sided_right", 
+    #                           seed = b)
+    #   outlier_seq <- unlist(seqobj$outliers)
+    #   if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
+    #     out$seq <- idx_test[i]
+    #   } else {
+    #     out$seq <- integer(0)
+    #   }
+    #   
+    #   return(out)
+    # }
+    # # End parallel backend
+    # stopCluster(cl)
+    # 
+    # idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
+    # idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
+    # 
+    # 
+    # fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
+    #   get_fdr(x, idx_outliers)
+    # })
+    # tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
+    #   get_tpr(x, idx_outliers)
+    # })
   }
   
   # Results
@@ -316,9 +329,9 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     esssup = paste(round(mean(fdr_bh$esssup$marg), 3), 
                    "/",
                    round(mean(tpr_bh$esssup$marg), 3)),
-    focsvm = paste(round(mean(fdr_bh$focsvm$marg), 3), 
-                   "/",
-                   round(mean(tpr_bh$focsvm$marg), 3)),
+    # focsvm = paste(round(mean(fdr_bh$focsvm$marg), 3), 
+    #                "/",
+    #                round(mean(tpr_bh$focsvm$marg), 3)),
     seq = paste(round(mean(fdr_comparison$seq), 3), 
                 "/",
                 round(mean(tpr_comparison$seq), 3))
