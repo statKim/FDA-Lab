@@ -68,15 +68,15 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
   )
   fdr_bh <- list(
     T_projdepth = fdr_res,
-    T_hdepth = fdr_res,
-    esssup = fdr_res,
-    # focsvm = fdr_res,
     projdepth = fdr_res,
     projdepth_1d = fdr_res,
     projdepth_2d = fdr_res,
-    hdepth = fdr_res,
-    hdepth_1d = fdr_res,
-    hdepth_2d = fdr_res
+    # T_hdepth = fdr_res,
+    # hdepth = fdr_res,
+    # hdepth_1d = fdr_res,
+    # hdepth_2d = fdr_res,
+    # focsvm = fdr_res,
+    esssup = fdr_res
   )
   tpr_bh <- fdr_bh
   
@@ -248,62 +248,62 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     )
     
     
-    # ### Existing functional outlier detection (Coverage guarantee X)
-    # idx_comparison <- list(
-    #   ms = c(),
-    #   seq = c()
-    # )
-    # arr_train <- abind::abind(data_train, along = 3)
-    # arr_test <- abind::abind(data_test, along = 3)
-    # n_train <- n
-    # 
-    # # Parallel computation
-    # cl <- makeCluster(n_cores)
-    # registerDoSNOW(cl)
-    # pkgs <- c("fdaoutlier")
-    # res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
-    #   df <- array(NA, dim = c(n_train+1, m, p))
-    #   df[1:n_train, , ] <- arr_train
-    #   df[n_train+1, , ] <- arr_test[i, , ]
-    #   
-    #   out <- list()
-    #   
-    #   # MS plot
-    #   outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
-    #   if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
-    #     out$ms <- idx_test[i]
-    #   } else {
-    #     out$ms <- integer(0)
-    #   }
-    #   
-    #   # Sequential transformation
-    #   seqobj <- seq_transform(df, 
-    #                           sequence = c("O","D1","D2"),
-    #                           depth_method = "erld",
-    #                           erld_type = "one_sided_right", 
-    #                           seed = b)
-    #   outlier_seq <- unlist(seqobj$outliers)
-    #   if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
-    #     out$seq <- idx_test[i]
-    #   } else {
-    #     out$seq <- integer(0)
-    #   }
-    #   
-    #   return(out)
-    # }
-    # # End parallel backend
-    # stopCluster(cl)
-    # 
-    # idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
-    # idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
-    # 
-    # 
-    # fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
-    #   get_fdr(x, idx_outliers)
-    # })
-    # tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
-    #   get_tpr(x, idx_outliers)
-    # })
+    ### Existing functional outlier detection (Coverage guarantee X)
+    idx_comparison <- list(
+      ms = c(),
+      seq = c()
+    )
+    arr_train <- abind::abind(data_train, along = 3)
+    arr_test <- abind::abind(data_test, along = 3)
+    n_train <- n
+
+    # Parallel computation
+    cl <- makeCluster(n_cores)
+    registerDoSNOW(cl)
+    pkgs <- c("fdaoutlier")
+    res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
+      df <- array(NA, dim = c(n_train+1, m, p))
+      df[1:n_train, , ] <- arr_train
+      df[n_train+1, , ] <- arr_test[i, , ]
+
+      out <- list()
+
+      # MS plot
+      outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
+      if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
+        out$ms <- i
+      } else {
+        out$ms <- integer(0)
+      }
+
+      # Sequential transformation
+      seqobj <- seq_transform(df,
+                              sequence = c("O","D1","D2"),
+                              depth_method = "erld",
+                              erld_type = "one_sided_right",
+                              seed = b)
+      outlier_seq <- unique(unlist(seqobj$outliers))
+      if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
+        out$seq <- i
+      } else {
+        out$seq <- integer(0)
+      }
+
+      return(out)
+    }
+    # End parallel backend
+    stopCluster(cl)
+
+    idx_comparison$ms <- unlist(sapply(res_cv, function(x){ x$ms }))
+    idx_comparison$seq <- unlist(sapply(res_cv, function(x){ x$seq }))
+
+
+    fdr_comparison[b, ] <- sapply(idx_comparison, function(x){
+      get_fdr(x, idx_outliers)
+    })
+    tpr_comparison[b, ] <- sapply(idx_comparison, function(x){
+      get_tpr(x, idx_outliers)
+    })
   }
   
   # Results
@@ -345,7 +345,8 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
 # save(res, file = "RData/sim_4_mean.RData")
 # save(res, file = "RData/sim_5.RData")
 # save(res, file = paste0("RData/sim_p", p, "_ncal_", n_calib, "_n_", n, ".RData"))
-save(res, model_obj, file = paste0("RData/sim_p", p, "_n_", n, "_ntest_", n_test, ".RData"))
+# save(res, model_obj, file = paste0("RData/sim_p", p, "_n_", n, "_ntest_", n_test, ".RData"))
+save(res, model_obj, file = paste0("RData/sim_p", p, "_clean.RData"))
 
 
 # Summary the results

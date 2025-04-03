@@ -164,7 +164,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
                             depth_method = "erld",
                             erld_type = "one_sided_right", 
                             save_data = F)
-    idx_comparison$seq <- unlist(seqobj$outliers)
+    idx_comparison$seq <- unique(unlist(seqobj$outliers))
 
     
     fdr[b, c("ms","seq")] <- sapply(idx_comparison, function(x){
@@ -228,7 +228,6 @@ library(progress)
 source("R/foutlier_cp.R")
 
 n <- 1000   # number of training data (proper training + calibration)
-# n_calib <- 1000   # number of calibration data
 n_test <- 500
 m <- 51
 p <- 20
@@ -279,15 +278,14 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
   )
   fdr_bh <- list(
     T_projdepth = fdr_res,
-    # T_hdepth = fdr_res,
-    esssup = fdr_res,
     projdepth = fdr_res,
-    projdepth_1d = fdr_res,
-    projdepth_2d = fdr_res
-    # ,
+    # projdepth_1d = fdr_res,
+    # projdepth_2d = fdr_res,
+    # T_hdepth = fdr_res,
     # hdepth = fdr_res,
     # hdepth_1d = fdr_res,
-    # hdepth_2d = fdr_res
+    # hdepth_2d = fdr_res,
+    esssup = fdr_res
   )
   tpr_bh <- fdr_bh
   
@@ -312,9 +310,6 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     data_train <- list()
     idx_outliers_train <- (n - n*outlier_rate + 1):n
     for (j in 1:p) {
-      # sim_obj <- sim_ftn(n = n, p = m, outlier_rate = 0)
-      # data_train[[j]] <- sim_obj$data
-      
       sim_obj <- sim_ftn(n = n, p = m, outlier_rate = outlier_rate)
       sim_data_p <- sim_obj$data
       
@@ -392,27 +387,41 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     
     
     # projdepth
-    # raw
-    fdr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[1]], function(x){
+    obj_projdepth <- foutlier_cp(X = data_train, 
+                                 X_test = data_test,
+                                 type = "depth", 
+                                 type_depth = "projdepth",
+                                 train_type = "mixed",
+                                 alpha = alpha,
+                                 seed = b)
+    fdr_bh$projdepth[b, ] <- sapply(obj_projdepth$idx_out, function(x){
       get_fdr(x, idx_outliers)
     })
-    tpr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[1]], function(x){
+    tpr_bh$projdepth[b, ] <- sapply(obj_projdepth$idx_out, function(x){
       get_tpr(x, idx_outliers)
     })
-    # 1st derivative
-    fdr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[2]], function(x){
-      get_fdr(x, idx_outliers)
-    })
-    tpr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[2]], function(x){
-      get_tpr(x, idx_outliers)
-    })
-    # 2nd derivative
-    fdr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[3]], function(x){
-      get_fdr(x, idx_outliers)
-    })
-    tpr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[3]], function(x){
-      get_tpr(x, idx_outliers)
-    })
+      
+    # # raw
+    # fdr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[1]], function(x){
+    #   get_fdr(x, idx_outliers)
+    # })
+    # tpr_bh$projdepth[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[1]], function(x){
+    #   get_tpr(x, idx_outliers)
+    # })
+    # # 1st derivative
+    # fdr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[2]], function(x){
+    #   get_fdr(x, idx_outliers)
+    # })
+    # tpr_bh$projdepth_1d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[2]], function(x){
+    #   get_tpr(x, idx_outliers)
+    # })
+    # # 2nd derivative
+    # fdr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[3]], function(x){
+    #   get_fdr(x, idx_outliers)
+    # })
+    # tpr_bh$projdepth_2d[b, ] <- sapply(obj_T_projdepth$idx_out_indiv[[3]], function(x){
+    #   get_tpr(x, idx_outliers)
+    # })
     
     # # hdepth
     # # raw
@@ -442,6 +451,7 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     fit_obj[[b]] <- list(
       T_projdepth = obj_T_projdepth$cp_obj,
       # T_hdepth = obj_T_hdepth$cp_obj,
+      projdepth = obj_projdepth$cp_obj,
       esssup = obj_esssup$cp_obj
     )
     
@@ -455,39 +465,98 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
     arr_test <- abind::abind(data_test, along = 3)
     n_train <- n
     
+    
+    ## train outlier detection
+    # MS plot
+    ms_obj <- msplot(dts = arr_train, plot = F)
+    out_train_ms <- ms_obj$outliers
+    if (length(out_train_ms) > 0) {
+      arr_train_ms <- arr_train[-out_train_ms, , ]
+      n_train_ms <- n_train - length(out_train_ms)
+    } else {
+      arr_train_ms <- arr_train
+      n_train_ms <- n_train
+    }
+    # Sequential transformation
+    seqobj <- seq_transform(arr_train, 
+                            sequence = c("O","D1","D2"),
+                            depth_method = "erld",
+                            erld_type = "one_sided_right", 
+                            save_data = F)
+    out_train_seq <- unique(unlist(seqobj$outliers))
+    if (length(out_train_seq) > 0) {
+      arr_train_seq <- arr_train[-out_train_seq, , ]
+      n_train_seq <- n_train - length(out_train_seq)
+    } else {
+      arr_train_seq <- arr_train
+      n_train_seq <- n_train
+    }
+    
     # Parallel computation
     cl <- makeCluster(n_cores)
     registerDoSNOW(cl)
     pkgs <- c("fdaoutlier")
     res_cv <- foreach(i = 1:n_test, .packages = pkgs) %dopar% {
-      df <- array(NA, dim = c(n_train+1, m, p))
-      df[1:n_train, , ] <- arr_train
-      df[n_train+1, , ] <- arr_test[i, , ]
-      
+      print(i)
       out <- list()
       
       # MS plot
+      df <- array(NA, dim = c(n_train_ms+1, m, p))
+      df[1:n_train_ms, , ] <- arr_train_ms
+      df[n_train_ms+1, , ] <- arr_test[i, , ]
       outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
-      if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
-        out$ms <- idx_test[i]
+      if (length(outlier_ms) > 0 & ((n_train_ms+1) %in% outlier_ms)) {
+        out$ms <- i
       } else {
         out$ms <- integer(0)
       }
       
       # Sequential transformation
+      df <- array(NA, dim = c(n_train_seq+1, m, p))
+      df[1:n_train_seq, , ] <- arr_train_seq
+      df[n_train_seq+1, , ] <- arr_test[i, , ]
       seqobj <- seq_transform(df, 
                               sequence = c("O","D1","D2"),
                               depth_method = "erld",
                               erld_type = "one_sided_right", 
                               seed = b)
       outlier_seq <- unlist(seqobj$outliers)
-      if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
-        out$seq <- idx_test[i]
+      if (length(outlier_seq) > 0 & ((n_train_seq+1) %in% outlier_seq)) {
+        out$seq <- i
       } else {
         out$seq <- integer(0)
       }
       
       return(out)
+      
+      # df <- array(NA, dim = c(n_train+1, m, p))
+      # df[1:n_train, , ] <- arr_train
+      # df[n_train+1, , ] <- arr_test[i, , ]
+      # 
+      # out <- list()
+      # 
+      # # MS plot
+      # outlier_ms <- msplot(dts = df, plot = F, seed = b)$outliers
+      # if (length(outlier_ms) > 0 & ((n_train+1) %in% outlier_ms)) {
+      #   out$ms <- idx_test[i]
+      # } else {
+      #   out$ms <- integer(0)
+      # }
+      # 
+      # # Sequential transformation
+      # seqobj <- seq_transform(df, 
+      #                         sequence = c("O","D1","D2"),
+      #                         depth_method = "erld",
+      #                         erld_type = "one_sided_right", 
+      #                         seed = b)
+      # outlier_seq <- unlist(seqobj$outliers)
+      # if (length(outlier_seq) > 0 & ((n_train+1) %in% outlier_seq)) {
+      #   out$seq <- idx_test[i]
+      # } else {
+      #   out$seq <- integer(0)
+      # }
+      # 
+      # return(out)
     }
     # End parallel backend
     stopCluster(cl)
@@ -533,8 +602,8 @@ for (sim_model_idx in 1:length(sim_ftn_list)) {
   )
   print(df)
 }
-save(res, model_obj, file = paste0("RData/sim_p", p, "_n_", n, "_ntest_", n_test, "_mixed.RData"))
-
+# save(res, model_obj, file = paste0("RData/sim_p", p, "_n_", n, "_ntest_", n_test, "_mixed.RData"))
+save(res, model_obj, file = paste0("RData/sim_p", p, "_mixed.RData"))
 
 # Summary the results
 res2 <- list()
