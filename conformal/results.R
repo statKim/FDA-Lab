@@ -749,6 +749,40 @@ legend("topleft", c("Marginal","Simes","Asymptotic","BH cutoff"),
 # TPR  1.00        1.00        1.00        0.71 
 
 
+### 시뮬레이션 clean setting
+# [[1]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp   esssup.marg  esssup.simes  esssup.asymp
+# FDR    0.080 (0.049)     0.020 (0.026)     0.020 (0.026) 0.070 (0.076) 0.000 (0.000) 0.000 (0.000)
+# TPR    0.995 (0.010)     0.890 (0.282)     0.965 (0.049) 0.279 (0.210) 0.000 (0.000) 0.000 (0.000)
+# projdepth.marg projdepth.simes projdepth.asymp            ms           seq
+# FDR  0.090 (0.057)   0.017 (0.026)   0.016 (0.025) 0.168 (0.047) 0.000 (0.000)
+# TPR  1.000 (0.002)   0.995 (0.013)   0.995 (0.013) 1.000 (0.000) 0.761 (0.063)
+# 
+# [[2]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp   esssup.marg  esssup.simes  esssup.asymp
+# FDR    0.076 (0.055)     0.019 (0.032)     0.017 (0.025) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# TPR    0.990 (0.015)     0.854 (0.318)     0.958 (0.043) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# projdepth.marg projdepth.simes projdepth.asymp            ms           seq
+# FDR  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.636 (0.119) 0.010 (0.100)
+# TPR  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.113 (0.042) 0.011 (0.016)
+# 
+# [[3]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp   esssup.marg  esssup.simes  esssup.asymp
+# FDR    0.077 (0.056)     0.018 (0.030)     0.017 (0.025) 0.004 (0.040) 0.000 (0.000) 0.000 (0.000)
+# TPR    0.975 (0.027)     0.657 (0.443)     0.870 (0.227) 0.001 (0.012) 0.000 (0.000) 0.000 (0.000)
+# projdepth.marg projdepth.simes projdepth.asymp            ms           seq
+# FDR  0.028 (0.066)   0.000 (0.000)   0.000 (0.000) 0.174 (0.047) 0.001 (0.008)
+# TPR  0.049 (0.100)   0.000 (0.000)   0.000 (0.000) 0.931 (0.041) 0.110 (0.046)
+# 
+# [[4]]
+# T_projdepth.marg T_projdepth.simes T_projdepth.asymp   esssup.marg  esssup.simes  esssup.asymp
+# FDR    0.082 (0.055)     0.018 (0.027)     0.020 (0.027) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# TPR    0.975 (0.026)     0.560 (0.469)     0.800 (0.314) 0.000 (0.000) 0.000 (0.000) 0.000 (0.000)
+# projdepth.marg projdepth.simes projdepth.asymp            ms           seq
+# FDR  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 1.000 (0.000) 0.010 (0.100)
+# TPR  0.000 (0.000)   0.000 (0.000)   0.000 (0.000) 0.000 (0.000) 0.001 (0.005)
+
+
 ### 시뮬레이션 mixed setting
 # [[1]]
 # T_projdepth.marg T_projdepth.simes T_projdepth.asymp   esssup.marg  esssup.simes  esssup.asymp

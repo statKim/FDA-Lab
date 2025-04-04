@@ -1,3 +1,289 @@
+
+data <- foutlier_sim_mfd(n = 500, m = 51, p = 20, outlier_rate = 0.1, model = 5, rho = 0.3)
+# length(data$data)
+# data$idx_outliers
+plot(data, p = 1)
+
+
+
+library(mvtnorm)
+
+n <- 100
+m <- 51
+p <- 20
+
+rho <- 0.3
+n_comp <- 9
+
+gr <- seq(0, 1, length.out = m)
+
+
+# autoregressive correlation matrix
+ar1_cor <- function(n, rho) {
+  exponent <- abs(matrix(1:n - 1, nrow = n, ncol = n, byrow = TRUE) - 
+                    (1:n - 1))
+  rho^exponent
+}
+sigma <- ar1_cor(p, rho)*0.49
+
+# nu_k <- sqrt(exp(-(1:p)/4))
+
+j <- 2
+
+X <- array(NA, dim = c(n, m, p))
+# u <- sapply(1:p, function(i){ 0.5*sin(i/2*pi*gr) + 0.5*cos(i/2*pi*gr) })
+# u <- sapply(c(rep(4, 4), 5:20), function(i){ 0.5*sin(i/2*pi*gr) + 0.5*cos(i/2*pi*gr) })
+# u <- 4*gr
+u <- 0.5*sin(p/4*pi*gr) + 0.5*cos(p/4*pi*gr)
+for (i in 1:n) {
+  eps <- rmvnorm(m, sigma = sigma)
+  # u <- runif(p, -1.1, 1.1)
+  # u <- rnorm(1, sd = 0.5)
+  X[i, , ] <- eps + u
+}
+matplot(t(X[, , j]), type = "l", lty = 1, col = "gray")
+
+
+X <- array(NA, dim = c(n, m, p))
+# u <- sapply(1:p, function(i){ ((i+1) %% 2)*sin(i/2*pi*gr) + (i %% 2)*cos(i/2*pi*gr) })
+# u <- sapply(1:p, function(i){ (i %% 2)*sin(i*pi*gr) + ((i+1) %% 2)*cos(i*pi*gr) })
+# u <- sapply(1:p, function(i){ 0.5*sin(i*pi*gr) + 0.5*cos(i*pi*gr) })
+u <- 0.5*sin(p/2*pi*gr) + 0.5*cos(p/2*pi*gr)
+for (i in 1:n) {
+  eps <- rmvnorm(m, sigma = sigma)
+  # u <- sin(4*pi*gr)
+  # u <- cos(8*pi*gr)
+  X[i, , ] <- eps + u
+}
+matlines(t(X[, , j]), type = "l", lty = 1, col = 2)
+
+
+
+
+
+mu <- 4*gr
+# mu <- 5*sin(2*pi*gr)
+# mu <- 5*(gr-1)^2
+mu <- 4*gr + 0.5*sin(p/4*pi*gr) + 0.5*cos(p/4*pi*gr)
+n_comp <- 9
+basis_obj <- create.fourier.basis(nbasis = n_comp)
+basis_ftn <- eval.basis(gr, basis_obj) %>% 
+  apply(2, function(x){ x / sqrt(sum(x^2)) })
+
+# nu_k <- sqrt(exp(-(1:n_comp)/4))
+nu_k <- (n_comp + 1 - (1:n_comp)) / n_comp
+# sigma_eps <- diag(runif(p, 0.1, 0.3))
+sigma_eps <- ar1_cor(m, rho)*0.1
+# sigma <- ar1_cor(p, rho)*0.49
+sigma <- ar1_cor(n_comp, rho)*diag(nu_k)
+
+
+X <- array(NA, dim = c(n, m, p))
+for (i in 1:n) {
+  # z_ij <- diag(nu_k) %*% rmvnorm(n_comp, sigma = sigma)
+  z_ij <- rmvnorm(n_comp, sigma = sigma)
+  eps <- rmvnorm(1, sigma = sigma_eps) %>% 
+    as.numeric()
+  X[i, , ] <- (basis_ftn %*% z_ij) + mu + eps
+}
+matplot(t(X[, , 1]), type = "l", lty = 1, col = "gray")
+
+
+
+mu <- 4*gr
+# mu <- 5*sin(2*pi*(gr-0.3))
+# mu <- 0.5*sin(p/2*pi*gr) + 0.5*cos(p/2*pi*gr)
+# mu <- 0.5*sin(p/2*pi*(gr-0.15)) + 0.5*cos(p/2*pi*(gr-0.15))
+mu <- 4*gr + 0.3*sin(p/2*pi*(gr-0.15)) + 0.3*cos(p/2*pi*(gr-0.15))
+
+n_comp <- 9
+basis_obj <- create.fourier.basis(nbasis = n_comp)
+basis_ftn <- eval.basis(gr, basis_obj) %>% 
+  apply(2, function(x){ x / sqrt(sum(x^2)) })
+X <- array(NA, dim = c(n, m, p))
+# nu_k <- sqrt(exp(-(1:n_comp)/4))
+for (i in 1:n) {
+  # z_ij <- diag(nu_k) %*% rmvnorm(n_comp, sigma = sigma)
+  z_ij <- rmvnorm(n_comp, sigma = sigma)
+  # eps <- rmvnorm(m, sigma = sigma_eps)
+  eps <- rmvnorm(1, sigma = sigma_eps) %>% 
+    as.numeric()
+  X[i, , ] <- (basis_ftn %*% z_ij) + mu + eps
+}
+matlines(t(X[, , 1]), type = "l", lty = 1, col = 2)
+
+
+
+
+
+
+#-----------------------------------------------------
+covfunexp <- function(gridpoints, alpha, beta, nu){
+  d_matrix <- as.matrix(dist(gridpoints, upper = T, diag = T))
+  return(alpha*exp(-beta*(d_matrix^nu)))
+}
+
+
+library(mvtnorm)
+
+n <- 100
+m <- 51
+p <- 20
+
+gr <- seq(0, 1, length.out = m)
+
+n <- 100
+m <- 51
+p <- 20
+
+rho <- 0.3
+rho <- 0
+
+# mu <- 5*sin(2*pi*gr)
+# mu <- 5*(gr-1)^2
+# mu <- 4*gr + 0.5*sin(p/4*pi*gr) + 0.5*cos(p/4*pi*gr)
+# mu <- 0.5*sin(p/2*pi*gr) + 0.5*cos(p/2*pi*gr)
+mu <- 0
+n_comp <- 15
+# basis_obj <- create.fourier.basis(nbasis = n_comp)
+basis_obj <- create.bspline.basis(nbasis = n_comp)
+basis_ftn <- eval.basis(gr, basis_obj) %>% 
+  apply(2, function(x){ x / sqrt(sum(x^2)) })
+
+# mu <- 4*gr
+# nu_k <- sqrt(exp(-(1:n_comp)/4))
+# nu <- (n_comp + 1 - (1:n_comp)) / n_comp * 5
+nu <- (n_comp + 1 - (1:n_comp)) / n_comp
+# sigma_eps <- diag(runif(p, 0.1, 0.3))
+# sigma_eps <- ar1_cor(m, rho)*0.1
+# sigma <- ar1_cor(p, rho)*0.49
+sigma <- ar1_cor(p, rho)
+sigma_eps <- covfunexp(gr, alpha = 1, beta = 1, nu = 1)
+X <- array(NA, dim = c(n, m, p))
+for (i in 1:n) {
+  z_ij <- sapply(nu, function(nu_k){
+    rmvnorm(1, sigma = sigma*nu_k)
+  })
+  eps <- rmvnorm(1, sigma = sigma_eps) %>%
+    as.numeric()
+  X[i, , ] <- (basis_ftn %*% t(z_ij)) + mu + eps
+  # X[i, , ] <- (basis_ftn %*% t(z_ij)) + mu
+}
+matplot(t(X[, , 1]), type = "l", lty = 1, col = "gray")
+
+
+# mu <- 4*gr + 0.1*sin(p*pi*(gr-0.15)) + 0.1*cos(p*pi*(gr-0.15))
+# mu <- 4*gr + 0.5*sin(2*p*pi*gr) + 0.5*cos(2*p*pi*gr)
+# mu <- 4*gr
+# mu <- 0.5*sin(2*p*pi*gr) + 0.5*cos(2*p*pi*gr)
+# sigma_eps <- diag(runif(p, 0.4, 0.6))
+X <- array(NA, dim = c(n, m, p))
+# nu <- (n_comp + 1 - (1:n_comp)) / n_comp * 0.1
+# nu <- (n_comp + 1 - (1:n_comp)) / n_comp
+# nu <- nu*5
+sigma_eps <- covfunexp(gr, alpha = 0.5, beta = 2, nu = 0.2)
+# sigma_eps <- covfunexp(gr, alpha = 2, beta = 2, nu = 0.5)
+for (i in 1:10) {
+  z_ij <- sapply(nu, function(nu_k){
+    rmvnorm(1, sigma = sigma*nu_k)
+    # rmvt(1, sigma = sigma*nu_k, df = 2)
+  })
+  eps <- rmvnorm(1, sigma = sigma_eps) %>%
+    as.numeric()
+  # eps <- rmvnorm(p, sigma = sigma_eps) %>% t()
+  X[i, , ] <- (basis_ftn %*% t(z_ij)) + mu + eps
+  # X[i, , ] <- (basis_ftn %*% t(z_ij)) + mu
+  
+  # # t_i <- runif(1, 0.1, 0.9)
+  # for (j in 1:p) {
+  #   t_i <- runif(1, 0.1, 0.9)
+  #   # X[i, which(gr >= t_i), j] <- X[i, which(gr >= t_i), j] + sample(c(-1, 1), 1) * 2
+  #   X[i, which(gr >= t_i & gr <= t_i + 0.05), j] <- X[i, which(gr >= t_i & gr <= t_i + 0.05), j] + sample(c(-1, 1), 1) * 1.5
+  # }
+  # # t_i <- runif(p, 0.1, 0.9)
+  # # for (j in 1:p) {
+  # #   X[i, which(gr >= t_i[j]), j] <- X[i, which(gr >= t_i[j]), j] + sample(c(-1, 1), 1) * 2
+  # #   # X[i, which(gr >= t_i[j] & gr <= t_i[j] + 0.05), j] <- X[i, which(gr >= t_i[j] & gr <= t_i[j] + 0.05), j] + sample(c(-1, 1), 1) * 3
+  # # }
+}
+matlines(t(X[, , 1]), type = "l", lty = 1, col = 2)
+
+
+
+
+# matplot(X[1, , ], type = "l", lty = 1, col = "gray")
+
+
+
+
+
+
+#-----------------------------------------------------
+
+
+library(mvtnorm)
+
+n <- 100
+m <- 51
+p <- 20
+
+gr <- seq(0, 1, length.out = m)
+
+rho <- 0.3
+rho <- 0
+
+mu <- 0.5*sin(p/2*pi*gr) + 0.5*cos(p/2*pi*gr)
+sigma <- ar1_cor(p, rho)
+sigma_eps <- covfunexp(gr, alpha = 1, beta = 1, nu = 1)
+X <- array(NA, dim = c(n, m, p))
+for (i in 1:n) {
+  eps1 <- sapply(1:m, function(j){
+    rmvnorm(1, sigma = sigma)
+  })
+  eps2 <- rmvnorm(1, sigma = sigma_eps) %>%
+    as.numeric()
+  X[i, , ] <- t(eps1) + mu + eps2
+}
+matplot(t(X[, , 1]), type = "l", lty = 1, col = "gray")
+
+
+mu <- 0.5*sin(p*pi*(gr-0.3)) + 0.5*cos(p*pi*(gr-0.3))
+X <- array(NA, dim = c(n, m, p))
+sigma_eps <- covfunexp(gr, alpha = 1, beta = 2, nu = 0.2)
+# sigma_eps <- covfunexp(gr, alpha = 2, beta = 2, nu = 0.5)
+for (i in 1:10) {
+  eps1 <- sapply(1:m, function(j){
+    rmvnorm(1, sigma = sigma)
+  })
+  eps2 <- rmvnorm(1, sigma = sigma_eps) %>%
+    as.numeric()
+  X[i, , ] <- t(eps1) + mu + eps2
+  
+  # # t_i <- runif(1, 0.1, 0.9)
+  # for (j in 1:p) {
+  #   t_i <- runif(1, 0.1, 0.9)
+  #   # X[i, which(gr >= t_i), j] <- X[i, which(gr >= t_i), j] + sample(c(-1, 1), 1) * 2
+  #   X[i, which(gr >= t_i & gr <= t_i + 0.05), j] <- X[i, which(gr >= t_i & gr <= t_i + 0.05), j] + sample(c(-1, 1), 1) * 1.5
+  # }
+  # # t_i <- runif(p, 0.1, 0.9)
+  # # for (j in 1:p) {
+  # #   X[i, which(gr >= t_i[j]), j] <- X[i, which(gr >= t_i[j]), j] + sample(c(-1, 1), 1) * 2
+  # #   # X[i, which(gr >= t_i[j] & gr <= t_i[j] + 0.05), j] <- X[i, which(gr >= t_i[j] & gr <= t_i[j] + 0.05), j] + sample(c(-1, 1), 1) * 3
+  # # }
+}
+matlines(t(X[, , 1]), type = "l", lty = 1, col = 2)
+
+
+
+# matplot(X[1, , ], type = "l", lty = 1, col = "gray")
+
+
+
+
+
+
+
+
 data <- data.table::fread("../../../adhd200_preprocessed_phenotypics.tsv")
 data <- as.data.frame(data)
 head(data)
